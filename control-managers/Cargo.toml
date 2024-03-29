@@ -1,0 +1,19 @@
+[package]
+name = "control-managers"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mongodb = { version = "2.8.2", features = ["tokio-sync"] }
+serde = "1.0.197"
+toml = "0.8.12"
+
+[[bin]]
+name = "flyt-client-manager"
+path = "src/client-manager-daemon/main.rs"
+
+[[bin]]
+name = "flyt-resource-manager"
+path = "src/resource-manager/main.rs"
