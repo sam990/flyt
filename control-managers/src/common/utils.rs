@@ -5,9 +5,9 @@ pub struct Utils;
 
 impl Utils {
 
-    pub fn read_response<T: Read>(mut stream: T, num_lines: u16 ) -> Vec<String> {
+    pub fn read_response<T: Read>(stream: &mut T, num_lines: u16 ) -> Vec<String> {
     
-        let mut reader = BufReader::new(&mut stream);
+        let mut reader = BufReader::new(stream);
         let mut buf = String::new();
         
         let mut response = Vec::new();
@@ -21,9 +21,9 @@ impl Utils {
         response
     }
 
-    pub fn is_stream_alive<T: Read + Write>(mut stream: T) -> bool {
+    pub fn is_stream_alive<T: Read + Write>(stream: &mut T) -> bool {
         stream.write_all(format!("{}\n", FlytApiCommand::PING).as_bytes()).unwrap();
-        let mut reader = BufReader::new(&mut stream);
+        let mut reader = BufReader::new(stream);
         let mut buf = String::new();
         let read_size = reader.read_line(&mut buf).unwrap();
         read_size > 0

@@ -4,3 +4,7 @@ port =
 user = 
 password = 
 dbname = 
+
+[virt-server-auto-deallocate]
+enabled = true
+grace-period = 60

@@ -1,6 +1,8 @@
 
 
 use crate::bookkeeping::*;
+use crate::common::api_commands::FlytApiCommand;
+use crate::common::utils::Utils;
 
 use std::collections::HashMap;
 use std::io::{ BufRead, BufReader, Write};
@@ -35,10 +37,10 @@ impl<'a> ServerNodesManager<'a> {
         server_nodes.get(ipaddr).cloned()
     }
 
-    // pub fn remove_server_node(&self, ipaddr: &str) {
-    //     let mut server_nodes = self.server_nodes.lock().unwrap();
-    //     server_nodes.remove(ipaddr);
-    // }
+    pub fn remove_server_node(&self, ipaddr: &str) {
+        let mut server_nodes = self.server_nodes.lock().unwrap();
+        server_nodes.remove(ipaddr);
+    }
 
     pub fn get_all_server_nodes(&self) -> Vec<ServerNode> {
         let server_nodes = self.server_nodes.lock().unwrap();
@@ -97,15 +99,15 @@ impl<'a> ServerNodesManager<'a> {
         let mut reader = BufReader::new(stream_clone);
         let mut buffer = String::new();
 
-        server_node.stream.write_all("SEND_GPU_INFO\n".as_bytes()).unwrap();
+        server_node.stream.write_all(format!("{}\n", FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO).as_bytes()).unwrap();
 
         reader.read_line(&mut buffer).unwrap();
 
         if buffer.trim() != "200" {
             let status_code = buffer.clone();
             reader.read_line(&mut buffer).unwrap();
-            println!("SEND_GPU_INFO, Status: {}\n{}", status_code, buffer);
-            return Err(format!("SEND_GPU_INFO, Status: {}\n{}", status_code, buffer));
+            println!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status_code, buffer);
+            return Err(format!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status_code, buffer));
         }
 
         reader.read_line(&mut buffer).unwrap();
@@ -133,7 +135,7 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     }
 
-    pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<Arc<VirtServer>,String> {
+    pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<VirtServer,String> {
         let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
         
         if vm_required_resources.is_none() {
@@ -184,14 +186,14 @@ impl<'a> ServerNodesManager<'a> {
         let mut status = String::new();
         let mut payload = String::new();
 
-        target_server_node.stream.write_all(format!("ALLOCATE_SERVER\n{},{}", vm_required_resources.compute_units, vm_required_resources.memory).as_bytes()).unwrap();
+        target_server_node.stream.write_all(format!("{}\n{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, vm_required_resources.compute_units, vm_required_resources.memory).as_bytes()).unwrap();
 
         reader.read_line(&mut status).unwrap();
         reader.read_line(&mut payload).unwrap();
 
         if status.trim() != "200" {
-            println!("ALLOCATE_SERVER, Status: {}\n{}", status, payload);
-            return Err(format!("ALLOCATE_SERVER, Status: {}\n{}", status, payload));
+            println!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload);
+            return Err(format!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload));
         }
         
         let target_gpu_id = target_gpu_id.unwrap();
@@ -208,13 +210,13 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         
-        let virt_server = Arc::new(VirtServer {
+        let virt_server =VirtServer {
             ipaddr: client_ip.clone(),
             compute_units: vm_required_resources.compute_units,
             memory: vm_required_resources.memory,
-            rpc_id: virt_server_rpc_id,
+            rpc_id: virt_server_rpc_id as u16,
             gpu: target_gpu.clone(),
-        });
+        };
 
         target_server_node.virt_servers.push(virt_server.clone());
         
@@ -222,6 +224,43 @@ impl<'a> ServerNodesManager<'a> {
 
         Ok(virt_server)
 
+    }
+
+    pub fn free_virt_server(&self, virt_ip: String, rpc_id: u16) -> Result<(),String> {
+        
+        let server_node = self.get_server_node(&virt_ip);
+
+        if server_node.is_none() {
+            println!("Server node not found: {}", virt_ip);
+            return Err("Server node not found".to_string());
+        }
+
+        let mut server_node = server_node.unwrap();
+
+        let target_vserver = server_node.virt_servers.iter().find(|virt_server| virt_server.rpc_id == rpc_id);
+
+        if target_vserver.is_none() {
+            println!("Virt server not found: {}", rpc_id);
+            return Err("Virt server not found".to_string());
+        }
+
+
+        server_node.stream.write_all(format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id).as_bytes()).unwrap();
+        let response = Utils::read_response(&mut server_node.stream, 2);
+
+        if response[0] != "200" {
+            println!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]);
+            return Err(format!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]));
+        }
+
+        let target_vserver = target_vserver.unwrap();
+        
+        target_vserver.gpu.write().unwrap().allocated_compute_units -= target_vserver.compute_units;
+        target_vserver.gpu.write().unwrap().allocated_memory -= target_vserver.memory;
+
+        server_node.virt_servers.retain(|virt_server| virt_server.rpc_id != rpc_id);
+        
+        Ok(())
     }
 
     

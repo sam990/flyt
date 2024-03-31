@@ -27,9 +27,8 @@ impl VCudaClientManager {
         let mut change_count = 0u32;
 
         for mut client in self.clients.read().unwrap().iter() {
-            let client_clone = client.try_clone().unwrap();
             client.write_all(format!("{}\n", FlytApiCommand::CLIENTD_VCUDA_PAUSE).as_bytes()).unwrap();
-            let response = Utils::read_response(client_clone, 1);
+            let response = Utils::read_response(&mut client, 2);
             if response[0] == "200" {
                 change_count += 1;
             }
@@ -43,9 +42,8 @@ impl VCudaClientManager {
         let mut change_count = 0u32;
 
         for mut client in self.clients.read().unwrap().iter() {
-            let client_clone = client.try_clone().unwrap();
             client.write_all(format!("{}\n{},{}\n", FlytApiCommand::CLIENTD_VCUDA_CHANGE_VIRT_SERVER, virt_server.address, virt_server.rpc_id).as_bytes()).unwrap();
-            let response = Utils::read_response(client_clone, 1);
+            let response = Utils::read_response(&mut client, 2);
             if response[0] == "200" {
                 change_count += 1;
             }
@@ -60,9 +58,8 @@ impl VCudaClientManager {
         let mut change_count = 0u32;
 
         for mut client in self.clients.read().unwrap().iter() {
-            let client_clone = client.try_clone().unwrap();
             client.write_all(format!("{}\n", FlytApiCommand::CLIENTD_VCUDA_RESUME).as_bytes()).unwrap();
-            let response = Utils::read_response(client_clone, 1);
+            let response = Utils::read_response(&mut client, 2);
             if response[0] == "200" {
                 change_count += 1;
             }
@@ -75,10 +72,10 @@ impl VCudaClientManager {
         stream.write_all(format!("200\n{},{}\n", virt_server.address, virt_server.rpc_id).as_bytes()).unwrap();
     }
 
-    pub fn remove_closed_clients<F: Fn() -> bool>(&self, notify_fn: F) {
-        self.clients.write().unwrap().retain(|c| {
-            let client_clone = c.try_clone().unwrap();
-            Utils::is_stream_alive(client_clone)
+    pub fn remove_closed_clients<F>(&self, notify_fn: F) 
+    where F: Fn() -> bool {
+        self.clients.write().unwrap().retain(| mut c| {
+            Utils::is_stream_alive(&mut c)
         });
 
         if self.clients.write().unwrap().len() == 0 {
