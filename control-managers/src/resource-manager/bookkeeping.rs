@@ -6,6 +6,11 @@ use mongodb::{options::{ClientOptions, ServerAddress, Credential}, sync::Client,
 use serde::{Deserialize, Serialize};
 
 const RESOURCE_MANAGER_CONFIG: &str = "/home/sam/Projects/flyt/control-managers/resource-mgr-config.toml";
+struct ConfigOptions;
+
+impl ConfigOptions {
+    const VIRT_SERVER_DEALLOCATE_TIME: RwLock<Option<Option<u64>>> = RwLock::new(None);
+}
 
 #[derive(Debug, Clone)]
 pub struct GPU {
@@ -37,7 +42,7 @@ pub struct ServerNode {
     pub ipaddr: String,
     pub gpus: Vec<Arc<RwLock<GPU>>>,
     pub stream: TcpStream,
-    pub virt_servers: Vec<Arc<VirtServer>>,
+    pub virt_servers: Vec<VirtServer>,
 }
 
 impl Clone for ServerNode {
@@ -56,26 +61,11 @@ pub struct VirtServer {
     pub ipaddr: String,
     pub compute_units: u64,
     pub memory: u64,
-    pub rpc_id: u64,
+    pub rpc_id: u16,
     pub gpu: Arc<RwLock<GPU>>,
 }
 
-#[derive(Debug)]
-pub struct FlytClientNode {
-    pub ipaddr: String,
-    pub stream: TcpStream,
-    pub virt_server: Arc<VirtServer>,
-}
 
-impl Clone for FlytClientNode {
-    fn clone(&self) -> Self {
-        FlytClientNode {
-            ipaddr: self.ipaddr.clone(),
-            stream: self.stream.try_clone().unwrap(),
-            virt_server: self.virt_server.clone(),
-        }
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VMResources {
@@ -139,4 +129,30 @@ impl VMResourcesGetter {
     }
 
 
+}
+
+
+
+pub fn get_virt_server_deallocate_time() -> Option<u64> {
+
+    if let Some(deallocate_time) = ConfigOptions::VIRT_SERVER_DEALLOCATE_TIME.read().unwrap().clone() {
+        return deallocate_time;
+    }
+
+
+    let mut config_file = File::open(RESOURCE_MANAGER_CONFIG).unwrap();
+    let mut config_str = String::new();
+    config_file.read_to_string(&mut config_str).unwrap();
+
+    let config: Table = config_str.parse::<Table>().unwrap();
+
+    let enabled = config.get("virt-server-auto-deallocate")?.get("enabled")?.as_bool()?;
+    if !enabled {
+        return None;
+    }
+    let deallocate_time = config.get("virt-server-auto-deallocate")?.get("grace-period")?.as_integer()?;
+    let deallocate_time = Some(deallocate_time as u64);
+
+    ConfigOptions::VIRT_SERVER_DEALLOCATE_TIME.write().unwrap().replace(deallocate_time);
+    deallocate_time
 }

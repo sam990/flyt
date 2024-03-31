@@ -58,9 +58,8 @@ impl <'b> ResourceManagerHandler <'b> {
 
 
     fn read_virt_server_details(stream: &mut TcpStream) -> Option<VirtServer> {
-        let mut stream_clone = stream.try_clone().unwrap();
-        stream_clone.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT).as_bytes()).unwrap();
-        let respone = Utils::read_response(stream_clone, 2);
+        stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT).as_bytes()).unwrap();
+        let respone = Utils::read_response(stream, 2);
         if respone[0] == "200" {
             let server_details = respone[1].split(",").collect::<Vec<&str>>();
             if server_details.len() != 2 {
@@ -92,7 +91,7 @@ impl <'b> ResourceManagerHandler <'b> {
     pub fn notify_zero_clients(&self) -> bool {
         let mut stream = TcpStream::connect(format!("{}:{}", self.server_ip, self.server_port)).unwrap();
         stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_ZERO_VCUDA_CLIENTS).as_bytes()).unwrap();
-        let response = Utils::read_response(stream, 1);
+        let response = Utils::read_response(&mut stream, 2);
         response[0] == "200"
     }
 

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod resource_manager_handler;
 mod vcuda_client_handler;
 #[path = "../common/mod.rs"]

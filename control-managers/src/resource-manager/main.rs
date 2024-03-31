@@ -1,6 +1,10 @@
+#![allow(dead_code)]
+
 mod bookkeeping;
 mod servernode_handler;
 mod client_handler;
+#[path = "../common/mod.rs"]
+mod common;
 
 use std::{env, thread};
 
@@ -27,7 +31,7 @@ fn main() {
         });
 
         s.spawn(|| {
-            client_handler.start_flytclient_handler(client_port);
+            client_handler.start_flytclient_handler(client_port, s);
         });
     })
 
