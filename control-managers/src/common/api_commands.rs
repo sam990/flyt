@@ -16,4 +16,6 @@ impl FlytApiCommand {
     pub const RMGR_SNODE_DEALLOC_VIRT_SERVER: &'static str = "RMGR_SNODE_DEALLOC_VIRT_SERVER";
     pub const RMGR_SNODE_SEND_GPU_INFO: &'static str = "RMGR_SNODE_SEND_GPU_INFO";
     pub const RMGR_SNODE_ALLOC_VIRT_SERVER: &'static str = "RMGR_SNODE_ALLOC_VIRT_SERVER";
+    pub const RMGR_SNODE_CHANGE_RESOURCES: &'static str = "RMGR_SNODE_CHANGE_RESOURCES";
+    pub const SNODE_VIRTS_CHANGE_RESOURCES: &'static str = "SNODE_VIRTS_CHANGE_RESOURCES";
 }
