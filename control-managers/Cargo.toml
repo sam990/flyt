@@ -7,8 +7,12 @@ edition = "2021"
 
 [dependencies]
 mongodb = { version = "2.8.2", features = ["tokio-sync"] }
+nix = { version = "0.28.0", features = ["fs"] }
+nvml-wrapper = "0.10.0"
 serde = "1.0.197"
 toml = "0.8.12"
+ipc-rs = { git = "https://github.com/sam990/ipc-rs.git" }
+bytemuck = { version = "1.15.0", features = ["derive"] }
 
 [[bin]]
 name = "flyt-client-manager"
@@ -17,3 +21,7 @@ path = "src/client-manager-daemon/main.rs"
 [[bin]]
 name = "flyt-resource-manager"
 path = "src/resource-manager/main.rs"
+
+[[bin]]
+name = "flyt-node-manager"
+path = "src/servernode-daemon/main.rs"

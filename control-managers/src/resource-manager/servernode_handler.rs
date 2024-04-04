@@ -186,7 +186,7 @@ impl<'a> ServerNodesManager<'a> {
         let mut status = String::new();
         let mut payload = String::new();
 
-        target_server_node.stream.write_all(format!("{}\n{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, vm_required_resources.compute_units, vm_required_resources.memory).as_bytes()).unwrap();
+        target_server_node.stream.write_all(format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory).as_bytes()).unwrap();
 
         reader.read_line(&mut status).unwrap();
         reader.read_line(&mut payload).unwrap();
