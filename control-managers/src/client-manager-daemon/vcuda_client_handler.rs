@@ -1,4 +1,4 @@
-use std::{io::Write, os::unix::net::UnixStream, sync::RwLock, thread::sleep, time::Duration};
+use std::{io::Write, os::unix::net::UnixStream, sync::RwLock, time::Duration};
 use crate::common::api_commands::FlytApiCommand;
 use crate::common::utils::Utils;
 use crate::common::types::MqueueClientControlCommand;
@@ -54,7 +54,12 @@ impl VCudaClientManager {
                 continue;
             }
 
-            let recv_bytes = self.message_queue.recv_type(client.recv_id).unwrap();
+            let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(2));
+            if recv_bytes.is_err() {
+                println!("Error receiving response from client: {}", client.send_id);
+                continue;
+            }
+            let recv_bytes = recv_bytes.unwrap();
             let response = Utils::convert_bytes_to_u32(&recv_bytes);
             if response.is_none() {
                 println!("Error parsing response from client: {}", client.send_id);
@@ -87,7 +92,13 @@ impl VCudaClientManager {
                 continue;
             }
 
-            let recv_bytes = self.message_queue.recv_type(client.recv_id).unwrap();
+            let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(2));
+            if recv_bytes.is_err() {
+                println!("Error receiving response from client: {}", client.send_id);
+                continue;
+            }
+            let recv_bytes = recv_bytes.unwrap();
+
             let response = Utils::convert_bytes_to_u32(&recv_bytes);
             if response.is_none() {
                 println!("Error parsing response from client: {}", client.send_id);
@@ -118,7 +129,13 @@ impl VCudaClientManager {
                 continue;
             }
 
-            let recv_bytes = self.message_queue.recv_type(client.recv_id).unwrap();
+            let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(2));
+            if recv_bytes.is_err() {
+                println!("Error receiving response from client: {}", client.send_id);
+                continue;
+            }
+            let recv_bytes = recv_bytes.unwrap();
+            
             let response = Utils::convert_bytes_to_u32(&recv_bytes);
             if response.is_none() {
                 println!("Error parsing response from client: {}", client.send_id);
@@ -142,13 +159,9 @@ impl VCudaClientManager {
 
     pub fn remove_closed_clients<F>(&self, notify_fn: F) 
     where F: Fn() -> bool {
-        for client in self.clients.read().unwrap().iter() {
-            Utils::send_ping_command(&self.message_queue, client.send_id).unwrap();
-        }
-        sleep(Duration::from_secs(1));
 
         self.clients.write().unwrap().retain(|client| {
-            Utils::received_ping_response(&self.message_queue, client.recv_id)
+            Utils::is_ping_active(&self.message_queue, client.send_id, client.recv_id)
         });
 
         if self.clients.write().unwrap().len() == 0 {

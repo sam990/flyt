@@ -11,6 +11,7 @@ pub struct GPU {
     pub total_cores: u32,
     pub max_clock: u32,
     pub gpu_id: u32,
+    pub virt_servers: Vec<u32>
 }
 
 pub fn get_all_gpus() -> Option<Vec<GPU>> {
@@ -47,7 +48,8 @@ pub fn get_all_gpus() -> Option<Vec<GPU>> {
             sm_cores: sm_cores,
             total_cores: total_cores,
             max_clock: max_clock,
-            gpu_id: gpu_id
+            gpu_id: gpu_id,
+            virt_servers: Vec::new()
         });
     }
 

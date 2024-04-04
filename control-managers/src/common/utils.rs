@@ -1,4 +1,5 @@
 use std::io::{BufRead, BufReader, Read, Write};
+use std::time::Duration;
 use ipc_rs::MessageQueue;
 
 use crate::common::api_commands::FlytApiCommand;
@@ -32,13 +33,11 @@ impl Utils {
         read_size > 0
     }
 
-    pub fn send_ping_command(mqueue: &MessageQueue, send_id: i64) -> Result<(), ipc_rs::IpcError> {
-        let bytes = MqueueClientControlCommand::new(FlytApiCommand::PING, "").as_bytes();
-        mqueue.send(&bytes, send_id)
-    }
-
-    pub fn received_ping_response(mqueue: &MessageQueue, recv_id: i64) -> bool {
-        mqueue.recv_type_nonblocking(recv_id).is_ok()
+    pub fn is_ping_active(mqueue: &MessageQueue, send_id: i64, recv_id: i64) -> bool {
+        let cmd = MqueueClientControlCommand::new(FlytApiCommand::PING, "").as_bytes();
+        mqueue.send(&cmd, send_id).unwrap();
+        let response = mqueue.recv_type_timed(recv_id, Duration::from_secs(2));
+        response.is_ok()
     }
 
 
