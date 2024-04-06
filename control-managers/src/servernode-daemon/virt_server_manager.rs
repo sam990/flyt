@@ -3,7 +3,6 @@ use ipc_rs::MessageQueue;
 use crate::common::{api_commands::FlytApiCommand, types::MqueueClientControlCommand, utils::Utils};
 
 const PROJ_ID: i32 = 0x42;
-const VIRT_SERVER_PROGRAM: &str = "cricket-rpc-server";
 
 #[derive(Clone)]
 struct VirtServer {
@@ -20,13 +19,14 @@ pub struct VirtServerManager {
     counter: Mutex<u32>,
     virts_servers: Mutex<HashMap<u32,VirtServer>>,
     message_queue: MessageQueue,
+    virt_server_program_path: String,
 }
 
 
 
 impl VirtServerManager {
 
-    pub fn new(mqueu_path: &str) -> VirtServerManager {
+    pub fn new(mqueu_path: &str, virt_server_program_path: String) -> VirtServerManager {
 
         let key = ipc_rs::PathProjectIdKey::new(mqueu_path.to_string(), PROJ_ID);
         let message_queue = MessageQueue::new(ipc_rs::MessageQueueKey::PathKey(key)).create().init().unwrap();
@@ -36,6 +36,7 @@ impl VirtServerManager {
             counter: Mutex::new(0),
             virts_servers: Mutex::new(HashMap::new()),
             message_queue: message_queue,
+            virt_server_program_path
         }
     }
 
@@ -63,7 +64,7 @@ impl VirtServerManager {
         let send_id = rpc_id as i64;
         let recv_id = send_id << 32;
 
-        let virt_server_process = Command::new(VIRT_SERVER_PROGRAM)
+        let virt_server_process = Command::new(self.virt_server_program_path.as_str())
             .env("CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=25", gpu_cores_percentage.to_string())
             .arg(rpc_id.to_string())
             .arg(gpu_id.to_string())

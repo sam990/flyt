@@ -5,10 +5,10 @@ mod vcuda_client_handler;
 #[path = "../common/mod.rs"]
 mod common;
 
-use std::fs::File;
-use std::io::Read;
+
+
 use std::thread;
-use toml::Table;
+use common::utils::Utils;
 use vcuda_client_handler::VCudaClientManager;
 
 use crate::resource_manager_handler::ResourceManagerHandler;
@@ -16,23 +16,12 @@ use crate::resource_manager_handler::ResourceManagerHandler;
 const CONFIG_PATH: &str = "/home/sam/Projects/flyt/control-managers/client-mgr.toml";
 
 fn get_mqueue_path() -> String {
-    let mut file = File::open(CONFIG_PATH).unwrap();
-    let mut contents = String::new();
-
-    file.read_to_string(&mut contents).unwrap();
-
-    let config = contents.parse::<Table>().unwrap();
-
-    config["vcuda-client"]["mqueue-path"].as_str().unwrap().to_string()
+    let config = Utils::load_config_file(CONFIG_PATH);
+    config["ipc"]["mqueue-path"].as_str().unwrap().to_string()
 }
 
 fn get_vcuda_process_monitor_period() -> u64 {
-    let mut file = File::open(CONFIG_PATH).unwrap();
-    let mut contents = String::new();
-
-    file.read_to_string(&mut contents).unwrap();
-
-    let config = contents.parse::<Table>().unwrap();
+    let config = Utils::load_config_file(CONFIG_PATH);
 
     let period = || -> Option<u64> {
         Some(config.get("vcuda-client")?.get("process_monitor_period")?.as_integer()? as u64)
@@ -45,12 +34,7 @@ fn get_vcuda_process_monitor_period() -> u64 {
 }
 
 fn get_resource_mgr_address() -> (String, u16) {
-    let mut file = File::open(CONFIG_PATH).unwrap();
-    let mut contents = String::new();
-
-    file.read_to_string(&mut contents).unwrap();
-
-    let config = contents.parse::<Table>().unwrap();
+    let config = Utils::load_config_file(CONFIG_PATH);
 
     (config["resource-manager"]["address"].as_str().unwrap().to_string(), config["resource-manager"]["port"].as_integer().unwrap() as u16)
 }

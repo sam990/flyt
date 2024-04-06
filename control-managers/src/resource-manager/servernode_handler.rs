@@ -135,7 +135,7 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     }
 
-    pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<VirtServer,String> {
+    pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<Arc<RwLock<VirtServer>>,String> {
         let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
         
         if vm_required_resources.is_none() {
@@ -210,13 +210,13 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         
-        let virt_server =VirtServer {
+        let virt_server = Arc::new(RwLock::new(VirtServer {
             ipaddr: client_ip.clone(),
             compute_units: vm_required_resources.compute_units,
             memory: vm_required_resources.memory,
             rpc_id: virt_server_rpc_id as u16,
             gpu: target_gpu.clone(),
-        };
+        }));
 
         target_server_node.virt_servers.push(virt_server.clone());
         
@@ -237,7 +237,7 @@ impl<'a> ServerNodesManager<'a> {
 
         let mut server_node = server_node.unwrap();
 
-        let target_vserver = server_node.virt_servers.iter().find(|virt_server| virt_server.rpc_id == rpc_id);
+        let target_vserver = server_node.virt_servers.iter().find(|virt_server| virt_server.read().unwrap().rpc_id == rpc_id);
 
         if target_vserver.is_none() {
             println!("Virt server not found: {}", rpc_id);
@@ -255,15 +255,65 @@ impl<'a> ServerNodesManager<'a> {
 
         let target_vserver = target_vserver.unwrap();
         
-        target_vserver.gpu.write().unwrap().allocated_compute_units -= target_vserver.compute_units;
-        target_vserver.gpu.write().unwrap().allocated_memory -= target_vserver.memory;
+        target_vserver.read().unwrap().gpu.write().unwrap().allocated_compute_units -= target_vserver.read().unwrap().compute_units;
+        target_vserver.read().unwrap().gpu.write().unwrap().allocated_memory -= target_vserver.read().unwrap().memory;
 
-        server_node.virt_servers.retain(|virt_server| virt_server.rpc_id != rpc_id);
+        server_node.virt_servers.retain(|virt_server| virt_server.read().unwrap().rpc_id != rpc_id);
         
         Ok(())
     }
 
+    pub fn change_resource_configurations(&self, server_ip: &String, rpc_id: u16, compute_units: u64, memory: u64) -> Result<(),String> {
+        let server_node = self.get_server_node(server_ip);
+
+        if server_node.is_none() {
+            println!("Server node not found: {}", server_ip);
+            return Err("Server node not found".to_string());
+        }
+
+        let mut server_node = server_node.unwrap();
+
+        let target_vserver = server_node.virt_servers.iter_mut().find(|virt_server| virt_server.read().unwrap().rpc_id == rpc_id);
+
+        if target_vserver.is_none() {
+            println!("Virt server not found: {}", rpc_id);
+            return Err("Virt server not found".to_string());
+        }
+
+        let target_vserver = target_vserver.unwrap();
+
+        let tgpu = target_vserver.read().unwrap().gpu.clone();
+
+        let mut gpu = tgpu.write().unwrap();
+
+        let compute_units_diff = compute_units - target_vserver.read().unwrap().compute_units;
+        let memory_diff = memory - target_vserver.read().unwrap().memory;
+
+        if compute_units_diff > gpu.compute_units - gpu.allocated_compute_units || memory_diff > gpu.memory - gpu.allocated_memory {
+            println!("Not enough resources to allocate");
+            return Err("Not enough resources to allocate".to_string());
+        }
+
+        // call the server node
+
+        server_node.stream.write_all(format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_CHANGE_RESOURCES, rpc_id, compute_units, memory).as_bytes()).unwrap();
+        let response = Utils::read_response(&mut server_node.stream, 2);
+
+        if response[0] != "200" {
+            println!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]);
+            return Err(format!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]));
+        }
+
+        gpu.allocated_compute_units += compute_units_diff;
+        gpu.allocated_memory += memory_diff;
+
+        target_vserver.write().unwrap().compute_units = compute_units;
+        target_vserver.write().unwrap().memory = memory;
+
+        Ok(())
     
+
+    }
 
 }
 

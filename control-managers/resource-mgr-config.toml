@@ -9,5 +9,5 @@ dbname =
 enabled = true
 grace-period = 60
 
-[communication]
-mqueue-path = "/tmp/flyt-servernode-queue"
+[ipc]
+mqueue-path = "/tmp/flyt-rmgr-queue"
