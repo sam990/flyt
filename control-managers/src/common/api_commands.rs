@@ -19,3 +19,10 @@ impl FlytApiCommand {
     pub const RMGR_SNODE_CHANGE_RESOURCES: &'static str = "RMGR_SNODE_CHANGE_RESOURCES";
     pub const SNODE_VIRTS_CHANGE_RESOURCES: &'static str = "SNODE_VIRTS_CHANGE_RESOURCES";
 }
+
+pub struct FrontEndCommand;
+
+impl FrontEndCommand {
+    pub const LIST_VMS: &'static str = "LIST_VMS";
+    pub const LIST_SERVER_NODES: &'static str = "LIST_SERVER_NODES";
+}

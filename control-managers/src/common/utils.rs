@@ -1,6 +1,8 @@
+use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Duration;
 use ipc_rs::MessageQueue;
+use toml::Table;
 
 use crate::common::api_commands::FlytApiCommand;
 use crate::common::types::MqueueClientControlCommand;
@@ -46,5 +48,14 @@ impl Utils {
            return None;
        }
        Some(u32::from_be_bytes(bytes.try_into().unwrap()))    
+    }
+
+    pub fn load_config_file(config_path: &str) -> Table {
+        let mut file = File::open(config_path).unwrap();
+        let mut contents = String::new();
+    
+        file.read_to_string(&mut contents).unwrap();
+    
+        contents.parse::<Table>().unwrap()
     }
 }

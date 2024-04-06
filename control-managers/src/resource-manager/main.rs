@@ -3,6 +3,7 @@
 mod bookkeeping;
 mod servernode_handler;
 mod client_handler;
+mod frontend_handler;
 #[path = "../common/mod.rs"]
 mod common;
 

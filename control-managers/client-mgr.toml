@@ -4,4 +4,6 @@ port = 8000
 
 [vcuda-client]
 process-monitor-period = 60
+
+[ipc]
 mqueue-path = "/tmp/flyt-client-mgr"

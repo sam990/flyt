@@ -1,0 +1,9 @@
+[resource-manager]
+address = "192.165.32.54"
+port = 8000
+
+[virt-server]
+program-path = ""
+
+[ipc]
+mqueue-path = "/tmp/flyt-servernode-queue"

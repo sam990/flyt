@@ -5,6 +5,8 @@ use toml::Table;
 use mongodb::{options::{ClientOptions, ServerAddress, Credential}, sync::Client, sync::Collection, bson::doc};
 use serde::{Deserialize, Serialize};
 
+use crate::common::utils::Utils;
+
 const RESOURCE_MANAGER_CONFIG: &str = "/home/sam/Projects/flyt/control-managers/resource-mgr-config.toml";
 struct ConfigOptions;
 
@@ -42,7 +44,7 @@ pub struct ServerNode {
     pub ipaddr: String,
     pub gpus: Vec<Arc<RwLock<GPU>>>,
     pub stream: TcpStream,
-    pub virt_servers: Vec<VirtServer>,
+    pub virt_servers: Vec<Arc<RwLock<VirtServer>>>,
 }
 
 impl Clone for ServerNode {
@@ -84,11 +86,7 @@ pub struct VMResourcesGetter {
 impl VMResourcesGetter {
 
     pub fn new() -> Self {
-        let mut config_file = File::open(RESOURCE_MANAGER_CONFIG).unwrap();
-        let mut config_str = String::new();
-        config_file.read_to_string(&mut config_str).unwrap();
-
-        let config: Table = config_str.parse::<Table>().unwrap();
+        let config: Table = Utils::load_config_file(RESOURCE_MANAGER_CONFIG);
 
         let get_collection = || -> Option<Collection<VMResources>> {
 
@@ -115,7 +113,7 @@ impl VMResourcesGetter {
             Some(client.database(db_dbname).collection("vm_required_resources"))
         };
 
-        VMResourcesGetter {
+        Self {
             mongo_collection: get_collection(),
         }
 
