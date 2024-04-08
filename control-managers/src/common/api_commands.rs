@@ -25,4 +25,8 @@ pub struct FrontEndCommand;
 impl FrontEndCommand {
     pub const LIST_VMS: &'static str = "LIST_VMS";
     pub const LIST_SERVER_NODES: &'static str = "LIST_SERVER_NODES";
+    pub const LIST_VIRT_SERVERS: &'static str = "LIST_VIRT_SERVERS";
+    pub const CHANGE_SM_CORES: &'static str = "CHANGE_SM_CORES";
+    pub const CHANGE_MEMORY: &'static str = "CHANGE_MEMORY";
+    pub const CHANGE_SM_CORES_AND_MEMORY: &'static str = "CHANGE_SM_CORES_AND_MEMORY";
 }

@@ -122,7 +122,7 @@ impl<'a> ServerNodesManager<'a> {
             let gpu = Arc::new(RwLock::new (GPU {
                 name: gpu_info[0].to_string(),
                 memory: gpu_info[1].parse::<u64>().unwrap(),
-                compute_units: gpu_info[2].parse::<u64>().unwrap(),
+                compute_units: gpu_info[2].parse::<u32>().unwrap(),
                 compute_power: gpu_info[3].parse::<u64>().unwrap(),
                 gpu_id: gpu_info[4].parse::<u64>().unwrap(),
                 ..Default::default()
@@ -254,16 +254,21 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         let target_vserver = target_vserver.unwrap();
-        
-        target_vserver.read().unwrap().gpu.write().unwrap().allocated_compute_units -= target_vserver.read().unwrap().compute_units;
-        target_vserver.read().unwrap().gpu.write().unwrap().allocated_memory -= target_vserver.read().unwrap().memory;
+
+        {
+            let target_vserver_lock_guard = target_vserver.read().unwrap();
+            let mut gpu_write_lock_guard = target_vserver_lock_guard.gpu.write().unwrap();
+
+            gpu_write_lock_guard.allocated_compute_units -= target_vserver_lock_guard.compute_units;
+            gpu_write_lock_guard.allocated_memory -= target_vserver_lock_guard.memory;
+        }
 
         server_node.virt_servers.retain(|virt_server| virt_server.read().unwrap().rpc_id != rpc_id);
         
         Ok(())
     }
 
-    pub fn change_resource_configurations(&self, server_ip: &String, rpc_id: u16, compute_units: u64, memory: u64) -> Result<(),String> {
+    pub fn change_resource_configurations(&self, server_ip: &String, rpc_id: u16, compute_units: u32, memory: u64) -> Result<(),String> {
         let server_node = self.get_server_node(server_ip);
 
         if server_node.is_none() {
@@ -281,13 +286,13 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         let target_vserver = target_vserver.unwrap();
+        let mut target_vserver_write_guard = target_vserver.write().unwrap();
 
-        let tgpu = target_vserver.read().unwrap().gpu.clone();
-
+        let tgpu = target_vserver_write_guard.gpu.clone();
         let mut gpu = tgpu.write().unwrap();
 
-        let compute_units_diff = compute_units - target_vserver.read().unwrap().compute_units;
-        let memory_diff = memory - target_vserver.read().unwrap().memory;
+        let compute_units_diff = compute_units - target_vserver_write_guard.compute_units;
+        let memory_diff = memory - target_vserver_write_guard.memory;
 
         if compute_units_diff > gpu.compute_units - gpu.allocated_compute_units || memory_diff > gpu.memory - gpu.allocated_memory {
             println!("Not enough resources to allocate");
@@ -307,8 +312,8 @@ impl<'a> ServerNodesManager<'a> {
         gpu.allocated_compute_units += compute_units_diff;
         gpu.allocated_memory += memory_diff;
 
-        target_vserver.write().unwrap().compute_units = compute_units;
-        target_vserver.write().unwrap().memory = memory;
+        target_vserver_write_guard.compute_units = compute_units;
+        target_vserver_write_guard.memory = memory;
 
         Ok(())
     

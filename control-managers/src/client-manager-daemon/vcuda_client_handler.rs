@@ -170,7 +170,7 @@ impl VCudaClientManager {
         }
     }
 
-    pub fn listen_to_clients(&self) {
+    pub fn listen_to_clients<F>(&self, virt_server_getter: F) where F: Fn() -> Option<VirtServer> {
         let key = PathProjectIdKey::new(self.mqueue_path.clone(), PROJ_ID);
         let message_queue = MessageQueue::new(MessageQueueKey::PathKey(key)).create().init().unwrap();
 
@@ -183,12 +183,26 @@ impl VCudaClientManager {
             }
             let client_pid = client_pid.unwrap();
             
-            let recive_id = ((client_pid as u64) << 32 ) | client_pid as u64;
+            let receive_id = (client_pid as u64) << 32;
 
             let client_msg_id = ClientMessageTypeId {
                 send_id: client_pid as i64,
-                recv_id: recive_id as i64
+                recv_id: receive_id as i64
             };
+
+            let virt_server = virt_server_getter();
+            if virt_server.is_none() {
+                println!("Error getting virt server details");
+                
+                let bytes = MqueueClientControlCommand::new("500", "").as_bytes();
+                message_queue.send(&bytes, client_msg_id.send_id).unwrap();
+                continue;
+            }
+
+            let virt_server = virt_server.unwrap();
+            let address_str = format!("{},{}", virt_server.address, virt_server.rpc_id);
+            let bytes = MqueueClientControlCommand::new("200", &address_str).as_bytes();
+            message_queue.send(&bytes, client_msg_id.send_id).unwrap();
 
             self.add_client(client_msg_id);
 

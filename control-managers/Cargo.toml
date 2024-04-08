@@ -13,6 +13,8 @@ serde = "1.0.197"
 toml = "0.8.12"
 ipc-rs = { git = "https://github.com/sam990/ipc-rs.git" }
 bytemuck = { version = "1.15.0", features = ["derive"] }
+clap = { version = "4.5.4", features = ["cargo", "derive"] }
+comfy-table = "7.1.1"
 
 [[bin]]
 name = "flyt-client-manager"
@@ -25,3 +27,7 @@ path = "src/resource-manager/main.rs"
 [[bin]]
 name = "flyt-node-manager"
 path = "src/servernode-daemon/main.rs"
+
+[[bin]]
+name = "rmgr-cli"
+path = "src/resource-manager/cli_frontend.rs"
