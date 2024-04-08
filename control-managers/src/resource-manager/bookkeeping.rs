@@ -18,11 +18,11 @@ impl ConfigOptions {
 pub struct GPU {
     pub name: String,
     pub memory: u64,
-    pub compute_units: u64,
+    pub compute_units: u32,
     pub compute_power: u64,
     pub gpu_id: u64,
     pub allocated_memory: u64,
-    pub allocated_compute_units: u64,
+    pub allocated_compute_units: u32,
 }
 
 impl Default for GPU {
@@ -61,7 +61,7 @@ impl Clone for ServerNode {
 #[derive(Debug, Clone)]
 pub struct VirtServer {
     pub ipaddr: String,
-    pub compute_units: u64,
+    pub compute_units: u32,
     pub memory: u64,
     pub rpc_id: u16,
     pub gpu: Arc<RwLock<GPU>>,
@@ -73,7 +73,7 @@ pub struct VirtServer {
 pub struct VMResources {
     pub vm_ip: String,
     pub host_ip: String,
-    pub compute_units: u64,
+    pub compute_units: u32,
     pub memory: u64,
 }
 

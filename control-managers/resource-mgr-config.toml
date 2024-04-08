@@ -11,3 +11,4 @@ grace-period = 60
 
 [ipc]
 mqueue-path = "/tmp/flyt-rmgr-queue"
+frontend-socket = "/tmp/flyt-frontend-socket"
