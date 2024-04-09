@@ -2,6 +2,7 @@
 #define _CD_COMMON_H_
 
 #include <rpc/rpc.h>
+#include <semaphore.h>
 #include "list.h"
 
 #define CD_SOCKET_PATH "/tmp/cricketd_sock"
@@ -30,6 +31,15 @@ int shm_enabled;
 
 CLIENT *clnt;
 list kernel_infos;
+
+// semaphore
+sem_t access_sem;
+
+#define FUNC_BEGIN \
+    sem_wait(&access_sem);
+
+#define FUNC_END \
+    sem_post(&access_sem);
 
 #endif //_CD_COMMON_H_
 

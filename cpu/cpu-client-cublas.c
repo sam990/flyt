@@ -26,7 +26,9 @@ cublasStatus_t cublasCreate_v2(cublasHandle_t* handle)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublascreate_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -43,7 +45,9 @@ cublasStatus_t cublasDestroy_v2(cublasHandle_t handle)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasdestroy_1((ptr)handle, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -60,11 +64,13 @@ cublasStatus_t cublasSetWorkspace_v2(cublasHandle_t handle, void* workspace, siz
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublassetworkspace_1(
         (ptr)handle,
         (ptr)workspace,
         workspaceSizeInBytes,
         &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -78,10 +84,12 @@ cublasStatus_t cublasSetStream_v2(cublasHandle_t handle, cudaStream_t streamId)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublassetstream_1(
         (ptr)handle,
         (ptr)streamId,
         &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -102,10 +110,12 @@ cublasStatus_t cublasGetMathMode(cublasHandle_t handle, cublasMath_t *mode)
 
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasgetmathmode_1(
         (ptr)handle,
         &result, clnt
     );
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -122,10 +132,12 @@ cublasStatus_t cublasSetMathMode(cublasHandle_t handle, cublasMath_t mode)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublassetmathmode_1(
         (ptr)handle,
         (int)mode,
         &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -313,6 +325,7 @@ cublasStatus_t cublasSgemv_v2(cublasHandle_t handle,
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublassgemv_1(
         (ptr)handle,
         (int)trans,
@@ -323,6 +336,7 @@ cublasStatus_t cublasSgemv_v2(cublasHandle_t handle,
         *beta,
         (ptr)y, incy,
          &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -345,6 +359,7 @@ cublasOperation_t trans,
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasdgemv_1(
         (ptr)handle,
         (int)trans,
@@ -355,6 +370,7 @@ cublasOperation_t trans,
         *beta,
         (ptr)y, incy,
          &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -532,6 +548,7 @@ cublasStatus_t cublasSgemm_v2(cublasHandle_t handle,
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublassgemm_1(
         (ptr)handle,
         (int)transa,
@@ -543,6 +560,7 @@ cublasStatus_t cublasSgemm_v2(cublasHandle_t handle,
         *beta,
         (ptr)C, ldc,
          &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -564,6 +582,7 @@ cublasStatus_t cublasDgemm_v2(cublasHandle_t handle,
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasdgemm_1(
         (ptr)handle,
         (int)transa,
@@ -575,6 +594,7 @@ cublasStatus_t cublasDgemm_v2(cublasHandle_t handle,
         *beta,
         (ptr)C, ldc,
          &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -607,6 +627,7 @@ cublasStatus_t cublasSgemmEx(cublasHandle_t handle,
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublassgemmex_1(
         (ptr)handle,
         (int)transa,
@@ -618,6 +639,7 @@ cublasStatus_t cublasSgemmEx(cublasHandle_t handle,
         *beta,
         (ptr)C, (int)Ctype, ldc,
          &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -809,6 +831,7 @@ cublasStatus_t cublasGemmStridedBatchedEx(cublasHandle_t handle,
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasgemmstridedbatchedex_1(
         (ptr)handle,
         (int)transa,
@@ -833,6 +856,7 @@ cublasStatus_t cublasGemmStridedBatchedEx(cublasHandle_t handle,
         (int)algo,
         &result, clnt
     );
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -865,6 +889,7 @@ cublasStatus_t cublasGemmEx(cublasHandle_t handle,
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasgemmex_1(
         (ptr)handle,
         (int)transa,
@@ -877,6 +902,7 @@ cublasStatus_t cublasGemmEx(cublasHandle_t handle,
         (ptr)C, (int)Ctype, ldc,
         computeType, algo,
          &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -904,6 +930,7 @@ cublasStatus_t cublasSgemmStridedBatched(cublasHandle_t handle,
 
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasgemmstridedbatched_1(
         (ptr)handle,
         (int)transa,
@@ -923,6 +950,7 @@ cublasStatus_t cublasSgemmStridedBatched(cublasHandle_t handle,
         batchCount,
         &result, clnt
     );
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }

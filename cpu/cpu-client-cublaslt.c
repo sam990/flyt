@@ -24,7 +24,9 @@ cublasStatus_t cublasLtCreate(cublasLtHandle_t *lighthandle)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltcreate_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -46,6 +48,7 @@ cublasStatus_t cublasLtMatrixLayoutCreate( cublasLtMatrixLayout_t *matLayout,
 
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatrixlayoutcreate_1(
         type,
         rows,
@@ -54,6 +57,7 @@ cublasStatus_t cublasLtMatrixLayoutCreate( cublasLtMatrixLayout_t *matLayout,
         &result,
         clnt
     );
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -71,7 +75,9 @@ cublasStatus_t cublasLtMatmulPreferenceCreate(cublasLtMatmulPreference_t *pref)
 
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatmulpreferencecreate_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -92,12 +98,14 @@ cublasStatus_t cublasLtMatmulDescCreate( cublasLtMatmulDesc_t *matmulDesc,
 
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatmuldesccreate_1(
         computeType,
         scaleType,
         &result,
         clnt
     );
+    FUNC_END
 
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
@@ -116,7 +124,9 @@ cublasStatus_t cublasLtMatmulDescDestroy(cublasLtMatmulDesc_t matmulDesc)
 
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatmuldescdestroy_1((ptr)matmulDesc, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -142,6 +152,7 @@ cublasStatus_t cublasLtMatmulAlgoGetHeuristic(
 
     matmul_hr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatmulalgogetheuristic_1(
         (ptr)lightHandle,
         (ptr)operationDesc,
@@ -154,6 +165,7 @@ cublasStatus_t cublasLtMatmulAlgoGetHeuristic(
         &result,
         clnt
     );
+    FUNC_END
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -188,7 +200,9 @@ cublasStatus_t cublasLtMatmulPreferenceDestroy(cublasLtMatmulPreference_t pref)
 
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatmulpreferencedestroy_1((ptr)pref, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -203,7 +217,9 @@ cublasStatus_t cublasLtMatrixLayoutDestroy(cublasLtMatrixLayout_t matLayout)
 
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatrixlayoutdestroy_1((ptr)matLayout, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -227,6 +243,7 @@ cublasStatus_t cublasLtMatmulDescSetAttribute(
 
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatmuldescsetattribute_1(
         (ptr)matmulDesc,
         attr,
@@ -234,6 +251,7 @@ cublasStatus_t cublasLtMatmulDescSetAttribute(
 	&result,
 	clnt
     );
+    FUNC_END
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -267,6 +285,7 @@ cublasStatus_t cublasLtMatmul(
 
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_cublasltmatmul_1(
       (ptr)lightHandle,
       (ptr)computeDesc,
@@ -287,6 +306,7 @@ cublasStatus_t cublasLtMatmul(
       &result,
       clnt
     );
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
