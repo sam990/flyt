@@ -17,6 +17,7 @@
 #include "cpu_rpc_prot.h"
 #include "list.h"
 #include "cpu-elf2.h"
+#include "cpu-client-mgr-handler.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
@@ -29,6 +30,7 @@ CLIENT *clnt = NULL;
 list kernel_infos = { 0 };
 
 char server[256];
+unsigned long vers;
 
 INIT_SOCKTYPE
 int connection_is_local = 0;
@@ -43,7 +45,7 @@ int ib_device = 0;
 extern void cpu_runtime_print_api_call_cnt(void);
 #endif // WITH_API_CNT
 
-static void rpc_connect(void)
+static void rpc_connect(char *server_info)
 {
     int isock;
     struct sockaddr_un sock_un = { 0 };
@@ -51,21 +53,26 @@ static void rpc_connect(void)
     struct sockaddr_in local_addr = { 0 };
     struct hostent *hp;
     socklen_t sockaddr_len = sizeof(struct sockaddr_in);
-    unsigned long prog = 0, vers = 0;
+    unsigned long prog = 0;
 
-    char envvar[] = "REMOTE_GPU_ADDRESS";
-
-    if (!getenv(envvar)) {
-        LOG(LOG_ERROR,
-            "Environment variable %s does not exist. It must contain the "
-            "address where the server application is listening.",
-            envvar);
+    splitted_str *splitted = split_string(server_info, ",");
+    
+    if (splitted == NULL) {
+        LOGE(LOG_ERROR, "error splitting server info");
         exit(1);
     }
-    if (strncpy(server, getenv(envvar), 256) == NULL) {
-        LOGE(LOG_ERROR, "strncpy failed.");
+    if (splitted->size != 2) {
+        LOGE(LOG_ERROR, "error parsing server info");
         exit(1);
     }
+
+    strcpy(server, splitted->str[0]);
+
+    vers = strtoul(splitted->str[1], NULL, 10);
+
+    free_splitted_str(splitted);
+    splitted = NULL;
+    
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
 #ifdef WITH_IB
@@ -78,14 +85,6 @@ static void rpc_connect(void)
 #endif // WITH_IB
 
     prog = 99;
-    vers = 1;
-    const char *env_vers = getenv("CRICKET_RPCID");
-    if (env_vers != NULL) {
-        if (sscanf(env_vers, "%lu", &vers) != 1) {
-            LOGE(LOG_ERROR, "error parsing CRICKET_RPCID");
-            exit(1);
-        }
-    }
 
     char *cmd = NULL;
     if (cpu_utils_command(&cmd) != 0) {
@@ -141,26 +140,49 @@ static void rpc_connect(void)
     }
 }
 
-static void repair_connection(int signo)
+void change_server(char *server_info)
 {
-    enum clnt_stat retval_1;
-    int result_1;
-    /*LOGE(LOG_INFO, "Trying connection...");
-    char *printmessage_1_arg1 = "connection test";
-    retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
-    printf("return:%d\n", result_1);
-    if (retval_1 == RPC_SUCCESS) {
-        LOG(LOG_INFO, "connection still okay.");
-        return;
-    }*/
-    LOG(LOG_INFO, "connection dead. Reconnecting...");
-    rpc_connect();
-    LOG(LOG_INFO, "reconnected");
+    if (initialized == 1) {
+        enum clnt_stat retval_1;
+        int result_1;
+        retval_1 = rpc_deinit_1(&result_1, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            LOGE(LOG_ERROR, "error calling rpc_deinit");
+        }
+    }
+    LOG(LOG_INFO, "changing server to %s", server_info);
+    rpc_connect(server_info);
     retval_1 = cuda_device_synchronize_1(&result_1, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "error calling cudaDeviceSynchronize");
     }
 }
+
+// static void repair_connection(int signo)
+// {
+//     enum clnt_stat retval_1;
+//     int result_1;
+//     /*LOGE(LOG_INFO, "Trying connection...");
+//     char *printmessage_1_arg1 = "connection test";
+//     FUNC_BEGIN 
+//     retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
+//     FUNC_END
+//     printf("return:%d\n", result_1);
+//     if (retval_1 == RPC_SUCCESS) {
+//         LOG(LOG_INFO, "connection still okay.");
+//         return;
+//     }*/
+//     LOG(LOG_INFO, "connection dead. Reconnecting...");
+//     rpc_connect();
+//     LOG(LOG_INFO, "reconnected");
+//     FUNC_BEGIN 
+//     retval_1 = cuda_device_synchronize_1(&result_1, clnt);
+//     FUNC_END
+//     if (retval_1 != RPC_SUCCESS) {
+//         LOGE(LOG_ERROR, "error calling cudaDeviceSynchronize");
+//     }
+// }
 
 void __attribute__((constructor)) init_rpc(void)
 {
@@ -171,15 +193,26 @@ void __attribute__((constructor)) init_rpc(void)
 
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     init_log(LOG_LEVEL, __FILE__);
-    rpc_connect();
 
-    initialized = 1;
-    if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
-        LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
+    sem_init(&access_sem, 0, 1); // init semaphore
+
+    char* server_info = init_client_mgr();
+    if (server_info == NULL) {
+        LOGE(LOG_ERROR, "error initializing client manager");
         exit(1);
     }
 
+    rpc_connect(server_info);
+
+    initialized = 1;
+    // if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
+    //     LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
+    //     exit(1);
+    // }
+
+    FUNC_BEGIN 
     retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror(clnt, "call failed");
     }
@@ -208,7 +241,9 @@ void __attribute__((destructor)) deinit_rpc(void)
     enum clnt_stat retval_1;
     int result;
     if (initialized) {
+        FUNC_BEGIN 
         retval_1 = rpc_deinit_1(&result, clnt);
+        FUNC_END
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
         }
@@ -304,8 +339,10 @@ void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress
     LOGE(LOG_DEBUG, "__cudaRegisterVar(fatCubinHandle=%p, hostVar=%p, deviceAddress=%p, "
            "deviceName=%s, ext=%d, size=%zu, constant=%d, global=%d)\n",
            fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
+    FUNC_BEGIN 
     retval_1 = rpc_register_var_1((ptr)fatCubinHandle, (ptr)hostVar, (ptr)deviceAddress, (char*)deviceName, ext, size, constant, global,
                                        &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed.");
     }
@@ -333,9 +370,11 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
     } else {
         LOGE(LOG_DEBUG, "request to register known function: \"%s\"",
              deviceName);
+        FUNC_BEGIN 
         retval_1 = rpc_register_function_1((ptr)fatCubinHandle, (ptr)hostFun,
                                            deviceFun, (char*)deviceName, thread_limit,
                                            &result, clnt);
+        FUNC_END
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
             exit(1);
@@ -372,7 +411,9 @@ void **__cudaRegisterFatBinary(void *fatCubin)
     // the fatbin data structure. Let's allocate some zeroes to avoid segfaults.
     result = (void**)calloc(1, 0x58);
 
+    FUNC_BEGIN 
     retval_1 = rpc_elf_load_1(rpc_fat, (ptr)result, &rpc_result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed.");
     }

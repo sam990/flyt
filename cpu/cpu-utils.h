@@ -19,4 +19,12 @@ kernel_info_t* utils_search_info(list *kernel_infos, const char *kernelname);
 void hexdump(const uint8_t* data, size_t size);
 
 
+typedef struct  {
+    char **str;
+    size_t size;
+} splitted_str;
+
+splitted_str* split_string(const char *str, const char *delim);
+void free_splitted_str(splitted_str *splitted_str);
+
 #endif //_CPU_UTILS_H_

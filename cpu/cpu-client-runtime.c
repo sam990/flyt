@@ -51,7 +51,9 @@ cudaError_t cudaChooseDevice(int* device, const struct cudaDeviceProp* prop)
       .mem_data_len = sizeof(struct cudaDeviceProp),
       .mem_data_val = (void*)prop};
 
+    FUNC_BEGIN 
     retval_1 = cuda_choose_device_1(prop_mem, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -69,7 +71,9 @@ cudaError_t cudaDeviceGetAttribute(int* value, enum cudaDeviceAttr attr, int dev
     int_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_attribute_1((int)attr, device, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -87,7 +91,9 @@ cudaError_t cudaDeviceGetByPCIBusId(int* device, const char* pciBusId)
     int_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_by_pci_bus_id_1((char*)pciBusId, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -105,7 +111,9 @@ cudaError_t cudaDeviceGetCacheConfig(enum cudaFuncCache* pCacheConfig)
     int_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_cache_config_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -123,7 +131,9 @@ cudaError_t cudaDeviceGetLimit(size_t* pValue, enum cudaLimit limit)
     u64_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_limit_1(limit, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -141,7 +151,9 @@ cudaError_t cudaDeviceGetP2PAttribute(int* value, enum cudaDeviceP2PAttr attr, i
     int_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_p2p_attribute_1(attr, srcDevice, dstDevice, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -159,7 +171,9 @@ cudaError_t cudaDeviceGetPCIBusId(char* pciBusId, int len, int device)
     str_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_pci_bus_id_1(len, device, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -177,7 +191,9 @@ cudaError_t cudaDeviceGetSharedMemConfig(enum cudaSharedMemConfig* pConfig)
     int_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_shared_mem_config_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -195,7 +211,9 @@ cudaError_t cudaDeviceGetStreamPriorityRange(int* leastPriority, int* greatestPr
     dint_result result;
     enum clnt_stat retval_1;
 
+    FUNC_BEGIN 
     retval_1 = cuda_device_get_stream_priority_range_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -213,7 +231,9 @@ cudaError_t cudaDeviceReset(void)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_device_reset_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -227,7 +247,9 @@ cudaError_t cudaDeviceSetCacheConfig(enum cudaFuncCache cacheConfig)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_device_set_cache_config_1(cacheConfig, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -241,7 +263,9 @@ cudaError_t cudaDeviceSetLimit(enum cudaLimit limit, size_t value)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_device_set_limit_1(limit, value, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -255,7 +279,9 @@ cudaError_t cudaDeviceSetSharedMemConfig(enum cudaSharedMemConfig config)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_device_set_shared_mem_config_1(config, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -271,10 +297,11 @@ cudaError_t cudaDeviceSynchronize(void)
     enum clnt_stat retval_1;
 
     struct timeval timeout = {.tv_sec = -1, .tv_usec = 0};
-
-    return (clnt_call (clnt, CUDA_DEVICE_SYNCHRONIZE, (xdrproc_t) xdr_void, (caddr_t) NULL,
+    FUNC_BEGIN
+    retval_1 = (clnt_call (clnt, CUDA_DEVICE_SYNCHRONIZE, (xdrproc_t) xdr_void, (caddr_t) NULL,
 		    (xdrproc_t) xdr_int, (caddr_t) &result,
 		    timeout));
+    FUNC_END
     return result;
 }
 
@@ -285,7 +312,9 @@ cudaError_t cudaGetDevice(int* device)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_get_device_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -302,7 +331,9 @@ cudaError_t cudaGetDeviceCount(int* count)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_get_device_count_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -319,7 +350,9 @@ cudaError_t cudaGetDeviceFlags(unsigned int* flags)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_get_device_flags_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -376,7 +409,9 @@ cudaError_t cudaSetDevice(int device)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_set_device_1(device, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -390,7 +425,9 @@ cudaError_t cudaSetDeviceFlags(unsigned int  flags)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_set_device_flags_1(flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -406,7 +443,9 @@ cudaError_t cudaSetValidDevices(int *device_arr, int len)
     enum clnt_stat retval_1;
     mem_data arr_mem = {.mem_data_len = len*sizeof(int),
                         .mem_data_val = (void*)device_arr};
+    FUNC_BEGIN 
     retval_1 = cuda_set_valid_devices_1(arr_mem, len, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -418,7 +457,9 @@ const char* cudaGetErrorName(cudaError_t error)
     str_result result;
     enum clnt_stat retval_1;
     result.str_result_u.str = malloc(128);
+    FUNC_BEGIN 
     retval_1 = cuda_get_error_name_1(error, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -436,7 +477,9 @@ const char* cudaGetErrorString(cudaError_t error)
     str_result result;
     enum clnt_stat retval_1;
     result.str_result_u.str = malloc(256);
+    FUNC_BEGIN 
     retval_1 = cuda_get_error_string_1(error, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -453,7 +496,9 @@ cudaError_t cudaGetLastError(void)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_get_last_error_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -467,7 +512,9 @@ cudaError_t cudaPeekAtLastError(void)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_peek_at_last_error_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -485,7 +532,9 @@ cudaError_t cudaStreamCreate(cudaStream_t* pStream)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_create_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -502,7 +551,9 @@ cudaError_t cudaStreamCreateWithFlags(cudaStream_t* pStream, unsigned int flags)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_create_with_flags_1(flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -519,7 +570,9 @@ cudaError_t cudaStreamCreateWithPriority(cudaStream_t* pStream, unsigned int  fl
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_create_with_priority_1(flags, priority, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -536,7 +589,9 @@ cudaError_t cudaStreamDestroy(cudaStream_t stream)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_destroy_1((ptr)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -556,7 +611,9 @@ cudaError_t cudaStreamGetFlags(cudaStream_t hStream, unsigned int* flags)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_get_flags_1((ptr)hStream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -573,7 +630,9 @@ cudaError_t cudaStreamGetPriority(cudaStream_t hStream, int* priority)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_get_priority_1((ptr)hStream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -593,7 +652,9 @@ cudaError_t cudaStreamIsCapturing(cudaStream_t stream, enum cudaStreamCaptureSta
     if (pCaptureStatus == NULL) {
         return cudaErrorInvalidValue;
     }
+    FUNC_BEGIN 
     retval_1 = cuda_stream_is_capturing_1((ptr)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -610,7 +671,9 @@ cudaError_t cudaStreamQuery(cudaStream_t stream)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_query_1((ptr)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -628,7 +691,9 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_synchronize_1((ptr)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -642,7 +707,9 @@ cudaError_t cudaStreamWaitEvent(cudaStream_t stream, cudaEvent_t event, unsigned
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_stream_wait_event_1((ptr)stream, (ptr)event, flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -656,7 +723,9 @@ cudaError_t cudaThreadExchangeStreamCaptureMode(enum cudaStreamCaptureMode* mode
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_thread_exchange_stream_capture_mode_1(*mode, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -673,7 +742,9 @@ cudaError_t cudaEventCreate(cudaEvent_t* event)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_event_create_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -690,7 +761,9 @@ cudaError_t cudaEventCreateWithFlags(cudaEvent_t* event, unsigned int  flags)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_event_create_with_flags_1(flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -707,7 +780,9 @@ cudaError_t cudaEventDestroy(cudaEvent_t event)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_event_destroy_1((ptr)event, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -721,7 +796,9 @@ cudaError_t cudaEventElapsedTime(float* ms, cudaEvent_t start, cudaEvent_t end)
 #endif //WITH_API_CNT
     float_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_event_elapsed_time_1((ptr)start, (ptr)end, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -738,7 +815,9 @@ cudaError_t cudaEventQuery(cudaEvent_t event)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_event_query_1((ptr)event, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -752,7 +831,9 @@ cudaError_t cudaEventRecord(cudaEvent_t event, cudaStream_t stream)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_event_record_1((ptr)event, (ptr)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -767,7 +848,9 @@ cudaError_t cudaEventSynchronize(cudaEvent_t event)
     int result = -1;
     enum clnt_stat retval_1;
     for (int i=0; result < 0 && i < 10; ++i) {
+        FUNC_BEGIN 
         retval_1 = cuda_event_synchronize_1((ptr)event, &result, clnt);
+        FUNC_END
         if (retval_1 != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");
         }
@@ -793,7 +876,9 @@ cudaError_t cudaFuncGetAttributes(struct cudaFuncAttributes* attr, const void* f
 #endif //WITH_API_CNT
     mem_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_func_get_attributes_1((ptr)func, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -811,7 +896,9 @@ cudaError_t cudaFuncSetAttribute(const void* func, enum cudaFuncAttribute attr, 
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_func_set_attributes_1((ptr)func, attr, value, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -825,7 +912,9 @@ cudaError_t cudaFuncSetCacheConfig(const void* func, enum cudaFuncCache cacheCon
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_func_set_cache_config_1((ptr)func, cacheConfig, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -839,7 +928,9 @@ cudaError_t cudaFuncSetSharedMemConfig(const void* func, enum cudaSharedMemConfi
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_func_set_shared_mem_config_1((ptr)func, config, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -888,7 +979,9 @@ cudaError_t cudaLaunchCooperativeKernel(const void* func, dim3 gridDim, dim3 blo
                args[j],
                size);
     }
+    FUNC_BEGIN 
     retval_1 = cuda_launch_cooperative_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -941,10 +1034,12 @@ cudaError_t cudaLaunchCooperativeKernelMultiDevice(struct cudaLaunchParams* laun
                launchParamsList->args[j],
                size);
     }
+    FUNC_BEGIN 
     retval_1 = cuda_launch_cooperative_kernel_1(
       (uint64_t)func, rpc_gridDim, rpc_blockDim,
       rpc_args, launchParamsList->sharedMem,
       (uint64_t)launchParamsList->stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1000,7 +1095,9 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
                args[j],
                size);
     }
+    FUNC_BEGIN 
     retval_1 = cuda_launch_kernel_1((uint64_t)func, rpc_gridDim, rpc_blockDim, rpc_args, sharedMem, (uint64_t)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1019,7 +1116,9 @@ cudaError_t cudaOccupancyMaxActiveBlocksPerMultiprocessor(int* numBlocks, const 
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_occupancy_max_active_bpm_1((ptr)func, blockSize, dynamicSMemSize, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1036,7 +1135,9 @@ cudaError_t cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(int* numBlock
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_occupancy_max_active_bpm_with_flags_1((ptr)func, blockSize, dynamicSMemSize, flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1053,7 +1154,9 @@ cudaError_t cudaArrayGetInfo(struct cudaChannelFormatDesc* desc, struct cudaExte
 #endif //WITH_API_CNT
     mem_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_array_get_info_1((ptr)array, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1078,7 +1181,9 @@ cudaError_t cudaArrayGetSparseProperties(struct cudaArraySparseProperties* spars
 #endif //WITH_API_CNT
     mem_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_array_get_info_1((ptr)array, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1097,7 +1202,9 @@ cudaError_t cudaFree(void *devPtr)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_free_1((uint64_t)devPtr, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1111,7 +1218,9 @@ cudaError_t cudaFreeArray(cudaArray_t array)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_free_array_1((uint64_t)array, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1153,7 +1262,9 @@ cudaError_t cudaFreeHost(void* ptr)
         munmap(hainfo[i].client_ptr, hainfo[i].size);
         memset(&hainfo[i], 0, sizeof(host_alloc_info_t));
 
+        FUNC_BEGIN 
         retval_1 = cuda_free_host_1(i, &result, clnt);
+        FUNC_END
         if (retval_1 != RPC_SUCCESS) {
             clnt_perror (clnt, "call failed");
         }
@@ -1193,7 +1304,9 @@ cudaError_t cudaGetSymbolAddress(void** devPtr, const void* symbol)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_get_symbol_address_1((ptr)symbol, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1210,7 +1323,9 @@ cudaError_t cudaGetSymbolSize(size_t* size, const void* symbol)
 #endif //WITH_API_CNT
     u64_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_get_symbol_size_1((ptr)symbol, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1233,7 +1348,9 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
     enum clnt_stat retval_1;
     
     if (shm_enabled && connection_is_local == 1) { //Use local shared memory
+        FUNC_BEGIN 
         retval_1 = cuda_host_alloc_1(size, flags, &ret, clnt);
+        FUNC_END
         if (retval_1 != RPC_SUCCESS || ret.err != cudaSuccess) {
             LOGE(LOG_ERROR, "cudaHostAlloc failed on server-side.");
             goto out;
@@ -1263,7 +1380,9 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
         hainfo[hainfo_cnt].client_ptr = *pHost;
         hainfo_cnt++;
         
+        FUNC_BEGIN 
         retval_1 = cuda_host_alloc_regshm_1(ret.sz_result_u.data, (ptr)*pHost, &reg_ret, clnt);
+        FUNC_END
         if (retval_1 != RPC_SUCCESS || ret.err != cudaSuccess) {
             LOGE(LOG_ERROR, "cudaHostAlloc failed on server-side.");
             goto out;
@@ -1282,7 +1401,9 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 
         hainfo_cnt++;
 
+        FUNC_BEGIN 
         retval_1 = RPC_SUCCESS;
+        FUNC_END
         ret.err = cudaSuccess;
 
 #else
@@ -1311,7 +1432,9 @@ cudaError_t cudaHostGetDevicePointer(void** pDevice, void* pHost, unsigned int f
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_host_get_device_pointer_1((ptr)pHost, flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1328,7 +1451,9 @@ cudaError_t cudaHostGetFlags(unsigned int* pFlags, void* pHost)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_host_get_flags_1((ptr)pHost, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1349,7 +1474,9 @@ cudaError_t cudaMalloc(void** devPtr, size_t size)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_malloc_1(size, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1367,7 +1494,9 @@ cudaError_t cudaMalloc3D(struct cudaPitchedPtr* pitchedDevPtr, struct cudaExtent
 #endif //WITH_API_CNT
     pptr_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_malloc_3d_1(extent.depth, extent.height, extent.width, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1393,7 +1522,9 @@ cudaError_t cudaMalloc3DArray(cudaArray_t* array, const struct cudaChannelFormat
         .x = desc->x,
         .y = desc->y,
         .z = desc->z};
+    FUNC_BEGIN 
     retval_1 = cuda_malloc_3d_array_1(rpc_desc, extent.depth, extent.height, extent.width, flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1416,7 +1547,9 @@ cudaError_t cudaMallocArray(cudaArray_t* array, const struct cudaChannelFormatDe
         .x = desc->x,
         .y = desc->y,
         .z = desc->z};
+    FUNC_BEGIN 
     retval_1 = cuda_malloc_array_1(rpc_desc, width, height, flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1437,7 +1570,9 @@ cudaError_t cudaMallocPitch(void** devPtr, size_t* pitch, size_t width, size_t h
 #endif //WITH_API_CNT
     ptrsz_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_malloc_pitch_1(width, height, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1455,7 +1590,9 @@ cudaError_t cudaMemAdvise(const void* devPtr, size_t count, enum cudaMemoryAdvis
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_mem_advise_1((ptr)devPtr, count, advice, device, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1469,7 +1606,9 @@ cudaError_t cudaMemGetInfo(size_t* free, size_t* total)
 #endif //WITH_API_CNT
     dsz_result result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_mem_get_info_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1487,7 +1626,9 @@ cudaError_t cudaMemPrefetchAsync(const void* devPtr, size_t count, int dstDevice
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = cuda_mem_prefetch_async_1((ptr)devPtr, count, dstDevice, (ptr)stream, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }

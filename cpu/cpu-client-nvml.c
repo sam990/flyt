@@ -24,7 +24,9 @@ nvmlReturn_t nvmlInitWithFlags ( unsigned int  flags )
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_nvmlinitwithflags_1(flags, &result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed: %s", __FUNCTION__);
         return result;
@@ -45,7 +47,9 @@ nvmlReturn_t nvmlInit_v2 ( void )
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_nvmlinit_v2_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed: %s", __FUNCTION__);
         return result;
@@ -59,7 +63,9 @@ nvmlReturn_t nvmlShutdown ( void )
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
+    FUNC_BEGIN 
     retval_1 = rpc_nvmlshutdown_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed: %s", __FUNCTION__);
         return result;
@@ -95,7 +101,9 @@ nvmlReturn_t nvmlDeviceGetCount_v2(unsigned int* deviceCount )
     if (deviceCount == NULL) {
         return NVML_ERROR_INVALID_ARGUMENT;
     }
+    FUNC_BEGIN 
     retval_1 = rpc_nvmldevicegetcount_v2_1(&result, clnt);
+    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed: %s", __FUNCTION__);
     }

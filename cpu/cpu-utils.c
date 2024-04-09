@@ -409,3 +409,63 @@ void hexdump(const uint8_t* data, size_t size)
         pos += 16;
     }
 }
+
+splitted_str* split_string(const char *str, const char *delim)
+{
+    splitted_str *splitted = NULL;
+    char *token = NULL;
+    char *str_copy = NULL;
+    char *saveptr = NULL;
+    size_t size = 0;
+    if (str == NULL) {
+        LOGE(LOG_ERROR, "str is NULL.");
+        return NULL;
+    }
+    if (delim == NULL) {
+        LOGE(LOG_ERROR, "delim is NULL.");
+        return NULL;
+    }
+    if ((str_copy = strdup(str)) == NULL) {
+        LOGE(LOG_ERROR, "strdup failed.");
+        return NULL;
+    }
+    if ((splitted = malloc(sizeof(splitted_str))) == NULL) {
+        LOGE(LOG_ERROR, "malloc failed.");
+        goto cleanup;
+    }
+    splitted->str = NULL;
+    splitted->size = 0;
+    token = strtok_r(str_copy, delim, &saveptr);
+    while (token != NULL) {
+        if ((splitted->str = realloc(splitted->str, (splitted->size+1)*sizeof(char*))) == NULL) {
+            LOGE(LOG_ERROR, "realloc failed.");
+            goto cleanup;
+        }
+        if ((splitted->str[splitted->size] = strdup(token)) == NULL) {
+            LOGE(LOG_ERROR, "strdup failed.");
+            goto cleanup;
+        }
+        splitted->size++;
+        token = strtok_r(NULL, delim, &saveptr);
+    }
+ cleanup:
+    free(str_copy);
+    if (splitted != NULL) {
+        free(splitted->str);
+        free(splitted);
+    }
+    return splitted;
+}
+
+void free_splitted_str(splitted_str *splitted_str)
+{
+    if (splitted_str == NULL) {
+        LOGE(LOG_ERROR, "splitted_str is NULL.");
+        return;
+    }
+    for (int i=0; i < splitted_str->size; ++i) {
+        free(splitted_str->str[i]);
+    }
+    free(splitted_str->str);
+    free(splitted_str);
+}
