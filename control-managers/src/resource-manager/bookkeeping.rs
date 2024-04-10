@@ -63,7 +63,7 @@ pub struct VirtServer {
     pub ipaddr: String,
     pub compute_units: u32,
     pub memory: u64,
-    pub rpc_id: u16,
+    pub rpc_id: u64,
     pub gpu: Arc<RwLock<GPU>>,
 }
 

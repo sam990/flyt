@@ -6,7 +6,7 @@ use crate::vcuda_client_handler::VCudaClientManager;
 #[derive(Debug, Clone)]
 pub struct VirtServer {
     pub address: String,
-    pub rpc_id: u16
+    pub rpc_id: u64,
 }
 
 pub struct ResourceManagerHandler<'b> {
@@ -68,7 +68,7 @@ impl <'b> ResourceManagerHandler <'b> {
             }
             Some(VirtServer {
                 address: server_details[0].to_string(),
-                rpc_id: server_details[1].parse::<u16>().unwrap()
+                rpc_id: server_details[1].parse::<u64>().unwrap()
             })
         } else {
             println!("Error getting server details: {} {}", respone[0], respone[1]);
@@ -84,7 +84,7 @@ impl <'b> ResourceManagerHandler <'b> {
         }
         self.virt_server.write().unwrap().replace(VirtServer {
             address: server_details[0].to_string(),
-            rpc_id: server_details[1].parse::<u16>().unwrap()
+            rpc_id: server_details[1].parse::<u64>().unwrap()
         });
     }
 

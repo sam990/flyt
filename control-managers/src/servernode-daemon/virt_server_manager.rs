@@ -6,7 +6,7 @@ const PROJ_ID: i32 = 0x42;
 
 #[derive(Clone)]
 struct VirtServer {
-    id: u32,
+    id: u64,
     gpu_id: u32,
     num_sm_cores: u32,
     gpu_memory: u64,
@@ -16,8 +16,8 @@ struct VirtServer {
 }
 
 pub struct VirtServerManager {
-    counter: Mutex<u32>,
-    virts_servers: Mutex<HashMap<u32,VirtServer>>,
+    counter: Mutex<u64>,
+    virts_servers: Mutex<HashMap<u64,VirtServer>>,
     message_queue: MessageQueue,
     virt_server_program_path: String,
 }
@@ -40,19 +40,19 @@ impl VirtServerManager {
         }
     }
 
-    fn get_virt_server(&self, rpc_id: u32) -> Option<VirtServer> {
+    fn get_virt_server(&self, rpc_id: u64) -> Option<VirtServer> {
         let virt_servers = self.virts_servers.lock().unwrap();
         let virt_server = virt_servers.get(&rpc_id)?;
         Some(virt_server.clone())
     }
 
-    fn update_virt_server(&self, rpc_id: u32, virt_server: VirtServer) {
+    fn update_virt_server(&self, rpc_id: u64, virt_server: VirtServer) {
         let mut virt_servers = self.virts_servers.lock().unwrap();
         virt_servers.insert(rpc_id, virt_server);
     }
 
 
-    pub fn create_virt_server(&self, gpu_id: u32, gpu_memory: u64, num_sm_cores: u32, total_gpu_sm_cores: u32) -> Result<u32,String> {
+    pub fn create_virt_server(&self, gpu_id: u32, gpu_memory: u64, num_sm_cores: u32, total_gpu_sm_cores: u32) -> Result<u64,String> {
         let rpc_id = {
             let mut counter = self.counter.lock().unwrap();
             *counter += 1;
@@ -91,7 +91,7 @@ impl VirtServerManager {
         
     }
 
-    pub fn remove_virt_server(&self, rpc_id: u32) -> Result<(),String> {
+    pub fn remove_virt_server(&self, rpc_id: u64) -> Result<(),String> {
         let mut virt_servers = self.virts_servers.lock().unwrap();
         let virt_server = virt_servers.get(&rpc_id).ok_or("Virt server not found")?;
         
@@ -101,7 +101,7 @@ impl VirtServerManager {
         Ok(())
     }
 
-    pub fn change_resources(&self, rpc_id: u32, new_num_sm_cores: u32, new_gpu_memory: u64) -> Result<(),String> {
+    pub fn change_resources(&self, rpc_id: u64, new_num_sm_cores: u32, new_gpu_memory: u64) -> Result<(),String> {
 
         let mut virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
         let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_VIRTS_CHANGE_RESOURCES, format!("{},{}", new_num_sm_cores, new_gpu_memory).as_str()).as_bytes();
