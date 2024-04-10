@@ -105,7 +105,7 @@ impl ResourceManagerHandler {
 
                 FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER => {
                     reader.read_line(&mut buf).unwrap();
-                    let rpc_id: u32 = buf.trim().parse().unwrap();
+                    let rpc_id: u64 = buf.trim().parse().unwrap();
                     let ret = self.virt_server_manager.remove_virt_server(rpc_id);
                     match ret {
                         Ok(_) => {
@@ -125,7 +125,7 @@ impl ResourceManagerHandler {
                         continue;
                     }
 
-                    let rpc_id: u32 = parts.next().unwrap().parse().unwrap();
+                    let rpc_id: u64 = parts.next().unwrap().parse().unwrap();
                     let num_cores: u32 = parts.next().unwrap().parse().unwrap();
                     let memory: u64 = parts.next().unwrap().parse().unwrap();
 

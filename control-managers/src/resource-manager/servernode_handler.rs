@@ -214,7 +214,7 @@ impl<'a> ServerNodesManager<'a> {
             ipaddr: client_ip.clone(),
             compute_units: vm_required_resources.compute_units,
             memory: vm_required_resources.memory,
-            rpc_id: virt_server_rpc_id as u16,
+            rpc_id: virt_server_rpc_id as u64,
             gpu: target_gpu.clone(),
         }));
 
@@ -226,7 +226,7 @@ impl<'a> ServerNodesManager<'a> {
 
     }
 
-    pub fn free_virt_server(&self, virt_ip: String, rpc_id: u16) -> Result<(),String> {
+    pub fn free_virt_server(&self, virt_ip: String, rpc_id: u64) -> Result<(),String> {
         
         let server_node = self.get_server_node(&virt_ip);
 
@@ -268,7 +268,7 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     }
 
-    pub fn change_resource_configurations(&self, server_ip: &String, rpc_id: u16, compute_units: u32, memory: u64) -> Result<(),String> {
+    pub fn change_resource_configurations(&self, server_ip: &String, rpc_id: u64, compute_units: u32, memory: u64) -> Result<(),String> {
         let server_node = self.get_server_node(server_ip);
 
         if server_node.is_none() {
