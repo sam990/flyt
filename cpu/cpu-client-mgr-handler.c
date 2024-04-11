@@ -57,14 +57,14 @@ static void* cpu_client_mgr_handler(void* arg) {
             msgsnd(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_PAUSE, 64) == 0) {
-            sem_wait(&access_sem);
+            pthread_rwlock_wrlock(&access_sem);
             strcpy(msg.msg.cmd, "200");
             strcpy(msg.msg.data, "VCUDA PAUSED");
             msg.mtype = send_type;
             msgsnd(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_RESUME, 64) == 0) {
-            sem_post(&access_sem);
+            pthread_rwlock_unlock(&access_sem);
             strcpy(msg.msg.cmd, "200");
             strcpy(msg.msg.data, "VCUDA RESUMED");
             msg.mtype = send_type;

@@ -65,11 +65,12 @@ impl VirtServerManager {
         let recv_id = send_id << 32;
 
         let virt_server_process = Command::new(self.virt_server_program_path.as_str())
-            .env("CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=25", gpu_cores_percentage.to_string())
+            .env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
+            .env("CUDA_MPS_ACTIVE_THREAD_PERCENTAGE", gpu_cores_percentage.to_string())
             .arg(rpc_id.to_string())
             .arg(gpu_id.to_string())
-            .arg(gpu_memory.to_string())
             .arg(num_sm_cores.to_string())
+            .arg(gpu_memory.to_string())
             .spawn()
             .map_err(|e| format!("Error starting virt server: {}", e))?;
 
