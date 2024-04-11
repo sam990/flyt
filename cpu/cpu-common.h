@@ -2,7 +2,7 @@
 #define _CD_COMMON_H_
 
 #include <rpc/rpc.h>
-#include <semaphore.h>
+#include <pthread.h>
 #include "list.h"
 
 #define CD_SOCKET_PATH "/tmp/cricketd_sock"
@@ -33,13 +33,13 @@ CLIENT *clnt;
 list kernel_infos;
 
 // semaphore
-sem_t access_sem;
+pthread_rwlock_t access_sem;
 
 #define FUNC_BEGIN \
-    sem_wait(&access_sem);
+    pthread_rwlock_rdlock(&access_sem);
 
 #define FUNC_END \
-    sem_post(&access_sem);
+    pthread_rwlock_unlock(&access_sem);
 
 #endif //_CD_COMMON_H_
 

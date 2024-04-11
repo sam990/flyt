@@ -37,7 +37,7 @@ int shm_enabled = 1;
     int ib_device = 0;
 #endif //WITH_IB
 
-extern gsched_t sched_none;
+extern gsched_fixed_t sched_fixed;
 
 unsigned long prog=0, vers=0;
 
@@ -162,7 +162,7 @@ bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
     return 1;
 }
 
-void cricket_main(size_t prog_num, size_t vers_num)
+void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t num_sm_cores, size_t memory)
 {
     int ret = 1;
     register SVCXPRT *transp;
@@ -270,7 +270,8 @@ void cricket_main(size_t prog_num, size_t vers_num)
     //     cudaRegisterAllv();
     // }
 
-    sched = &sched_none;
+    sched = &sched_fixed;
+    
     if (sched->init() != 0) {
         LOGE(LOG_ERROR, "initializing scheduler failed.");
         goto cleanup4;
@@ -281,7 +282,7 @@ void cricket_main(size_t prog_num, size_t vers_num)
         goto cleanup4;
     }
 
-    if (server_runtime_init(restore) != 0) {
+    if (server_runtime_init(restore, gpu_id) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup3;
     }

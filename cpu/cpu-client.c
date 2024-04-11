@@ -194,7 +194,7 @@ void __attribute__((constructor)) init_rpc(void)
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     init_log(LOG_LEVEL, __FILE__);
 
-    sem_init(&access_sem, 0, 1); // init semaphore
+    pthread_rwlock_init(&access_sem, NULL);
 
     char* server_info = init_client_mgr();
     if (server_info == NULL) {
@@ -203,6 +203,7 @@ void __attribute__((constructor)) init_rpc(void)
     }
 
     rpc_connect(server_info);
+    free(server_info);
 
     initialized = 1;
     // if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
