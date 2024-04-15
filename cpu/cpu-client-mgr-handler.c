@@ -11,9 +11,8 @@
 #include "cpu-common.h"
 #include "cpu-client-mgr-handler.h"
 #include "log.h"
+#include "msg-handler.h"
 
-#define CLIENTD_MQUEUE_PATH "/tmp/flyt-client-mgr"
-#define PROJ_ID 0x42
 
 const char* CLIENTD_VCUDA_PAUSE = "CLIENTD_VCUDA_PAUSE";
 const char* CLIENTD_VCUDA_CHANGE_VIRT_SERVER = "CLIENTD_VCUDA_CHANGE_VIRT_SERVER";
@@ -21,15 +20,6 @@ const char* CLIENTD_VCUDA_RESUME = "CLIENTD_VCUDA_RESUME";
 const char* PING = "PING";
 
 
-typedef struct mqueue_msg {
-    char cmd[64];
-    char data[64];
-} mqueue_msg;
-
-struct msgbuf {
-    long mtype;       /* message type, must be > 0 */
-    mqueue_msg msg;    /* message data */
-};
 
 static pthread_t handler_thread;
 static volatile uint8_t keep_handler_alive = 1;
@@ -37,8 +27,8 @@ static volatile uint8_t keep_handler_alive = 1;
 
 static void* cpu_client_mgr_handler(void* arg) {
     
-    uint64_t recv_type = getpid();
-    uint64_t send_type = recv_type << 32;
+    uint64_t recv_type = msg_recv_id();
+    uint64_t send_type = msg_send_id();
     
     int clientd_mqueue_id = (int)arg;
 
@@ -129,11 +119,10 @@ char* init_client_mgr() {
         exit(EXIT_FAILURE);
     }
 
-
     pid_t pid = getpid();
 
-    uint64_t recv_id = pid;
-    uint64_t send_id = recv_id << 32;
+    uint64_t recv_id = msg_recv_id();
+    uint64_t send_id = msg_send_id();
 
     uint64_t recv_id = getpid();
 

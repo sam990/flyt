@@ -13,6 +13,9 @@
 #include "api-recorder.h"
 #include "gsched.h"
 
+static list rm_function_regs;
+
+
 int server_driver_init(int restore)
 {
     #ifdef WITH_IB
@@ -25,16 +28,79 @@ int server_driver_init(int restore)
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
         ret &= resource_mg_init(&rm_globals, 0);
+        ret &= resource_mg_init(&rm_streams, 0);
+        ret &= resource_mg_init(&rm_elfs, 0);
+        ret &= list_init(&rm_function_regs, sizeof(rpc_register_function_1_argument));
     } else {
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
         ret &= resource_mg_init(&rm_globals, 0);
+        ret &= resource_mg_init(&rm_streams, 0);
+        ret &= resource_mg_init(&rm_elfs, 0);
+        ret &= list_init(&rm_function_regs, sizeof(rpc_register_function_1_argument));
         //ret &= server_driver_restore("ckp");
     }
     return ret;
 }
 
 #include <cuda_runtime_api.h>
+
+// restore elf_modules
+int server_driver_elf_restore(void)
+{
+    size_t num_elfs = rm_elfs.map_res.length;
+
+    for (size_t i = 0; i < num_elfs; ++i) {
+        resource_mg_map_elem *map = list_get(&rm_elfs.map_res, i);
+        void* module_key = map->client_address;
+        mem_data *elf = map->cuda_address;
+
+        CUmodule module = NULL;
+        CUresult res;
+        if ((res = cuModuleLoadData(&module, elf->mem_data_val)) != CUDA_SUCCESS) {
+            LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
+            return 1;
+        }
+
+        if ((res = resource_mg_add_sorted(&rm_modules, (void*)module_key, (void*)module)) != CUDA_SUCCESS) {
+            LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
+            return 1;
+        }
+        
+    }
+    return 0;
+}
+
+int server_driver_function_restore(void) 
+{
+    size_t num_funcs = rm_function_regs.length;
+    for (size_t i = 0; i < num_funcs; ++i) {
+        rpc_register_function_1_argument *arg = list_get(&rm_function_regs, i);
+        ptr fatCubinHandle = arg->arg1;
+        ptr hostFun = arg->arg2;
+        char* deviceFun = arg->arg3;
+        char* deviceName = arg->arg4;
+        int thread_limit = arg->arg5;
+
+        void *module = NULL;
+        CUresult res;
+        if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
+            LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
+            return 1;
+        }
+        CUfunction func;
+        if ((res = cuModuleGetFunction(&func, module, deviceName)) != CUDA_SUCCESS) {
+            LOGE(LOG_ERROR, "cuModuleGetFunction failed: %d", res);
+            return 1;
+        }
+        if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)func) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 // Does not support checkpoint/restart yet
 bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_req *rqstp)
@@ -52,6 +118,17 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
     // We add our module using module_key as key. This means a fatbinaryHandle on the client is translated
     // to a CUmodule on the server.
     if ((res = resource_mg_add_sorted(&rm_modules, (void*)module_key, (void*)module)) != CUDA_SUCCESS) {
+        LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
+        *result = res;
+        return 1;
+    }
+
+    mem_data *elf_copy = malloc(sizeof(mem_data));
+    elf_copy->mem_data_val = malloc(elf.mem_data_len);
+    memcpy(elf_copy->mem_data_val, elf.mem_data_val, elf.mem_data_len);
+    elf_copy->mem_data_len = elf.mem_data_len;
+
+    if ((res = resource_mg_add_sorted(&rm_elfs, (void*)module_key, (void*)elf_copy)) != CUDA_SUCCESS) {
         LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
         *result = res;
         return 1;
@@ -92,6 +169,13 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
         return 1;
     }
 
+    resource_mg_remove(&rm_modules, (void*)elf_handle);
+    
+    mem_data *elf = resource_mg_get(&rm_elfs, (void*)elf_handle);
+    free(elf->mem_data_val);
+    free(elf);
+    resource_mg_remove(&rm_elfs, (void*)elf_handle);
+
     *result = 0;
     return 1;
 }
@@ -109,6 +193,16 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     RECORD_ARG(5, thread_limit);
     LOG(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
         fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+
+    rpc_register_function_1_argument *reg_args;
+    list_append(&rm_function_regs, (void**)&reg_args);
+
+    reg_args->arg1 = fatCubinHandle;
+    reg_args->arg2 = hostFun;
+    reg_args->arg3 = deviceFun;
+    reg_args->arg4 = deviceName;
+    reg_args->arg5 = thread_limit;
+
     GSCHED_RETAIN;
     //resource_mg_print(&rm_modules);
     if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
