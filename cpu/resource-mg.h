@@ -34,6 +34,7 @@ resource_mg rm_kernels;
 resource_mg rm_modules;
 resource_mg rm_functions;
 resource_mg rm_globals;
+resource_mg rm_elfs;
 
 //Other RMs
 resource_mg rm_cusolver;
@@ -70,5 +71,7 @@ int resource_mg_create(resource_mg *mg, void* cuda_address);
 void* resource_mg_get(resource_mg *mg, void* client_address);
 
 void resource_mg_print(resource_mg *mg);
+
+int resource_mg_remove(resource_mg *mg, void* client_address);
 
 #endif //_RESOURCE_MG_H_

@@ -156,3 +156,45 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
     }
     return list_insert(&mg->map_res, end, &new_elem);
 }
+
+
+int resource_mg_remove(resource_mg *mg, void* client_address)
+{
+    size_t start = 0;
+    size_t end;
+    size_t mid;
+    resource_mg_map_elem *mid_elem;
+    if (mg == NULL) {
+        LOGE(LOG_ERROR, "resource manager mg is NULL");
+        return 1;
+    }
+    if (mg->bypass) {
+        LOGE(LOG_ERROR, "cannot remove from bypassed resource manager");
+        return 1;
+    }
+    if (mg->map_res.length == 0) {
+        return 0;
+    }
+    end = mg->map_res.length-1;
+    
+    while (end >= start) {
+        mid = start + (end-start)/2;
+        mid_elem = list_get(&mg->map_res, mid);
+        if (mid_elem == NULL) {
+            LOG(LOG_ERROR, "list state of map_res is inconsistent");
+            return 1;
+        }
+
+        if (mid_elem->client_address > client_address) {
+            end = mid-1;
+            if (mid == 0) {
+                break;
+            }
+        } else if (mid_elem->client_address < client_address) {
+            start = mid+1;
+        } else /*if (mid_elem->client_address == client_address)*/ {
+            return list_rm(&mg->map_res, mid);
+        }
+    }
+    return 0;
+}
