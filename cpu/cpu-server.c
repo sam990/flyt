@@ -27,6 +27,7 @@
 #include "gsched.h"
 #include "cpu-server-nvml.h"
 #include "cpu-server-cudnn.h"
+#include "cpu-server-mgr-listener.h"
 
 INIT_SOCKTYPE
 
@@ -277,6 +278,8 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         goto cleanup4;
     }
 
+    
+
     if (list_init(&api_records, sizeof(api_record_t)) != 0) {
         LOGE(LOG_ERROR, "initializing api recorder failed.");
         goto cleanup4;
@@ -316,6 +319,9 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
         goto cleanup00;
     }
+
+    init_listener();
+
 
     LOG(LOG_INFO, "waiting for RPC requests...");
 
