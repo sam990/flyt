@@ -37,7 +37,7 @@ void gsched_fixed_deinit(void)
     pthread_rwlock_destroy(&rwlock);
 }
 
-gsched_fixed_t gsched_fixed = {
+gsched_fixed_t sched_fixed = {
     .init = gsched_fixed_init,
     .shared = gsched_fixed_shared,
     .exclusive = gsched_fixed_exclusive,

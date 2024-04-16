@@ -40,7 +40,7 @@ static void resource_change_handler(const char* data, mqueue_msg *response) {
         return;
     }
 
-    if (change_mem_limit(new_mem) != 0) {
+    if (set_mem_limit(new_mem) != 0) {
         strcpy(response->cmd, "400");
         strcpy(response->data, "Failed to change memory limit.");
         free_splitted_str(split_str);
@@ -54,7 +54,7 @@ static void resource_change_handler(const char* data, mqueue_msg *response) {
 
 
 static void *client_msg_handler(void *arg) {
-    int clientd_mqueue_id = (int)arg;
+    int clientd_mqueue_id = (int)((long)arg);
     struct msgbuf msg;
 
     uint64_t recv_type = msg_recv_id();
@@ -66,7 +66,7 @@ static void *client_msg_handler(void *arg) {
         }
 
         if (strncmp(msg.msg.cmd, SNODE_VIRTS_CHANGE_RESOURCES, strlen(SNODE_VIRTS_CHANGE_RESOURCES)) == 0) {
-            LOGI(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
+            LOGE(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
             splitted_str *split_str = split_string(msg.msg.data, ",");
             if (split_str->size != 2) {
                 LOGE(LOG_ERROR, "Invalid message received from client manager: %s", msg.msg.cmd);
@@ -98,5 +98,5 @@ int init_listener(void)
         return -1;
     }
 
-    pthread_create(&handler_thread, NULL, client_msg_handler, (void *)clientd_mqueue_id);
+    pthread_create(&handler_thread, NULL, client_msg_handler, (void *)((long)clientd_mqueue_id));
 }

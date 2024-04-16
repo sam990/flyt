@@ -7,17 +7,7 @@
 
 int main(int argc, char** argv)
 {
-    if (argc == 1) {
-        cricket_main(RPC_CD_PROG, RPC_CD_VERS);
-    } else if (argc == 2) {
-        uint64_t vers;
-        if (sscanf(argv[1], "%lu", &vers) != 1) {
-            printf("version string could not be converted to number\n");
-            printf("usage: %s [unique rpc version]\n", argv[0]);
-            return 1;
-        }
-        cricket_main(RPC_CD_PROG, vers);
-    } else if (argc == 5) {
+    if (argc == 5) {
         uint64_t vers, memory;
         uint32_t gpu_id, num_sm_cores;
         if (sscanf(argv[1], "%lu", &vers) != 1) {

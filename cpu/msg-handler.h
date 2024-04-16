@@ -19,7 +19,7 @@ struct msgbuf {
 
 
 uint64_t msg_send_id() {
-    return getpid() << 32;
+    return ((uint64_t)getpid()) << 32;
 }
 
 uint64_t msg_recv_id() {
