@@ -2,6 +2,7 @@
 
 use std::{sync::Arc, thread};
 
+use common::config::SNODE_CONFIG_PATH;
 use resource_manager_handler::ResourceManagerHandler;
 use virt_server_manager::VirtServerManager;
 
@@ -12,20 +13,18 @@ mod virt_server_manager;
 mod common;
 
 
-const CONFIG_PATH: &str = "/home/sam/Projects/flyt/control-managers/servnode-config.toml";
-
 fn get_mqueue_path() -> String {
-    let config = common::utils::Utils::load_config_file(CONFIG_PATH);
+    let config = common::utils::Utils::load_config_file(SNODE_CONFIG_PATH);
     config["ipc"]["mqueue-path"].as_str().unwrap().to_string()
 }
 
 fn get_virt_server_program_path() -> String {
-    let config = common::utils::Utils::load_config_file(CONFIG_PATH);
+    let config = common::utils::Utils::load_config_file(SNODE_CONFIG_PATH);
     config["virt-server"]["program-path"].as_str().unwrap().to_string()
 }
 
 fn get_resource_mgr_address() -> (String, u16) {
-    let config = common::utils::Utils::load_config_file(CONFIG_PATH);
+    let config = common::utils::Utils::load_config_file(SNODE_CONFIG_PATH);
     (config["resource-manager"]["address"].as_str().unwrap().to_string(), config["resource-manager"]["port"].as_integer().unwrap() as u16)
 }
 

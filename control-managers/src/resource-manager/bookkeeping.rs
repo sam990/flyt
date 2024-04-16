@@ -5,9 +5,9 @@ use toml::Table;
 use mongodb::{options::{ClientOptions, ServerAddress, Credential}, sync::Client, sync::Collection, bson::doc};
 use serde::{Deserialize, Serialize};
 
+use crate::common::config::RMGR_CONFIG_PATH;
 use crate::common::utils::Utils;
 
-const RESOURCE_MANAGER_CONFIG: &str = "/home/sam/Projects/flyt/control-managers/resource-mgr-config.toml";
 struct ConfigOptions;
 
 impl ConfigOptions {
@@ -86,7 +86,7 @@ pub struct VMResourcesGetter {
 impl VMResourcesGetter {
 
     pub fn new() -> Self {
-        let config: Table = Utils::load_config_file(RESOURCE_MANAGER_CONFIG);
+        let config: Table = Utils::load_config_file(RMGR_CONFIG_PATH);
 
         let get_collection = || -> Option<Collection<VMResources>> {
 
@@ -138,7 +138,7 @@ pub fn get_virt_server_deallocate_time() -> Option<u64> {
     }
 
 
-    let mut config_file = File::open(RESOURCE_MANAGER_CONFIG).unwrap();
+    let mut config_file = File::open(RMGR_CONFIG_PATH).unwrap();
     let mut config_str = String::new();
     config_file.read_to_string(&mut config_str).unwrap();
 
