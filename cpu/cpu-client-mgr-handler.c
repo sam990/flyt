@@ -30,7 +30,7 @@ static void* cpu_client_mgr_handler(void* arg) {
     uint64_t recv_type = msg_recv_id();
     uint64_t send_type = msg_send_id();
     
-    int clientd_mqueue_id = (int)arg;
+    int clientd_mqueue_id = (int)((long)arg);
 
     struct msgbuf msg;
 
@@ -81,7 +81,7 @@ static void* cpu_client_mgr_handler(void* arg) {
 
 char* get_virt_server_info(int mqueue_id, uint64_t recv_type) {
     struct msgbuf msg;
-    int read = msgrecv(mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0);
+    int read = msgrcv(mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0);
 
     if (read == -1) {
         LOGE(LOG_ERROR, "Error receiving message from client manager: %s", strerror(errno));
@@ -97,8 +97,7 @@ char* get_virt_server_info(int mqueue_id, uint64_t recv_type) {
 
 
 void init_handler_thread(int clientd_mqueue_id) {
-    handler_thread = (pthread_t*)malloc(sizeof(pthread_t));
-    pthread_create(&handler_thread, NULL, cpu_client_mgr_handler, (void*)clientd_mqueue_id);
+    pthread_create(&handler_thread, NULL, cpu_client_mgr_handler, (void*)((long)clientd_mqueue_id));
 }
 
 void stop_client_mgr() {
@@ -123,8 +122,6 @@ char* init_client_mgr() {
 
     uint64_t recv_id = msg_recv_id();
     uint64_t send_id = msg_send_id();
-
-    uint64_t recv_id = getpid();
 
     uint32_t npid = htonl(pid);
 

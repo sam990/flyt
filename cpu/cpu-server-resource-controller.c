@@ -7,6 +7,7 @@
 #include "gsched.h"
 #include "log.h"
 #include "cpu-server-driver.h"
+#include "cpu-server-resource-controller.h"
 
 static int active_device = -1;
 static uint64_t mem_limit = 0;
@@ -15,9 +16,9 @@ static uint64_t current_mm_usage = 0;
 int change_sm_cores(uint32_t new_num_sm_cores) {
     GSCHED_EXCLUSIVE;
 
-    cudaDeviceProp dev_prop;
+    struct cudaDeviceProp dev_prop;
     
-    cudaError_t res = cudaGetDeviceProperties(&dev_prop, device_id);
+    cudaError_t res = cudaGetDeviceProperties(&dev_prop, active_device);
 
 
     if (res != cudaSuccess) {
@@ -34,12 +35,14 @@ int change_sm_cores(uint32_t new_num_sm_cores) {
 
     CUcontext currentContext;
     CUcontext newContext;
-    CUresult res;
+    CUresult res2;
 
-    res = cuCtxGetCurrent(&currentContext);
+    res2 = cuCtxGetCurrent(&currentContext);
 
-    if (res != CUDA_SUCCESS) {
-        LOGE(LOG_ERROR, "Failed to get current context: %s", cudaGetErrorString(res));
+    if (res2 != CUDA_SUCCESS) {
+        const char *errStr;
+        cuGetErrorString(res2, &errStr);
+        LOGE(LOG_ERROR, "Failed to get current context: %s", errStr);
         GSCHED_RELEASE;
         return -1;
     }
@@ -48,12 +51,14 @@ int change_sm_cores(uint32_t new_num_sm_cores) {
 
     affinity.type = CU_EXEC_AFFINITY_TYPE_SM_COUNT;
 
-    affinity.param.smCount.val = smCounts[i];
+    affinity.param.smCount.val = new_num_sm_cores;
 
-    res = cuCtxCreate_v3(&newContext, affinity, 1, 0, active_device);
+    res2 = cuCtxCreate_v3(&newContext, &affinity, 1, 0, active_device);
 
-    if (res != CUDA_SUCCESS) {
-        LOGE(LOG_ERROR, "Failed to create new context: %s", cudaGetErrorString(res));
+    if (res2 != CUDA_SUCCESS) {
+        const char *errStr;
+        cuGetErrorString(res2, &errStr);
+        LOGE(LOG_ERROR, "Failed to create new context: %s", errStr);
         GSCHED_RELEASE;
         return -1;
     }
@@ -92,7 +97,7 @@ int get_active_device() {
     return active_device;
 }
 
-void set_mem_limit(uint64_t limit) {
+int set_mem_limit(uint64_t limit) {
     GSCHED_EXCLUSIVE;
     mem_limit = limit;
     GSCHED_RELEASE;

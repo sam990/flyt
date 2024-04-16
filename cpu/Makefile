@@ -43,7 +43,10 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-elf2.c					\
 			 cpu-server-nvml.c			\
 			 cpu-server-cudnn.c         \
-			 cpu-server-cublaslt.c
+			 cpu-server-cublaslt.c      \
+			 cpu-server-mgr-listener.c  \
+			 cpu-server-resource-controller.c \
+			 gsched_fixed.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -64,7 +67,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-nvml.c          \
 			 cpu-client-cudnn.c			\
 			 cpu-client-cublas.c        \
-			 cpu-client-cublaslt.c
+			 cpu-client-cublaslt.c      \
+			 cpu-client-mgr-handler.c
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c

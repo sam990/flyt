@@ -9,7 +9,7 @@ void set_active_device(int device);
 
 int get_active_device();
 
-void set_mem_limit(uint64_t limit);
+int set_mem_limit(uint64_t limit);
 
 uint64_t get_mem_limit();
 

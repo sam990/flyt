@@ -142,6 +142,8 @@ static void rpc_connect(char *server_info)
 
 void change_server(char *server_info)
 {
+    enum clnt_stat retval_1;
+    int result_1;
     if (initialized == 1) {
         enum clnt_stat retval_1;
         int result_1;
