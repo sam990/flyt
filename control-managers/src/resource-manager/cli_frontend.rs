@@ -7,13 +7,11 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use comfy_table::Table;
-use common::api_commands::FrontEndCommand;
+use common::{api_commands::FrontEndCommand, config::RMGR_CONFIG_PATH};
 
 #[path = "../common/mod.rs"]
 mod common;
 
-const RESOURCE_MANAGER_CONFIG: &str =
-    "/home/sam/Projects/flyt/control-managers/resource-mgr-config.toml";
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -44,7 +42,7 @@ struct NewResourcesOption {
 }
 
 fn get_stream_path() -> String {
-    let config = common::utils::Utils::load_config_file(RESOURCE_MANAGER_CONFIG);
+    let config = common::utils::Utils::load_config_file(RMGR_CONFIG_PATH);
     config["ipc"]["frontend-socket"]
         .as_str()
         .unwrap()

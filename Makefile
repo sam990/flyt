@@ -1,6 +1,6 @@
 #MIT License...
 
-.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu
+.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu control-managers install-cmgr 
 
 all: cpu install
 
@@ -32,6 +32,10 @@ cpu: libtirpc
 	@echo -e "\033[36m----> Building cpu\033[0m"
 	$(MAKE) -C cpu
 
+control-managers:
+	@echo -e "\033[36m----> Building control-managers\033[0m"
+	$(MAKE) -C control-managers
+
 tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"
 	$(MAKE) -C tests
@@ -42,7 +46,10 @@ install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/li
 install-gpu: bin/cricket
 	@echo -e "\033[36m----> Copying gpu binaries to build/bin\033[0m"
 
-install: install-cpu
+install-cmgr:
+	$(MAKE) -C control-managers install
+
+install: install-cpu install-cmgr
 	@echo -e "\033[36m----> Copying to build/bin\033[0m"
 
 bin:
