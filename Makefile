@@ -53,7 +53,7 @@ install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/li
 install-gpu: bin/cricket
 	@echo -e "\033[36m----> Copying gpu binaries to build/bin\033[0m"
 
-install-cmgr:
+install-cmgr: control-managers
 	$(MAKE) -C control-managers install
 
 install: install-cpu install-cmgr
