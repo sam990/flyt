@@ -31,3 +31,6 @@ path = "src/servernode-daemon/main.rs"
 [[bin]]
 name = "rmgr-cli"
 path = "src/resource-manager/cli_frontend.rs"
+
+[build-dependencies]
+cc = "1.0.94"

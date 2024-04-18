@@ -1,4 +1,4 @@
-use std::{io::{BufRead, BufReader, Write}, os::unix::net::{UnixListener, UnixStream}};
+use std::{io::{BufReader, Write}, os::unix::net::{UnixListener, UnixStream}};
 
 use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::Utils}, servernode_handler::ServerNodesManager};
 
@@ -41,10 +41,10 @@ impl <'a> InputHandler<'a> {
     fn handle_request(&self, stream: UnixStream) {
         let reader_clone = stream.try_clone().unwrap();
         let mut reader = BufReader::new(reader_clone);
-        let mut buffer = String::new();
-        reader.read_line(&mut buffer).unwrap();
         
-        match buffer.trim() {
+        let command = Utils::read_line(&mut reader);
+        
+        match command.as_str() {
             FrontEndCommand::LIST_VMS => {
                 self.list_vms(stream);
             }

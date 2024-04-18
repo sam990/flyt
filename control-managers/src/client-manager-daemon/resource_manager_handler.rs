@@ -127,9 +127,7 @@ impl <'b> ResourceManagerHandler <'b> {
                     }
 
                     FlytApiCommand::RMGR_CLIENTD_CHANGE_VIRT_SERVER => {
-                        let mut payload = String::new();
-                        reader.read_line(&mut payload).unwrap();
-
+                        let payload = Utils::read_line(&mut reader);
                         self.change_virt_server(payload);
                         self.client_mgr.change_virt_server(self.virt_server.read().unwrap().as_ref().unwrap());
                         writer.write_all("200\nChanged virt server\n".as_bytes()).unwrap();
