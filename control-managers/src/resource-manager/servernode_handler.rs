@@ -5,7 +5,7 @@ use crate::common::api_commands::FlytApiCommand;
 use crate::common::utils::Utils;
 
 use std::collections::HashMap;
-use std::io::{ BufRead, BufReader, Write};
+use std::io::{ BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -97,27 +97,25 @@ impl<'a> ServerNodesManager<'a> {
 
         let stream_clone = server_node.stream.try_clone().unwrap();
         let mut reader = BufReader::new(stream_clone);
-        let mut buffer = String::new();
 
         server_node.stream.write_all(format!("{}\n", FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO).as_bytes()).unwrap();
 
-        reader.read_line(&mut buffer).unwrap();
+        let status = Utils::read_line(&mut reader);
 
-        if buffer.trim() != "200" {
-            let status_code = buffer.clone();
-            reader.read_line(&mut buffer).unwrap();
-            println!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status_code, buffer);
-            return Err(format!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status_code, buffer));
+        if status != "200" {
+            let err_msg = Utils::read_line(&mut reader);
+            println!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status, err_msg);
+            return Err(format!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status, err_msg));
         }
-
-        reader.read_line(&mut buffer).unwrap();
-        let num_gpus = buffer.trim().parse::<u64>().unwrap();
+        
+        let num_gpus_str = Utils::read_line(&mut reader);
+        let num_gpus = num_gpus_str.parse::<u64>().unwrap();
 
         let mut gpus = Vec::new();
 
         for _ in 0..num_gpus {
-            reader.read_line(&mut buffer).unwrap();
-            let gpu_info = buffer.trim().split(",").collect::<Vec<&str>>();
+            let gpu_info_str = Utils::read_line(&mut reader);
+            let gpu_info = gpu_info_str.split(",").collect::<Vec<&str>>();
             // name, memory, compute_units, compute_power, gpu_id
             let gpu = Arc::new(RwLock::new (GPU {
                 name: gpu_info[0].to_string(),
@@ -183,21 +181,19 @@ impl<'a> ServerNodesManager<'a> {
         let stream_clone = target_server_node.stream.try_clone().unwrap();
         
         let mut reader = BufReader::new(stream_clone);
-        let mut status = String::new();
-        let mut payload = String::new();
 
         target_server_node.stream.write_all(format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory).as_bytes()).unwrap();
 
-        reader.read_line(&mut status).unwrap();
-        reader.read_line(&mut payload).unwrap();
+        let status = Utils::read_line(&mut reader);
+        let payload = Utils::read_line(&mut reader);
 
-        if status.trim() != "200" {
+        if status != "200" {
             println!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload);
             return Err(format!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload));
         }
         
         let target_gpu_id = target_gpu_id.unwrap();
-        let virt_server_rpc_id = payload.trim().parse::<u64>().unwrap();
+        let virt_server_rpc_id = payload.parse::<u64>().unwrap();
 
         let target_gpu = target_server_node.gpus.iter_mut().find(|gpu| gpu.read().unwrap().gpu_id == target_gpu_id).unwrap();
         

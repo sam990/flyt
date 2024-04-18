@@ -1,13 +1,15 @@
 #![allow(dead_code)]
 
 use std::{
-    io::{BufRead, Write},
+    io::Write,
     os::unix::net::UnixStream,
 };
 
 use clap::{Parser, Subcommand};
 use comfy_table::Table;
 use common::{api_commands::FrontEndCommand, config::RMGR_CONFIG_PATH};
+
+use crate::common::utils::Utils;
 
 #[path = "../common/mod.rs"]
 mod common;
@@ -73,21 +75,19 @@ fn list_vms(mut stream: UnixStream) {
     stream
         .write_all(FrontEndCommand::LIST_VMS.as_bytes())
         .unwrap();
-    let mut buffer = String::new();
     let mut reader = std::io::BufReader::new(stream);
 
-    reader.read_line(&mut buffer).unwrap();
+    let status = Utils::read_line(&mut reader);
 
-    if buffer.trim() != "200" {
-        println!("Error: {}", buffer);
-        reader.read_line(&mut buffer).unwrap();
-        println!("{}", buffer);
+    if status != "200" {
+        println!("Error: {}", status);
+        let error_msg = Utils::read_line(&mut reader);
+        println!("{}", error_msg);
         return;
     }
 
-    buffer.clear();
-    reader.read_line(&mut buffer).unwrap();
-    let num_vms = buffer.trim().parse::<usize>().unwrap();
+    let num_vms_str = Utils::read_line(&mut reader);
+    let num_vms = num_vms_str.parse::<usize>().unwrap();
 
     let mut table = Table::new();
 
@@ -101,9 +101,8 @@ fn list_vms(mut stream: UnixStream) {
     ]);
 
     for _ in 0..num_vms {
-        buffer.clear();
-        reader.read_line(&mut buffer).unwrap();
-        let fields = buffer.trim().split(',').collect::<Vec<&str>>();
+        let row = Utils::read_line(&mut reader);
+        let fields = row.split(',').collect::<Vec<&str>>();
         table.add_row(fields);
     }
 
@@ -114,27 +113,26 @@ fn list_servernodes(mut stream: UnixStream) {
     stream
         .write_all(FrontEndCommand::LIST_SERVER_NODES.as_bytes())
         .unwrap();
-    let mut buffer = String::new();
     let mut reader = std::io::BufReader::new(stream);
 
-    reader.read_line(&mut buffer).unwrap();
+    let status = Utils::read_line(&mut reader);
 
-    if buffer.trim() != "200" {
-        println!("Error: {}", buffer);
-        reader.read_line(&mut buffer).unwrap();
-        println!("{}", buffer);
+    if status != "200" {
+        println!("Error: {}", status);
+        let error_msg = Utils::read_line(&mut reader);
+        println!("{}", error_msg);
         return;
     }
 
-    buffer.clear();
-    reader.read_line(&mut buffer).unwrap();
-    let num_servernodes = buffer.trim().parse::<usize>().unwrap();
+    let num_servernodes_str = Utils::read_line(&mut reader);
+    let num_servernodes =num_servernodes_str.parse::<usize>().unwrap();
 
     let mut response = String::new();
 
     // format: ipaddr,num_gpus
     for _ in 0..num_servernodes {
-        let fields = buffer.trim().split(',').collect::<Vec<&str>>();
+        let fields_str = Utils::read_line(&mut reader);
+        let fields = fields_str.split(',').collect::<Vec<&str>>();
         let ipaddr = fields[0];
         let num_gpus = fields[1].parse::<usize>().unwrap();
 
@@ -152,9 +150,8 @@ fn list_servernodes(mut stream: UnixStream) {
         ]);
 
         for _ in 0..num_gpus {
-            buffer.clear();
-            reader.read_line(&mut buffer).unwrap();
-            let fields = buffer.trim().split(',').collect::<Vec<&str>>();
+            let row_str = Utils::read_line(&mut reader);
+            let fields = row_str.split(',').collect::<Vec<&str>>();
             table.add_row(fields);
         }
 
@@ -168,21 +165,19 @@ fn list_virt_servers(mut stream: UnixStream) {
     stream
         .write_all(FrontEndCommand::LIST_VIRT_SERVERS.as_bytes())
         .unwrap();
-    let mut buffer = String::new();
     let mut reader = std::io::BufReader::new(stream);
 
-    reader.read_line(&mut buffer).unwrap();
+    let status = Utils::read_line(&mut reader);
 
-    if buffer.trim() != "200" {
-        println!("Error: {}", buffer);
-        reader.read_line(&mut buffer).unwrap();
-        println!("{}", buffer);
+    if status != "200" {
+        println!("Error: {}", status);
+        let error_msg = Utils::read_line(&mut reader);
+        println!("{}", error_msg);
         return;
     }
 
-    buffer.clear();
-    reader.read_line(&mut buffer).unwrap();
-    let num_virt_servers = buffer.trim().parse::<usize>().unwrap();
+    let num_virtual_servers_str = Utils::read_line(&mut reader);
+    let num_virt_servers = num_virtual_servers_str.parse::<usize>().unwrap();
 
     // format: ipaddr,rpc_id,gpu_id,compute_units,memory
     let mut table = Table::new();
@@ -195,9 +190,8 @@ fn list_virt_servers(mut stream: UnixStream) {
     ]);
 
     for _ in 0..num_virt_servers {
-        buffer.clear();
-        reader.read_line(&mut buffer).unwrap();
-        let fields = buffer.trim().split(',').collect::<Vec<&str>>();
+        let fields_str = Utils::read_line(&mut reader);
+        let fields = fields_str.split(',').collect::<Vec<&str>>();
         table.add_row(fields);
     }
 

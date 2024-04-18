@@ -1,7 +1,8 @@
 use nvml_wrapper::{enum_wrappers::device::Clock, Nvml};
-use std::{path::Path, process::Command};
 
-const GPU_CORES_PROGRAM: &str = "get-gpu-sm-cores";
+extern "C" {
+    fn get_gpu_cores(device_id: u32) -> i32;
+}
 
 #[derive(Debug,Clone)]
 pub struct GPU {
@@ -16,10 +17,7 @@ pub struct GPU {
 
 pub fn get_all_gpus() -> Option<Vec<GPU>> {
     
-    if Path::new(GPU_CORES_PROGRAM).exists() {
-        println!("{} not found", GPU_CORES_PROGRAM);
-        return None;
-    }
+
 
     let nvml = Nvml::init().ok()?;
     let num_devices = nvml.device_count().ok()?;
@@ -31,21 +29,20 @@ pub fn get_all_gpus() -> Option<Vec<GPU>> {
         let name = device.name().ok()?;
         let memory = device.memory_info().ok()?.free;
         let max_clock = device.max_clock_info(Clock::SM).ok()?;
-        let sm_cores = Command::new(GPU_CORES_PROGRAM).arg(i.to_string()).output().ok()?;
+        let sm_cores = unsafe { get_gpu_cores(i) };
         let total_cores = device.num_cores().ok()?;
 
-        if !sm_cores.status.success() {
+        if sm_cores == -1 {
             println!("Error getting SM cores for GPU {}", i);
             continue;
         } 
 
         let gpu_id = i;
-        let sm_cores = String::from_utf8(sm_cores.stdout).ok()?.trim().parse().ok()?;
 
         gpus.push(GPU {
             name: name,
             memory: memory,
-            sm_cores: sm_cores,
+            sm_cores: sm_cores as u32,
             total_cores: total_cores,
             max_clock: max_clock,
             gpu_id: gpu_id,
@@ -54,4 +51,16 @@ pub fn get_all_gpus() -> Option<Vec<GPU>> {
     }
 
     Some(gpus)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_all_gpus() {
+        let gpus = get_all_gpus();
+        assert!(gpus.is_some());
+        println!("{:?}", gpus.unwrap());
+    }
 }

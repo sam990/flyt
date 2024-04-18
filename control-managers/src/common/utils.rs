@@ -27,6 +27,12 @@ impl Utils {
         response
     }
 
+    pub fn read_line<T: BufRead>(reader: &mut T) -> String {
+        let mut buf = String::new();
+        reader.read_line(&mut buf).unwrap();
+        buf.trim().to_string()
+    }
+
     pub fn is_stream_alive<T: Read + Write>(stream: &mut T) -> bool {
         stream.write_all(format!("{}\n", FlytApiCommand::PING).as_bytes()).unwrap();
         let mut reader = BufReader::new(stream);

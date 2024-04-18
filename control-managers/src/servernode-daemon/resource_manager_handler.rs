@@ -74,8 +74,9 @@ impl ResourceManagerHandler {
                 }
 
                 FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER => {
-
+                    buf.clear();
                     reader.read_line(&mut buf).unwrap();
+                    buf = buf.trim().to_string();
                     let mut parts = buf.split(",");
 
                     if parts.clone().count() != 3 {
@@ -104,6 +105,7 @@ impl ResourceManagerHandler {
                 }
 
                 FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER => {
+                    buf.clear();
                     reader.read_line(&mut buf).unwrap();
                     let rpc_id: u64 = buf.trim().parse().unwrap();
                     let ret = self.virt_server_manager.remove_virt_server(rpc_id);
@@ -118,8 +120,9 @@ impl ResourceManagerHandler {
                 }
 
                 FlytApiCommand::RMGR_SNODE_CHANGE_RESOURCES => {
+                    buf.clear();
                     reader.read_line(&mut buf).unwrap();
-                    let mut parts = buf.split(",");
+                    let mut parts = buf.trim().split(",");
                     if parts.clone().count() != 3 {
                         writer.write_all("400\nInvalid number of arguments\n".as_bytes()).unwrap();
                         continue;
