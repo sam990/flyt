@@ -1,4 +1,4 @@
-use std::{collections::HashMap, process::{Child, Command}, sync::{Arc, Mutex}, time::Duration};
+use std::{collections::HashMap, fs::File, path::Path, process::{Child, Command}, sync::{Arc, Mutex}, time::Duration};
 use ipc_rs::MessageQueue;
 use crate::common::{api_commands::FlytApiCommand, types::MqueueClientControlCommand, utils::Utils};
 
@@ -26,9 +26,13 @@ pub struct VirtServerManager {
 
 impl VirtServerManager {
 
-    pub fn new(mqueu_path: &str, virt_server_program_path: String) -> VirtServerManager {
+    pub fn new(mqueue_path: &str, virt_server_program_path: String) -> VirtServerManager {
 
-        let key = ipc_rs::PathProjectIdKey::new(mqueu_path.to_string(), PROJ_ID);
+        if Path::new(mqueue_path).exists() == false {
+            File::create(mqueue_path).unwrap();
+        }
+
+        let key = ipc_rs::PathProjectIdKey::new(mqueue_path.to_string(), PROJ_ID);
         let message_queue = MessageQueue::new(ipc_rs::MessageQueueKey::PathKey(key)).create().init().unwrap();
         
 

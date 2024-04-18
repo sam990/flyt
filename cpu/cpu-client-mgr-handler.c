@@ -7,6 +7,8 @@
 #include <sys/msg.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "cpu-common.h"
 #include "cpu-client-mgr-handler.h"
@@ -106,6 +108,11 @@ void stop_client_mgr() {
 }
 
 char* init_client_mgr() {
+
+    if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
+        mknod(CLIENTD_MQUEUE_PATH, S_IFREG | 0666, 0);
+    }
+
     key_t key = ftok(CLIENTD_MQUEUE_PATH, PROJ_ID);
     if (key == -1) {
         perror("ftok");
