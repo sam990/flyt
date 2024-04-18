@@ -116,13 +116,13 @@ impl<'a> ServerNodesManager<'a> {
         for _ in 0..num_gpus {
             let gpu_info_str = Utils::read_line(&mut reader);
             let gpu_info = gpu_info_str.split(",").collect::<Vec<&str>>();
-            // name, memory, compute_units, compute_power, gpu_id
+            // gpu_id, name, memory, compute_units, compute_power
             let gpu = Arc::new(RwLock::new (GPU {
-                name: gpu_info[0].to_string(),
-                memory: gpu_info[1].parse::<u64>().unwrap(),
-                compute_units: gpu_info[2].parse::<u32>().unwrap(),
-                compute_power: gpu_info[3].parse::<u64>().unwrap(),
-                gpu_id: gpu_info[4].parse::<u64>().unwrap(),
+                gpu_id: gpu_info[0].parse::<u64>().unwrap(),
+                name: gpu_info[1].to_string(),
+                memory: gpu_info[2].parse::<u64>().unwrap(),
+                compute_units: gpu_info[3].parse::<u32>().unwrap(),
+                compute_power: gpu_info[4].parse::<u64>().unwrap(),
                 ..Default::default()
             }));
             gpus.push(gpu);
