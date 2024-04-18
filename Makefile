@@ -32,7 +32,7 @@ cpu: libtirpc
 	@echo -e "\033[36m----> Building cpu\033[0m"
 	$(MAKE) -C cpu
 
-cpu-client:
+cpu-client: libtirpc
 	@echo -e "\033[36m----> Building cpu-client\033[0m"
 	$(MAKE) -C cpu cricket-client.so
 
