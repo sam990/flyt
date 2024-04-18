@@ -22,7 +22,7 @@ pub struct VCudaClientManager {
 }
 
 impl VCudaClientManager {
-    
+
     pub fn new(mqueue_path: &str) -> VCudaClientManager {
 
         if std::path::Path::new(mqueue_path).exists() == false {
@@ -171,7 +171,7 @@ impl VCudaClientManager {
         });
 
         if self.clients.write().unwrap().len() == 0 {
-            println!("All clients disconnected. Exiting...");
+            println!("No client connected... notifying...");
             notify_fn();
         }
     }
