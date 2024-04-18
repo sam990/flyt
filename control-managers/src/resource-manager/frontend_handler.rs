@@ -1,4 +1,4 @@
-use std::{io::{BufReader, Write}, os::unix::net::{UnixListener, UnixStream}};
+use std::{fs, io::{BufReader, Write}, os::unix::net::{UnixListener, UnixStream}, path::Path};
 
 use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::Utils}, servernode_handler::ServerNodesManager};
 
@@ -10,20 +10,25 @@ enum ChangeConfigFor {
     Both,
 }
 
-pub struct InputHandler<'a> {
+pub struct FrontendHandler<'a> {
     client_mgr: &'a FlytClientManager<'a>,
     server_nodes_manager: &'a ServerNodesManager<'a>,
 }
 
-impl <'a> InputHandler<'a> {
+impl <'a> FrontendHandler<'a> {
     pub fn new(client_mgr: &'a FlytClientManager, server_nodes_manager: &'a ServerNodesManager) -> Self {
-        InputHandler {
+        FrontendHandler {
             client_mgr,
             server_nodes_manager,
         }
     }
 
     pub fn start_listening(&self, socket_path: &str) {
+
+        if Path::new(socket_path).exists() {
+            fs::remove_file(socket_path).unwrap();
+        }
+
         let listener = UnixListener::bind(socket_path).unwrap();
         for stream in listener.incoming() {
             match stream {

@@ -43,7 +43,7 @@ struct NewResourcesOption {
     memory: Option<u64>,
 }
 
-fn get_stream_path() -> String {
+pub fn get_stream_path() -> String {
     let config = common::utils::Utils::load_config_file(RMGR_CONFIG_PATH);
     config["ipc"]["frontend-socket"]
         .as_str()
@@ -73,7 +73,7 @@ fn main() {
 
 fn list_vms(mut stream: UnixStream) {
     stream
-        .write_all(FrontEndCommand::LIST_VMS.as_bytes())
+        .write_all(format!("{}\n", FrontEndCommand::LIST_VMS).as_bytes())
         .unwrap();
     let mut reader = std::io::BufReader::new(stream);
 
@@ -111,7 +111,7 @@ fn list_vms(mut stream: UnixStream) {
 
 fn list_servernodes(mut stream: UnixStream) {
     stream
-        .write_all(FrontEndCommand::LIST_SERVER_NODES.as_bytes())
+        .write_all(format!("{}\n", FrontEndCommand::LIST_SERVER_NODES).as_bytes())
         .unwrap();
     let mut reader = std::io::BufReader::new(stream);
 
@@ -163,7 +163,7 @@ fn list_servernodes(mut stream: UnixStream) {
 
 fn list_virt_servers(mut stream: UnixStream) {
     stream
-        .write_all(FrontEndCommand::LIST_VIRT_SERVERS.as_bytes())
+        .write_all(format!("{}\n", FrontEndCommand::LIST_VIRT_SERVERS).as_bytes())
         .unwrap();
     let mut reader = std::io::BufReader::new(stream);
 
