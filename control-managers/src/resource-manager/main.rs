@@ -8,20 +8,13 @@ mod frontend_handler;
 #[path = "../common/mod.rs"]
 mod common;
 
-use std::{env, thread};
+use std::thread;
 
 use frontend_handler::FrontendHandler;
 use servernode_handler::ServerNodesManager;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("Usage: {} client-port servernode-port", args[0]);
-        return;
-    }
-
-    let client_port = args[1].parse::<u16>().unwrap();
-    let servernode_port = args[2].parse::<u16>().unwrap();
+    let (client_port, servernode_port) = bookkeeping::get_ports();
 
     let vm_resource_getter = bookkeeping::VMResourcesGetter::new();
 

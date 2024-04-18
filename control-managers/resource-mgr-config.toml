@@ -5,6 +5,10 @@ user =
 password = 
 dbname = 
 
+[ports]
+node = 12401
+client = 12402
+
 [virt-server-auto-deallocate]
 enabled = true
 grace-period = 60

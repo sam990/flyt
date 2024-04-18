@@ -22,7 +22,13 @@ pub struct VCudaClientManager {
 }
 
 impl VCudaClientManager {
+    
     pub fn new(mqueue_path: &str) -> VCudaClientManager {
+
+        if std::path::Path::new(mqueue_path).exists() == false {
+            std::fs::File::create(mqueue_path).unwrap();
+        }
+
         let key = PathProjectIdKey::new(mqueue_path.to_string(), PROJ_ID);
         let message_queue = MessageQueue::new(MessageQueueKey::PathKey(key)).create().init().unwrap();
         

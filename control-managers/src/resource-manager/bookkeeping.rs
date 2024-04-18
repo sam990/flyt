@@ -1,5 +1,5 @@
 use std::sync::RwLock;
-use std::{fs::File, io::Read, sync::Arc};
+use std::sync::Arc;
 use std::net::TcpStream;
 use toml::Table;
 use mongodb::{options::{ClientOptions, ServerAddress, Credential}, sync::Client, sync::Collection, bson::doc};
@@ -137,12 +137,7 @@ pub fn get_virt_server_deallocate_time() -> Option<u64> {
         return deallocate_time;
     }
 
-
-    let mut config_file = File::open(RMGR_CONFIG_PATH).unwrap();
-    let mut config_str = String::new();
-    config_file.read_to_string(&mut config_str).unwrap();
-
-    let config: Table = config_str.parse::<Table>().unwrap();
+    let config: Table = Utils::load_config_file(RMGR_CONFIG_PATH);
 
     let enabled = config.get("virt-server-auto-deallocate")?.get("enabled")?.as_bool()?;
     if !enabled {
@@ -153,4 +148,11 @@ pub fn get_virt_server_deallocate_time() -> Option<u64> {
 
     ConfigOptions::VIRT_SERVER_DEALLOCATE_TIME.write().unwrap().replace(deallocate_time);
     deallocate_time
+}
+
+pub fn get_ports() -> (u16, u16) {
+    let config: Table = Utils::load_config_file(RMGR_CONFIG_PATH);
+    let node_port = config.get("ports").unwrap().get("node").unwrap().as_integer().unwrap() as u16;
+    let client_port = config.get("ports").unwrap().get("client").unwrap().as_integer().unwrap() as u16;
+    (node_port, client_port)
 }
