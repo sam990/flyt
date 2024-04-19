@@ -11,7 +11,7 @@
 #include "cpu-utils.h"
 #include "cpu-server-resource-controller.h"
 
-#define CLIENTD_MQUEUE_PATH "/tmp/flyt-client-mgr"
+#define CLIENTD_MQUEUE_PATH "/tmp/flyt-servernode-queue"
 #define PROJ_ID 0x42
 
 const char* SNODE_VIRTS_CHANGE_RESOURCES = "SNODE_VIRTS_CHANGE_RESOURCES";
@@ -85,6 +85,13 @@ int init_listener(void)
 {
     int clientd_mqueue_id;
     key_t key;
+
+    if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
+        if (mkdir(CLIENTD_MQUEUE_PATH, 0777) == -1) {
+            LOGE(LOG_ERROR, "Error creating directory for client manager message queue: %s", strerror(errno));
+            return -1;
+        }
+    }
 
     if ((key = ftok(CLIENTD_MQUEUE_PATH, PROJ_ID)) == -1) {
         LOGE(LOG_ERROR, "Error creating key for client manager message queue: %s", strerror(errno));
