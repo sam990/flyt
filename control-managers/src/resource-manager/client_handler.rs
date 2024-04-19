@@ -59,8 +59,10 @@ impl<'a> FlytClientManager<'a> {
 
     pub fn set_client_status(&self, ipaddr: &str, status: bool) {
         let mut clients = self.clients.lock().unwrap();
-        let client = clients.get_mut(ipaddr).unwrap();
-        *client.is_active.write().unwrap() = status;
+        let client = clients.get_mut(ipaddr);
+        if let Some(client) = client {
+            *client.is_active.get_mut().unwrap() = status;
+        }
     }
 
     pub fn update_client(&self, client: FlytClientNode) {
@@ -109,6 +111,7 @@ impl<'a> FlytClientManager<'a> {
         
         match command[0].as_str() {
             FlytApiCommand::CLIENTD_RMGR_CONNECT => {
+                println!("CLIENTD_RMGR_CONNECT command received from client {}", client_ip);
                 if self.exists(&client_ip) && self.get_client(&client_ip).unwrap().virt_server.is_some() {
                     self.set_client_status(&client_ip, true);
                     let client = self.get_client(&client_ip).unwrap();
@@ -136,6 +139,7 @@ impl<'a> FlytClientManager<'a> {
             },
 
             FlytApiCommand::CLIENTD_RMGR_ZERO_VCUDA_CLIENTS => {
+                println!("CLIENTD_RMGR_ZERO_VCUDA_CLIENTS command received from client {}", client_ip);
                 self.set_client_status(&client_ip, false);
                 stream.write_all("200\nDone\n".as_bytes()).unwrap();
                 if let Some(dealloc_time) = get_virt_server_deallocate_time() {
