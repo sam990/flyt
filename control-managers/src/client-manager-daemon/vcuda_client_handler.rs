@@ -1,4 +1,4 @@
-use std::{io::Write, os::unix::net::UnixStream, sync::RwLock, time::Duration};
+use std::{sync::RwLock, time::Duration};
 use crate::common::api_commands::FlytApiCommand;
 use crate::common::utils::Utils;
 use crate::common::types::MqueueClientControlCommand;
@@ -157,10 +157,6 @@ impl VCudaClientManager {
         }
 
         resume_count
-    }
-
-    pub fn send_virt_server(&self, mut stream: UnixStream, virt_server: &VirtServer) {
-        stream.write_all(format!("200\n{},{}\n", virt_server.address, virt_server.rpc_id).as_bytes()).unwrap();
     }
 
     pub fn remove_closed_clients<F>(&self, notify_fn: F) 

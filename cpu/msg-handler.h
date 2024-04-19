@@ -17,6 +17,10 @@ struct msgbuf {
     mqueue_msg msg;    /* message data */
 };
 
+struct msgbuf_uint32 {
+    long mtype;       /* message type, must be > 0 */
+    uint32_t data;    /* message data */
+};
 
 uint64_t msg_send_id() {
     return ((uint64_t)getpid()) << 32;

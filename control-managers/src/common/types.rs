@@ -53,11 +53,30 @@ impl MqueueClientControlCommand {
         }
     }
 
-    pub fn try_from_bytes(bytes: &[u8; 128]) -> Option<Self> {
+    pub fn try_from_bytes(bytes: &[u8]) -> Option<Self> {
         if bytes.len() != 128 {
             return None;
         }
-        Some(Self::from_bytes(bytes))
+        Some(Self::from_bytes(bytes.try_into().unwrap()))
+    }
+
+    fn vec_to_string(vec: &[u8]) -> String {
+        let mut v = Vec::<u8>::new();
+        for i in vec {
+            if *i == 0 {
+                break;
+            }
+            v.push(*i);
+        }
+        String::from_utf8(v).unwrap()
+    }
+
+    pub fn command_str(&self) -> String {
+        return Self::vec_to_string(&self.command);
+    }
+
+    pub fn data_str(&self) -> String {
+        return Self::vec_to_string(&self.data);
     }
 
 }

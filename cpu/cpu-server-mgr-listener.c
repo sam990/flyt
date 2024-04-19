@@ -19,12 +19,11 @@ const char* SNODE_VIRTS_CHANGE_RESOURCES = "SNODE_VIRTS_CHANGE_RESOURCES";
 pthread_t handler_thread;
 
 
-static void resource_change_handler(const char* data, mqueue_msg *response) {
+static void resource_change_handler(const char* data, uint32_t *response) {
     splitted_str *split_str = split_string(data, ",");
     if (split_str->size != 2) {
         LOGE(LOG_ERROR, "Invalid message received from client manager: %s", data);
-        strcpy(response->cmd, "400");
-        strcpy(response->data, "Configuration data is not properly formatted.");
+        *response = htonl(400);
         free_splitted_str(split_str);
         return;
     }
@@ -34,19 +33,18 @@ static void resource_change_handler(const char* data, mqueue_msg *response) {
 
     // call change handler
     if (change_sm_cores(new_num_sm_cores) != 0) {
-        strcpy(response->cmd, "400");
-        strcpy(response->data, "Failed to change SM cores.");
+        *response = htonl(400);
         free_splitted_str(split_str);
         return;
     }
 
     if (set_mem_limit(new_mem) != 0) {
-        strcpy(response->cmd, "400");
-        strcpy(response->data, "Failed to change memory limit.");
+        *response = htonl(400);
         free_splitted_str(split_str);
         return;
     }
 
+    *response = htonl(200);
     free_splitted_str(split_str);
     return;
 
@@ -61,19 +59,19 @@ static void *client_msg_handler(void *arg) {
     uint64_t send_type = msg_send_id();
 
     while (1) {
-        if (msgrcv(clientd_mqueue_id, &msg, sizeof(mqueue_msg), getpid(), 0) == -1) {
+        if (msgrcv(clientd_mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0) == -1) {
             LOGE(LOG_ERROR, "Error receiving message from client manager: %s", strerror(errno));
         }
 
         if (strncmp(msg.msg.cmd, SNODE_VIRTS_CHANGE_RESOURCES, strlen(SNODE_VIRTS_CHANGE_RESOURCES)) == 0) {
             LOGE(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
-            splitted_str *split_str = split_string(msg.msg.data, ",");
-            if (split_str->size != 2) {
-                LOGE(LOG_ERROR, "Invalid message received from client manager: %s", msg.msg.cmd);
-                free_splitted_str(split_str);
-                continue;
+            
+            struct msgbuf_uint32 rsp;
+            resource_change_handler(msg.msg.data, &rsp.data);
+            rsp.mtype = send_type;
+            if (msgsnd(clientd_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
+                LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));
             }
-
 
         } else {
             LOGE(LOG_ERROR, "Unknown message received from client manager: %s", msg.msg.cmd);

@@ -43,34 +43,34 @@ static void* cpu_client_mgr_handler(void* arg) {
         }
 
        if (strncmp(msg.msg.cmd, PING, 64) == 0) {
-            strcpy(msg.msg.cmd, "200");
-            strcpy(msg.msg.data, "PONG");
-            msg.mtype = send_type;
-            msgsnd(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 0);
+            struct msgbuf_uint32 resp;
+            resp.mtype = send_type;
+            resp.data = htonl(200);
+            msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_PAUSE, 64) == 0) {
             pthread_rwlock_wrlock(&access_sem);
-            strcpy(msg.msg.cmd, "200");
-            strcpy(msg.msg.data, "VCUDA PAUSED");
-            msg.mtype = send_type;
-            msgsnd(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 0);
+            struct msgbuf_uint32 resp;
+            resp.mtype = send_type;
+            resp.data = htonl(200);
+            msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_RESUME, 64) == 0) {
             pthread_rwlock_unlock(&access_sem);
-            strcpy(msg.msg.cmd, "200");
-            strcpy(msg.msg.data, "VCUDA RESUMED");
-            msg.mtype = send_type;
-            msgsnd(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 0);
+            struct msgbuf_uint32 resp;
+            resp.mtype = send_type;
+            resp.data = htonl(200);
+            msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_CHANGE_VIRT_SERVER, 64) == 0) {
             char *server_info = strdup(msg.msg.data);
             
             change_server(server_info);
 
-            strcpy(msg.msg.cmd, "200");
-            strcpy(msg.msg.data, "VCUDA VIRT SERVER CHANGED");
-            msg.mtype = send_type;
-            msgsnd(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 0);
+            struct msgbuf_uint32 resp;
+            resp.mtype = send_type;
+            resp.data = htonl(200);
+            msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else {
             LOGE(LOG_ERROR, "Unknown command received from client manager: %s", msg.msg.cmd);
@@ -134,9 +134,11 @@ char* init_client_mgr() {
     uint64_t recv_id = msg_recv_id();
     uint64_t send_id = msg_send_id();
 
-    uint32_t npid = htonl(pid);
+    struct msgbuf_uint32 msg;
+    msg.mtype = 1;
+    msg.data = htonl(pid);
 
-    msgsnd(clientd_mqueue_id, &npid, sizeof(uint32_t), 1);
+    msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0);
 
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
     
