@@ -416,7 +416,6 @@ splitted_str* split_string(const char *str, const char *delim)
     char *token = NULL;
     char *str_copy = NULL;
     char *saveptr = NULL;
-    size_t size = 0;
     if (str == NULL) {
         LOGE(LOG_ERROR, "str is NULL.");
         return NULL;
@@ -448,13 +447,14 @@ splitted_str* split_string(const char *str, const char *delim)
         splitted->size++;
         token = strtok_r(NULL, delim, &saveptr);
     }
+    return splitted;
  cleanup:
     free(str_copy);
     if (splitted != NULL) {
         free(splitted->str);
         free(splitted);
     }
-    return splitted;
+    return NULL;
 }
 
 void free_splitted_str(splitted_str *splitted_str)
