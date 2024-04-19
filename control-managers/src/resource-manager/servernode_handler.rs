@@ -178,9 +178,11 @@ impl<'a> ServerNodesManager<'a> {
             return Err("No server found with enough resources".to_string());
         }
 
+        let target_server_ip = target_server_ip.unwrap();
+
 
         // communicate with the node
-        let mut target_server_node = self.get_server_node(&target_server_ip.unwrap()).unwrap();
+        let mut target_server_node = self.get_server_node(&target_server_ip).unwrap();
         let stream_clone = target_server_node.stream.try_clone().unwrap();
         
         let mut reader = BufReader::new(stream_clone);
@@ -210,7 +212,7 @@ impl<'a> ServerNodesManager<'a> {
 
         
         let virt_server = Arc::new(RwLock::new(VirtServer {
-            ipaddr: client_ip.clone(),
+            ipaddr: target_server_ip,
             compute_units: vm_required_resources.compute_units,
             memory: vm_required_resources.memory,
             rpc_id: virt_server_rpc_id as u64,
