@@ -82,8 +82,10 @@ static void* cpu_client_mgr_handler(void* arg) {
 }
 
 char* get_virt_server_info(int mqueue_id, uint64_t recv_type) {
+    LOGE(LOG_DEBUG, "Receiving server info message from client manager");
     struct msgbuf msg;
     int read = msgrcv(mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0);
+    LOGE(LOG_DEBUG, "Got server info message from client manager");
 
     if (read == -1) {
         LOGE(LOG_ERROR, "Error receiving message from client manager: %s", strerror(errno));
@@ -108,7 +110,7 @@ void stop_client_mgr() {
 }
 
 char* init_client_mgr() {
-
+    LOGE(LOG_DEBUG, "Connecting to client manager");
     if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
         mknod(CLIENTD_MQUEUE_PATH, S_IFREG | 0666, 0);
     }
@@ -118,6 +120,8 @@ char* init_client_mgr() {
         perror("ftok");
         exit(EXIT_FAILURE);
     }
+
+    LOGE(LOG_DEBUG, "msgqueue key: %d\n", key);
 
     int clientd_mqueue_id = msgget(key, IPC_CREAT | 0666);
     if (clientd_mqueue_id == -1) {
@@ -135,7 +139,7 @@ char* init_client_mgr() {
     msgsnd(clientd_mqueue_id, &npid, sizeof(uint32_t), 1);
 
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
-
+    
     if (virt_server_info == NULL) {
         return NULL;
     }
