@@ -47,8 +47,11 @@ tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"
 	$(MAKE) -C tests
 
-install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/libtirpc.so.3 bin/tests
+install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/libtirpc.so.3
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
+
+install-tests: bin/tests
+	@echo -e "\033[36m----> Copying test binaries to build/bin\033[0m"
 
 install-gpu: bin/cricket
 	@echo -e "\033[36m----> Copying gpu binaries to build/bin\033[0m"
@@ -56,7 +59,7 @@ install-gpu: bin/cricket
 install-cmgr: control-managers
 	$(MAKE) -C control-managers install
 
-install: install-cpu install-cmgr
+install: install-cpu install-cmgr install-tests
 	@echo -e "\033[36m----> Copying to build/bin\033[0m"
 
 bin:
