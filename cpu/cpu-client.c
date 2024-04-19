@@ -58,11 +58,11 @@ static void rpc_connect(char *server_info)
     splitted_str *splitted = split_string(server_info, ",");
     
     if (splitted == NULL) {
-        LOGE(LOG_ERROR, "error splitting server info");
+        LOGE(LOG_ERROR, "error splitting server info: %s", server_info);
         exit(1);
     }
     if (splitted->size != 2) {
-        LOGE(LOG_ERROR, "error parsing server info");
+        LOGE(LOG_ERROR, "error parsing server info: %s", server_info);
         exit(1);
     }
 

@@ -69,6 +69,8 @@ impl<'a> ServerNodesManager<'a> {
     fn handle_servernode(&self, stream: TcpStream) {
         let server_ip = stream.peer_addr().unwrap().ip().to_string();
 
+        println!("Server node connected: {}", server_ip);
+
         let server_node = ServerNode {
             ipaddr: server_ip.clone(),
             gpus: Vec::new(),
@@ -130,6 +132,7 @@ impl<'a> ServerNodesManager<'a> {
 
         server_node.gpus = gpus;
         self.update_server_node(server_node);
+        println!("Server node gpus updated: {}", server_node_ip);
         Ok(())
     }
 

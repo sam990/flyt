@@ -94,10 +94,12 @@ impl ResourceManagerHandler {
                     
                     match ret {
                         Ok(rpc_id) => {
+                            println!("Virt server created: {}", rpc_id);
                             writer.write_all(format!("200\n{}\n", rpc_id).as_bytes()).unwrap();
 
                         }
                         Err(e) => {
+                            println!("Error creating virt server: {}", e);
                             writer.write_all(format!("500\n{}\n", e).as_bytes()).unwrap();
                         }
                     }
