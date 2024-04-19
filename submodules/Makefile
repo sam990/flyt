@@ -1,5 +1,5 @@
 #MIT License...
-.PHONY: all libtirpc cuda-gdb clean
+.PHONY: all libtirpc cuda-gdb clean libtirpc/uninstall
 
 all: libtirpc cuda-gdb-libs
 
@@ -9,6 +9,11 @@ clean:
 	rm -rf cuda-gdb/build
 	cd cuda-gdb && git apply -R ../cuda-gdb.patch
 	rm -rf lib
+
+libtirpc/uninstall:
+	@echo -e "\033[31m----> Uninstalling libtirpc\033[0m"
+	$(MAKE) -C libtirpc uninstall
+	rm -rf libtirpc/install
 
 libtirpc/install:
 	@echo -e "\033[36m----> autogen libtirpc\033[0m"
