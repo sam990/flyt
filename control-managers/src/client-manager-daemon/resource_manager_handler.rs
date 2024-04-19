@@ -56,6 +56,9 @@ impl <'b> ResourceManagerHandler <'b> {
         }
     }
 
+    pub fn virt_server_available(&self) -> bool {
+        self.virt_server.read().unwrap().is_some()
+    }
 
     fn read_virt_server_details(stream: &mut TcpStream) -> Option<VirtServer> {
         stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT).as_bytes()).unwrap();
