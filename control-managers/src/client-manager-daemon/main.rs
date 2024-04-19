@@ -51,7 +51,9 @@ fn main() {
             let period = get_vcuda_process_monitor_period();
             loop {
                 thread::sleep(std::time::Duration::from_secs(period));
-                client_mgr.remove_closed_clients(|| res_mgr.notify_zero_clients() );
+                if res_mgr.virt_server_available() {
+                    client_mgr.remove_closed_clients(|| res_mgr.notify_zero_clients());
+                }
             }
         });
 
