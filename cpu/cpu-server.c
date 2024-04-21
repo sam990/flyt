@@ -320,7 +320,8 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         goto cleanup00;
     }
 
-    init_listener();
+    init_listener(vers);
+    send_initialised_msg();
 
 
     LOG(LOG_INFO, "waiting for RPC requests...");

@@ -18,6 +18,10 @@ const char* SNODE_VIRTS_CHANGE_RESOURCES = "SNODE_VIRTS_CHANGE_RESOURCES";
 
 pthread_t handler_thread;
 
+static volatile uint64_t recv_type = 0;
+static volatile uint64_t send_type = 0;
+static volatile int clientd_mqueue_id = -1;
+
 
 static void resource_change_handler(const char* data, uint32_t *response) {
     splitted_str *split_str = split_string(data, ",");
@@ -52,11 +56,7 @@ static void resource_change_handler(const char* data, uint32_t *response) {
 
 
 static void *client_msg_handler(void *arg) {
-    int clientd_mqueue_id = (int)((long)arg);
     struct msgbuf msg;
-
-    uint64_t recv_type = msg_recv_id();
-    uint64_t send_type = msg_send_id();
 
     while (1) {
         if (msgrcv(clientd_mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0) == -1) {
@@ -80,10 +80,19 @@ static void *client_msg_handler(void *arg) {
     return NULL;
 }
 
+void send_initialised_msg() {
+    struct msgbuf_uint32 msg;
+    msg.mtype = send_type;
+    msg.data = htonl(200);
+    if (msgsnd(clientd_mqueue_id, &msg, sizeof(uint32_t), 0) == -1) {
+        LOGE(LOG_ERROR, "Error sending initialisation message to client manager: %s", strerror(errno));
+    }
+}
 
-int init_listener(void)
+int init_listener(int rpc_id)
 {
-    int clientd_mqueue_id;
+    recv_type = (uint64_t)rpc_id;
+    send_type = ((uint64_t)rpc_id) << 32;
     key_t key;
 
     if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
@@ -103,5 +112,5 @@ int init_listener(void)
         return -1;
     }
 
-    pthread_create(&handler_thread, NULL, client_msg_handler, (void *)((long)clientd_mqueue_id));
+    pthread_create(&handler_thread, NULL, client_msg_handler, NULL);
 }

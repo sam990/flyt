@@ -68,8 +68,9 @@ impl VirtServerManager {
         let send_id = rpc_id as i64;
         let recv_id = send_id << 32;
 
-        let virt_server_process = Command::new(self.virt_server_program_path.as_str())
+        let mut virt_server_process = Command::new(self.virt_server_program_path.as_str())
             .env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
+            .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
             .env("CUDA_MPS_ACTIVE_THREAD_PERCENTAGE", gpu_cores_percentage.to_string())
             .arg(rpc_id.to_string())
             .arg(gpu_id.to_string())
@@ -78,7 +79,13 @@ impl VirtServerManager {
             .spawn()
             .map_err(|e| format!("Error starting virt server: {}", e))?;
 
-
+        let response = self.message_queue.recv_type_timed(recv_id, Duration::from_secs(5));
+        
+        if response.is_err() {
+            log::error!("Error receiving message from virt server: {}, Killing it.", response.err().unwrap());
+            virt_server_process.kill().map_err(|e| format!("Error killing virt server: {}", e))?;
+            return Err("Error starting virt server".to_string());
+        }
         
         let virt_server = VirtServer {
             id: rpc_id,
