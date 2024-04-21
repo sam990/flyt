@@ -40,6 +40,8 @@ fn get_resource_mgr_address() -> (String, u16) {
 
 fn main() {
 
+    env_logger::init();
+
     let (resource_manager_address, resource_manager_port) = get_resource_mgr_address();
     let mqueue_path = get_mqueue_path();
 

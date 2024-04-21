@@ -137,13 +137,16 @@ impl <'b> ResourceManagerHandler <'b> {
                     }
                     
                     FlytApiCommand::RMGR_CLIENTD_DEALLOC_VIRT_SERVER => {
+                        log::info!("Received deallocate virt server command");
                         let mut lock_guard = self.virt_server.write().unwrap();
                         let num_clients = self.client_mgr.num_active_clients();
 
                         if num_clients == 0 {
                             lock_guard.take();
+                            log::info!("Deallocated virt server: {:?}", lock_guard.as_ref());
                             writer.write_all("200\nDeallocated virt server\n".as_bytes()).unwrap();
                         } else {
+                            log::info!("Cannot deallocate virt server, {} clients still active", num_clients);
                             writer.write_all(format!("500\n{} clients still active\n", num_clients).as_bytes()).unwrap();
                         }
 

@@ -1,5 +1,7 @@
 
 
+use log::info;
+
 use crate::bookkeeping::*;
 use crate::common::api_commands::FlytApiCommand;
 use crate::common::utils::Utils;
@@ -228,11 +230,13 @@ impl<'a> ServerNodesManager<'a> {
     }
 
     pub fn free_virt_server(&self, virt_ip: String, rpc_id: u64) -> Result<(),String> {
-        
+
+        info!("Deallocating virt server: {}/{}", virt_ip, rpc_id);
+
         let server_node = self.get_server_node(&virt_ip);
 
         if server_node.is_none() {
-            println!("Server node not found: {}", virt_ip);
+            log::error!("Server node not found: {}", virt_ip);
             return Err("Server node not found".to_string());
         }
 
@@ -241,13 +245,14 @@ impl<'a> ServerNodesManager<'a> {
         let target_vserver = server_node.virt_servers.iter().find(|virt_server| virt_server.read().unwrap().rpc_id == rpc_id);
 
         if target_vserver.is_none() {
-            println!("Virt server not found: {}", rpc_id);
+            log::error!("Virt server not found: {}", rpc_id);
             return Err("Virt server not found".to_string());
         }
 
-
+        log::trace!("Sending dealloc command to server node: {}/{}", virt_ip, rpc_id);
         server_node.stream.write_all(format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id).as_bytes()).unwrap();
         let response = Utils::read_response(&mut server_node.stream, 2);
+        log::info!("Response from server node {} for deallocate: {:?}", virt_ip, response);
 
         if response[0] != "200" {
             println!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]);
@@ -266,6 +271,8 @@ impl<'a> ServerNodesManager<'a> {
 
         server_node.virt_servers.retain(|virt_server| virt_server.read().unwrap().rpc_id != rpc_id);
         
+        log::trace!("Virt servers after deallocation: {:?}", server_node.virt_servers);
+
         Ok(())
     }
 

@@ -10,7 +10,7 @@ use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-
+use log::{error, info, trace};
 
 #[derive(Debug)]
 pub struct FlytClientNode {
@@ -111,7 +111,8 @@ impl<'a> FlytClientManager<'a> {
         
         match command[0].as_str() {
             FlytApiCommand::CLIENTD_RMGR_CONNECT => {
-                println!("CLIENTD_RMGR_CONNECT command received from client {}", client_ip);
+                info!("CLIENTD_RMGR_CONNECT command received from client {}", client_ip);
+
                 if self.exists(&client_ip) && self.get_client(&client_ip).unwrap().virt_server.is_some() {
                     self.set_client_status(&client_ip, true);
                     let client = self.get_client(&client_ip).unwrap();
@@ -139,7 +140,7 @@ impl<'a> FlytClientManager<'a> {
             },
 
             FlytApiCommand::CLIENTD_RMGR_ZERO_VCUDA_CLIENTS => {
-                println!("CLIENTD_RMGR_ZERO_VCUDA_CLIENTS command received from client {}", client_ip);
+                info!("CLIENTD_RMGR_ZERO_VCUDA_CLIENTS command received from client {}", client_ip);
                 self.set_client_status(&client_ip, false);
                 stream.write_all("200\nDone\n".as_bytes()).unwrap();
                 if let Some(dealloc_time) = get_virt_server_deallocate_time() {
@@ -151,15 +152,17 @@ impl<'a> FlytClientManager<'a> {
             },
             
             _ => {
-                println!("Unknown command: {}", command[0]);
+                error!("Unknown command: {}", command[0]);
             }
         }
         
     }
 
     fn deallocate_vm_resources(&self, ipaddr: &str) -> Result<(),String> {
+        info!("Deallocating virt server for client: {}", ipaddr);
         let mut client = self.get_client(ipaddr).ok_or("Client not found".to_string())?;
         if client.virt_server.is_none() {
+            info!("No virt server allocated for client: {}", ipaddr);
             return Err("No resources to deallocate".to_string());
         }
 
@@ -167,13 +170,16 @@ impl<'a> FlytClientManager<'a> {
 
         let lock_guard = virt_server.write().unwrap();
         if *client.is_active.read().unwrap() {
+            info!("Client is active, cannot deallocate resources");
             return Err("Client is active".to_string());
         }
 
 
         if client.stream.is_some() {
+            trace!("Sending dealloc command to client: {}", ipaddr);
             client.stream.as_ref().unwrap().write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_DEALLOC_VIRT_SERVER).as_bytes()).unwrap();
             let response = Utils::read_response(client.stream.as_mut().unwrap(), 2);
+            info!("Response from client {} for deallocate: {:?}", ipaddr, response);
             if response[0] != "200" {
                 return Err("Error deallocating resources".to_string());
             }
