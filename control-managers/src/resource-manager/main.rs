@@ -14,6 +14,9 @@ use frontend_handler::FrontendHandler;
 use servernode_handler::ServerNodesManager;
 
 fn main() {
+
+    env_logger::init();
+
     let ( servernode_port, client_port) = bookkeeping::get_ports();
 
     let vm_resource_getter = bookkeeping::VMResourcesGetter::new();
