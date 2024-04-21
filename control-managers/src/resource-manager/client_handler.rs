@@ -65,6 +65,17 @@ impl<'a> FlytClientManager<'a> {
         }
     }
 
+    pub fn get_client_status(&self, ipaddr: &str) -> bool {
+        let clients = self.clients.lock().unwrap();
+        let client = clients.get(ipaddr);
+        if let Some(client) = client {
+            *client.is_active.read().unwrap()
+        }
+        else {
+            false
+        }
+    }
+
     pub fn update_client(&self, client: FlytClientNode) {
         self.add_client(client);
     }
@@ -141,14 +152,16 @@ impl<'a> FlytClientManager<'a> {
 
             FlytApiCommand::CLIENTD_RMGR_ZERO_VCUDA_CLIENTS => {
                 info!("CLIENTD_RMGR_ZERO_VCUDA_CLIENTS command received from client {}", client_ip);
-                self.set_client_status(&client_ip, false);
-                stream.write_all("200\nDone\n".as_bytes()).unwrap();
-                if let Some(dealloc_time) = get_virt_server_deallocate_time() {
-                    scope.spawn(move || {
-                        thread::sleep(std::time::Duration::from_secs(dealloc_time));
-                        let _ = self.deallocate_vm_resources(&client_ip);
-                    });
+                if !self.get_client_status(&client_ip) {
+                    self.set_client_status(&client_ip, false);
+                    if let Some(dealloc_time) = get_virt_server_deallocate_time() {
+                        scope.spawn(move || {
+                            thread::sleep(std::time::Duration::from_secs(dealloc_time));
+                            let _ = self.deallocate_vm_resources(&client_ip);
+                        });
+                    }
                 }
+                stream.write_all("200\nDone\n".as_bytes()).unwrap();
             },
             
             _ => {
@@ -187,6 +200,7 @@ impl<'a> FlytClientManager<'a> {
 
         let virt_server_ip = lock_guard.ipaddr.clone();
         let rpc_id = lock_guard.rpc_id;
+        drop(lock_guard);
         self.server_nodes_manager.free_virt_server(virt_server_ip, rpc_id)?;
 
         client.virt_server = None;
