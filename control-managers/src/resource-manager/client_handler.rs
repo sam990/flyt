@@ -152,7 +152,7 @@ impl<'a> FlytClientManager<'a> {
 
             FlytApiCommand::CLIENTD_RMGR_ZERO_VCUDA_CLIENTS => {
                 info!("CLIENTD_RMGR_ZERO_VCUDA_CLIENTS command received from client {}", client_ip);
-                if !self.get_client_status(&client_ip) {
+                if self.get_client_status(&client_ip) {
                     self.set_client_status(&client_ip, false);
                     if let Some(dealloc_time) = get_virt_server_deallocate_time() {
                         scope.spawn(move || {
