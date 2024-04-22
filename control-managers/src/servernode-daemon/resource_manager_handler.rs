@@ -1,8 +1,42 @@
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::{Arc, RwLock}};
-use crate::{common::api_commands::FlytApiCommand, gpu_manager::GPU, virt_server_manager::VirtServerManager};
+use crate::{common::api_commands::FlytApiCommand, gpu_manager::GPU, virt_server_manager::VirtServerManager, common::utils::StreamUtils};
 use crate::gpu_manager;
 
+macro_rules! stream_clone {
+    ($stream:expr) => {
+        match $stream.try_clone() {
+            Ok(stream) => stream,
+            Err(e) => {
+                log::error!("Error cloning stream: {}", e);
+                return;
+            }
+        }
+    };
+}
 
+macro_rules! stream_write {
+    ($stream:expr, $message:expr) => {
+        match $stream.write_all($message.as_bytes()) {
+            Ok(_) => {},
+            Err(e) => {
+                log::error!("Error writing to stream: {}", e);
+                return;
+            }
+        }
+    };
+}
+
+macro_rules! stream_read_line {
+    ($stream:expr) => {
+        match StreamUtils::read_line(&mut $stream) {
+            Ok(data) => data,
+            Err(e) => {
+                log::error!("Error reading from stream: {}", e);
+                return;
+            }
+        }
+    };
+}
 
 pub struct ResourceManagerHandler {
     resource_manager_stream: RwLock<Option<TcpStream>>,
@@ -28,7 +62,7 @@ impl ResourceManagerHandler {
                 Ok(())
             }
             Err(error) => {
-                println!("Error connecting to server: {}", error);
+                log::error!("Error connecting to server: {}", error);
                 Err(error.to_string())
             }
         }
@@ -39,54 +73,73 @@ impl ResourceManagerHandler {
             return;
         }
 
-        let mut writer = self.resource_manager_stream.read().unwrap().as_ref().unwrap().try_clone().unwrap();
-        let reader_stream = writer.try_clone().unwrap();
+        let mut writer = stream_clone!(self.resource_manager_stream.read().unwrap().as_ref().unwrap());
+        let reader_stream = stream_clone!(writer);
         let mut buf = String::new();
         let mut reader = BufReader::new(reader_stream);
 
         loop {
             buf.clear();
-            let read_size = reader.read_line(&mut buf).unwrap();
+            let read_size = match reader.read_line(&mut buf) {
+                Ok(size) => size,
+                Err(e) => {
+                    log::error!("Error reading from stream: {}", e);
+                    break;
+                }
+            };
 
             if read_size == 0 {
-                println!("Connection closed");
+                log::error!("Connection closed");
                 break;
             }
 
             match buf.trim() {
                 FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO => {
+                    log::info!("Got send gpu info command");
                     let gpus = gpu_manager::get_all_gpus();
                     match gpus {
                         Some(gpus) => {
                             self.node_gpus.write().unwrap().replace(gpus.clone());
-                            writer.write_all(format!("200\n{}\n", gpus.len()).as_bytes()).unwrap();
+                            stream_write!(writer, format!("200\n{}\n", gpus.len()));
                             for gpu in gpus {
                                 let message = format!("{},{},{},{},{},{}\n", gpu.gpu_id, gpu.name, gpu.memory, gpu.sm_cores, gpu.total_cores, gpu.max_clock);
-                                writer.write_all(message.as_bytes()).unwrap();
+                                stream_write!(writer, message);
                             }
                         }
                         None => {
                             let message = format!("500\nUnable to get gpu information\n");
-                            writer.write_all(message.as_bytes()).unwrap();
+                            stream_write!(writer, message);
                         }
                     }
                     
                 }
 
                 FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER => {
-                    buf.clear();
-                    reader.read_line(&mut buf).unwrap();
-                    buf = buf.trim().to_string();
+
+                    log::info!("Got allocate virt server command");
+
+                    stream_read_line!(reader);
                     let mut parts = buf.split(",");
 
                     if parts.clone().count() != 3 {
-                        writer.write_all("400\nInvalid number of arguments\n".as_bytes()).unwrap();
+                        stream_write!(writer, "400\nInvalid number of arguments\n".to_string());
                         continue;
                     }
 
-                    let gpu_id: u32 = parts.next().unwrap().parse().unwrap();
-                    let num_cores: u32 = parts.next().unwrap().parse().unwrap();
-                    let memory: u64 = parts.next().unwrap().parse().unwrap();
+                    let gpu_id = parts.next().unwrap().parse::<u32>();
+                    let num_cores = parts.next().unwrap().parse::<u32>();
+                    let memory = parts.next().unwrap().parse::<u64>();
+
+                    if gpu_id.is_err() || num_cores.is_err() || memory.is_err() {
+                        stream_write!(writer, "400\nInvalid arguments\n".to_string());
+                        continue;
+                    }
+
+                    let gpu_id = gpu_id.unwrap();
+                    let num_cores = num_cores.unwrap();
+                    let memory = memory.unwrap();
+
+                    log::info!("Allocating virt server: gpu_id: {}, num_cores: {}, memory: {}", gpu_id, num_cores, memory);
 
                     let total_gpu_sm_cores = self.node_gpus.read().unwrap().as_ref().unwrap().iter().find(|gpu| gpu.gpu_id == gpu_id).unwrap().total_cores;
 
@@ -94,59 +147,83 @@ impl ResourceManagerHandler {
                     
                     match ret {
                         Ok(rpc_id) => {
-                            println!("Virt server created: {}", rpc_id);
-                            writer.write_all(format!("200\n{}\n", rpc_id).as_bytes()).unwrap();
+                            log::info!("Virt server created: {}", rpc_id);
+                            stream_write!(writer, format!("200\n{}\n", rpc_id));
 
                         }
                         Err(e) => {
-                            println!("Error creating virt server: {}", e);
-                            writer.write_all(format!("500\n{}\n", e).as_bytes()).unwrap();
+                            log::info!("Error creating virt server: {}", e);
+                            stream_write!(writer, format!("500\n{}\n", e));
                         }
                     }
                 
                 }
 
                 FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER => {
-                    buf.clear();
-                    reader.read_line(&mut buf).unwrap();
-                    let rpc_id: u64 = buf.trim().parse().unwrap();
+                    
+                    log::info!("Got deallocate virt server command");
+
+                    let rpc_id = stream_read_line!(reader).parse::<u64>();
+                    if rpc_id.is_err() {
+                        stream_write!(writer, "400\nInvalid rpc_id\n".to_string());
+                        continue;
+                    }
+                    let rpc_id = rpc_id.unwrap();
+                    log::info!("Deallocating virt server: {}", rpc_id);
                     let ret = self.virt_server_manager.remove_virt_server(rpc_id);
                     match ret {
                         Ok(_) => {
-                            writer.write_all("200\nDone\n".as_bytes()).unwrap();
+                            log::info!("Virt server deallocated");
+                            stream_write!(writer, "200\nDone\n".to_string());
                         }
                         Err(e) => {
-                            writer.write_all(format!("500\n{}\n", e).as_bytes()).unwrap();
+                            log::error!("Error deallocating virt server: {}", e);
+                            stream_write!(writer, format!("500\n{}\n", e));
                         }
                     }
                 }
 
                 FlytApiCommand::RMGR_SNODE_CHANGE_RESOURCES => {
-                    buf.clear();
-                    reader.read_line(&mut buf).unwrap();
-                    let mut parts = buf.trim().split(",");
+                    log::info!("Got change resources command");
+
+                    let args = stream_read_line!(reader);
+                    let mut parts = args.split(",");
+                    
                     if parts.clone().count() != 3 {
-                        writer.write_all("400\nInvalid number of arguments\n".as_bytes()).unwrap();
+                        stream_write!(writer, "400\nInvalid number of arguments\n".to_string());
                         continue;
                     }
 
-                    let rpc_id: u64 = parts.next().unwrap().parse().unwrap();
-                    let num_cores: u32 = parts.next().unwrap().parse().unwrap();
-                    let memory: u64 = parts.next().unwrap().parse().unwrap();
+                    let rpc_id = parts.next().unwrap().parse::<u64>();
+                    let num_cores = parts.next().unwrap().parse::<u32>();
+                    let memory = parts.next().unwrap().parse::<u64>();
+
+                    if rpc_id.is_err() || num_cores.is_err() || memory.is_err() {
+                        stream_write!(writer, "400\nInvalid arguments\n".to_string());
+                        continue;
+                    }
+
+                    let rpc_id = rpc_id.unwrap();
+                    let num_cores = num_cores.unwrap();
+                    let memory = memory.unwrap();
+
+                    log::info!("Changing resources for rpc_id: {}, num_cores: {}, memory: {}", rpc_id, num_cores, memory);
 
                     let ret = self.virt_server_manager.change_resources(rpc_id, num_cores, memory);
                     match ret {
                         Ok(_) => {
-                            writer.write_all("200\nDone\n".as_bytes()).unwrap();
+                            log::info!("Resources changed");
+                            stream_write!(writer, "200\nDone\n".to_string());
                         }
                         Err(e) => {
-                            writer.write_all(format!("500\n{}\n", e).as_bytes()).unwrap();
+                            log::error!("Error changing resources: {}", e);
+                            stream_write!(writer, format!("500\n{}\n", e));
                         }
                     }
                 }
 
                 _ => {
-                    println!("Unknown command: {}", buf);
+                    log::error!("Unknown command: {}", buf);
                 }
             }
         }

@@ -48,6 +48,8 @@ impl VCudaClientManager {
     }
 
     pub fn pause_clients(&self) -> u32 {
+
+        log::info!("Pausing clients...");
         
         let mut pause_count = 0u32;
 
@@ -56,19 +58,19 @@ impl VCudaClientManager {
         for client in self.clients.read().unwrap().iter() {
             
             if self.message_queue.send(&bytes, client.send_id).is_err() {
-                println!("Error sending pause command to client: {}", client.send_id);
+                log::error!("Error sending pause command to client: {}", client.send_id);
                 continue;
             }
 
             let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(2));
             if recv_bytes.is_err() {
-                println!("Error receiving response from client: {}", client.send_id);
+                log::error!("Error receiving response from client: {}", client.send_id);
                 continue;
             }
             let recv_bytes = recv_bytes.unwrap();
             let response = Utils::convert_bytes_to_u32(&recv_bytes);
             if response.is_none() {
-                println!("Error parsing response from client: {}", client.send_id);
+                log::error!("Error parsing response from client: {}", client.send_id);
                 continue;
             }
             
@@ -76,16 +78,20 @@ impl VCudaClientManager {
                 pause_count += 1;
             }
             else {
-                println!("Error pausing client: {}", client.send_id);
+                log::error!("Error pausing client: {}", client.send_id);
             }
 
         }
+
+        log::info!("Paused #clients: {}", pause_count);
 
         pause_count
     }
 
     pub fn change_virt_server(&self, virt_server: &VirtServer) -> u32 {
         
+        log::info!("Changing virt server for clients...");
+
         let mut change_count = 0u32;
 
         let address_str = format!("{},{}", virt_server.address, virt_server.rpc_id);
@@ -94,20 +100,20 @@ impl VCudaClientManager {
         
         for client in self.clients.read().unwrap().iter() {
             if self.message_queue.send(&bytes, client.send_id).is_err() {
-                println!("Error sending change virt server command to client: {}", client.send_id);
+                log::error!("Error sending change virt server command to client: {}", client.send_id);
                 continue;
             }
 
             let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(2));
             if recv_bytes.is_err() {
-                println!("Error receiving response from client: {}", client.send_id);
+                log::error!("Error receiving response from client: {}", client.send_id);
                 continue;
             }
             let recv_bytes = recv_bytes.unwrap();
 
             let response = Utils::convert_bytes_to_u32(&recv_bytes);
             if response.is_none() {
-                println!("Error parsing response from client: {}", client.send_id);
+                log::error!("Error parsing response from client: {}", client.send_id);
                 continue;
             }
             
@@ -115,15 +121,19 @@ impl VCudaClientManager {
                 change_count += 1;
             }
             else {
-                println!("Error changing virt server for client: {}", client.send_id);
+                log::error!("Error changing virt server for client: {}", client.send_id);
             }
         }
+
+        log::info!("Changed virt server for #clients: {}", change_count);
 
         change_count
     }
 
 
     pub fn resume_clients(&self) -> u32 {
+
+        log::info!("Resuming clients...");
         
         let mut resume_count = 0u32;
 
@@ -131,20 +141,20 @@ impl VCudaClientManager {
 
         for client in self.clients.read().unwrap().iter() {
             if self.message_queue.send(&bytes, client.send_id).is_err() {
-                println!("Error sending resume command to client: {}", client.send_id);
+                log::error!("Error sending resume command to client: {}", client.send_id);
                 continue;
             }
 
             let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(2));
             if recv_bytes.is_err() {
-                println!("Error receiving response from client: {}", client.send_id);
+                log::error!("Error receiving response from client: {}", client.send_id);
                 continue;
             }
             let recv_bytes = recv_bytes.unwrap();
             
             let response = Utils::convert_bytes_to_u32(&recv_bytes);
             if response.is_none() {
-                println!("Error parsing response from client: {}", client.send_id);
+                log::error!("Error parsing response from client: {}", client.send_id);
                 continue;
             }
             
@@ -152,9 +162,11 @@ impl VCudaClientManager {
                 resume_count += 1;
             }
             else {
-                println!("Error resuming client: {}", client.send_id);
+                log::error!("Error resuming client: {}", client.send_id);
             }
         }
+
+        log::info!("Resumed #clients: {}", resume_count);
 
         resume_count
     }
@@ -167,7 +179,7 @@ impl VCudaClientManager {
         });
 
         if self.clients.write().unwrap().len() == 0 {
-            println!("No client connected... notifying...");
+            log::info!("No client connected... notifying...");
             notify_fn();
         }
     }
@@ -175,12 +187,17 @@ impl VCudaClientManager {
     pub fn listen_to_clients<F>(&self, virt_server_getter: F) where F: Fn() -> Option<VirtServer> {
         let key = PathProjectIdKey::new(self.mqueue_path.clone(), PROJ_ID);
         let message_queue = MessageQueue::new(MessageQueueKey::PathKey(key)).create().init().unwrap();
-
+        log::info!("Flyt client manager listening to clients...");
         loop {
-            let recv_bytes = message_queue.recv_type(1).unwrap();
+            let recv_bytes = message_queue.recv_type(1);
+            if recv_bytes.is_err() {
+                log::error!("Error receiving message from client");
+                continue;
+            }
+            let recv_bytes = recv_bytes.unwrap();
             let client_pid = Utils::convert_bytes_to_u32(&recv_bytes);
             if client_pid.is_none() {
-                println!("Error converting bytes to u32");
+                log::error!("Error converting bytes to u32");
                 continue;
             }
             let client_pid = client_pid.unwrap();
@@ -192,9 +209,11 @@ impl VCudaClientManager {
                 recv_id: receive_id as i64
             };
 
+            log::info!("Client connected: {}", client_pid);
+
             let virt_server = virt_server_getter();
             if virt_server.is_none() {
-                println!("Error getting virt server details");
+                log::error!("Error getting virt server details");
                 
                 let bytes = MqueueClientControlCommand::new("500", "").as_bytes();
                 message_queue.send(&bytes, client_msg_id.send_id).unwrap();
@@ -204,9 +223,15 @@ impl VCudaClientManager {
             let virt_server = virt_server.unwrap();
             let address_str = format!("{},{}", virt_server.address, virt_server.rpc_id);
             let bytes = MqueueClientControlCommand::new("200", &address_str).as_bytes();
-            message_queue.send(&bytes, client_msg_id.send_id).unwrap();
-
-            self.add_client(client_msg_id);
+            match message_queue.send(&bytes, client_msg_id.send_id) {
+                Ok(_) => {
+                    log::info!("Sent virt server details to client: {}", client_pid);
+                    self.add_client(client_msg_id);
+                },
+                Err(_) => {
+                    log::error!("Error sending virt server details to client: {}", client_pid);
+                }
+            }
 
         }
     }

@@ -33,7 +33,7 @@ pub fn get_all_gpus() -> Option<Vec<GPU>> {
         let total_cores = device.num_cores().ok()?;
 
         if sm_cores == -1 {
-            println!("Error getting SM cores for GPU {}", i);
+            log::error!("Error getting SM cores for GPU {}", i);
             continue;
         } 
 

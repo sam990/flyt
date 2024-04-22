@@ -37,6 +37,6 @@ fn main() {
         s.spawn(|| {
             frontend_handler.start_listening(crate::cli_frontend::get_stream_path().as_str());
         });
-    })
+    });
 
 }

@@ -4,12 +4,61 @@ use log::info;
 
 use crate::bookkeeping::*;
 use crate::common::api_commands::FlytApiCommand;
-use crate::common::utils::Utils;
+use crate::common::utils::StreamUtils;
 
 use std::collections::HashMap;
 use std::io::{ BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, RwLock};
+
+
+macro_rules! stream_clone {
+    ($stream: expr) => {
+        match $stream.try_clone() {
+            Ok(stream) => stream,
+            Err(e) => {
+                log::error!("Error cloning stream: {}", e);
+                return Err(format!("Error cloning stream: {}", e));
+            }
+        }
+    };
+}
+
+macro_rules! stream_write {
+    ($stream: expr, $data: expr) => {
+        match $stream.write_all($data.as_bytes()) {
+            Ok(_) => {}
+            Err(e) => {
+                log::error!("Error writing to stream: {}", e);
+                return Err(format!("Error writing to stream: {}", e));
+            }
+        }
+    };
+}
+
+macro_rules! stream_read_line {
+    ($stream: expr) => {
+        match StreamUtils::read_line(&mut $stream) {
+            Ok(data) => data,
+            Err(e) => {
+                log::error!("Error reading from stream: {}", e);
+                return Err(format!("Error reading from stream: {}", e));
+            }
+        }
+    };
+}
+
+macro_rules! stream_read_response {
+    ($stream: expr, $num_lines: expr) => {
+        match StreamUtils::read_response(&mut $stream, $num_lines) {
+            Ok(response) => response,
+            Err(e) => {
+                log::error!("Error reading response from stream: {}", e);
+                return Err(format!("Error reading response from stream: {}", e));
+            }
+        }
+    };
+}
 
 pub struct ServerNodesManager<'a> {
     server_nodes: Mutex<HashMap<String, ServerNode>>,
@@ -56,32 +105,39 @@ impl<'a> ServerNodesManager<'a> {
     
     pub fn start_servernode_handler(&self, port : u16) {
         let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
+        log::info!("Server node handler started on port: {}", port);
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     self.handle_servernode(stream)
                 }
                 Err(e) => {
-                    println!("Error: {}", e);
+                    log::error!("Error accepting connection: {}", e)
                 }
             }
         }
     }
 
     fn handle_servernode(&self, stream: TcpStream) {
-        let server_ip = stream.peer_addr().unwrap().ip().to_string();
+        let server_ip = match stream.peer_addr() {
+            Ok(addr) => addr.ip().to_string(),
+            Err(e) => {
+                log::error!("Error getting ip address of serverndoe: {}", e);
+                return;
+            }
+        };
 
-        println!("Server node connected: {}", server_ip);
+        log::info!("Server node connected: {}", server_ip);
 
         let server_node = ServerNode {
             ipaddr: server_ip.clone(),
             gpus: Vec::new(),
-            stream: stream.try_clone().unwrap(),
+            stream: stream,
             virt_servers: Vec::new(),
         };
     
         if self.exists(&server_node.ipaddr) {
-            println!("Server node already exists: {}", server_node.ipaddr);
+            log::error!("Server node already exists: {}", server_node.ipaddr);
             return;
         }
         
@@ -92,33 +148,36 @@ impl<'a> ServerNodesManager<'a> {
 
     fn update_server_node_gpus(&self, server_node_ip: &String ) -> Result<(),String> {
 
+        log::info!("Getting GPU details for servernode: {}", server_node_ip);
+
         if !self.exists(server_node_ip) {
-            println!("Server node not found: {}", server_node_ip);
+            log::error!("Server node not found: {}", server_node_ip);
             return Err("Server node not found".to_string());
         }
 
         let mut server_node = self.get_server_node(server_node_ip).unwrap();
 
-        let stream_clone = server_node.stream.try_clone().unwrap();
+        let stream_clone = stream_clone!(server_node.stream);
         let mut reader = BufReader::new(stream_clone);
 
-        server_node.stream.write_all(format!("{}\n", FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO).as_bytes()).unwrap();
+        stream_write!(server_node.stream, format!("{}\n", FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO));
 
-        let status = Utils::read_line(&mut reader);
+        let status = stream_read_line!(reader);
 
         if status != "200" {
-            let err_msg = Utils::read_line(&mut reader);
-            println!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status, err_msg);
+            let err_msg = stream_read_line!(reader);
+            log::error!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status, err_msg);
             return Err(format!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status, err_msg));
         }
         
-        let num_gpus_str = Utils::read_line(&mut reader);
+        let num_gpus_str = stream_read_line!(reader);
+        
         let num_gpus = num_gpus_str.parse::<u64>().unwrap();
 
         let mut gpus = Vec::new();
 
         for _ in 0..num_gpus {
-            let gpu_info_str = Utils::read_line(&mut reader);
+            let gpu_info_str = stream_read_line!(reader);
             let gpu_info = gpu_info_str.split(",").collect::<Vec<&str>>();
             // gpu_id, name, memory, compute_units, compute_power
             let gpu = Arc::new(RwLock::new (GPU {
@@ -134,15 +193,18 @@ impl<'a> ServerNodesManager<'a> {
 
         server_node.gpus = gpus;
         self.update_server_node(server_node);
-        println!("Server node gpus updated: {}", server_node_ip);
+        log::info!("Server node gpus updated: {}", server_node_ip);
         Ok(())
     }
 
     pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<Arc<RwLock<VirtServer>>,String> {
         let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
         
+        log::info!("Allocating VM resources for client: {}", client_ip);
+        log::info!("VM resources required: {:?}", vm_required_resources);
+
         if vm_required_resources.is_none() {
-            println!("VM resources not found for client: {}", client_ip);
+            log::error!("VM resources not found for client: {}", client_ip);
             return Err("VM resources not found".to_string());
         }
 
@@ -176,7 +238,7 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         if target_server_ip.is_none() {
-            println!("No server found with enough resources for client: {}", client_ip);
+            log::error!("No server found with enough resources for client: {}", client_ip);
             return Err("No server found with enough resources".to_string());
         }
 
@@ -185,17 +247,17 @@ impl<'a> ServerNodesManager<'a> {
 
         // communicate with the node
         let mut target_server_node = self.get_server_node(&target_server_ip).unwrap();
-        let stream_clone = target_server_node.stream.try_clone().unwrap();
+        let stream_clone = stream_clone!(target_server_node.stream);
         
         let mut reader = BufReader::new(stream_clone);
 
-        target_server_node.stream.write_all(format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory).as_bytes()).unwrap();
+        stream_write!(target_server_node.stream, format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory));
 
-        let status = Utils::read_line(&mut reader);
-        let payload = Utils::read_line(&mut reader);
+        let status = stream_read_line!(reader);
+        let payload = stream_read_line!(reader);
 
         if status != "200" {
-            println!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload);
+            log::error!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload);
             return Err(format!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload));
         }
         
@@ -212,6 +274,7 @@ impl<'a> ServerNodesManager<'a> {
             gpu_write.allocated_memory += vm_required_resources.memory;
         }
 
+        log::info!("Virt server {}/{} allocated for client: {}", target_server_ip, virt_server_rpc_id, client_ip);
         
         let virt_server = Arc::new(RwLock::new(VirtServer {
             ipaddr: target_server_ip,
@@ -224,6 +287,7 @@ impl<'a> ServerNodesManager<'a> {
         target_server_node.virt_servers.push(virt_server.clone());
         
         self.update_server_node(target_server_node);
+
 
         Ok(virt_server)
 
@@ -250,12 +314,14 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         log::trace!("Sending dealloc command to server node: {}/{}", virt_ip, rpc_id);
-        server_node.stream.write_all(format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id).as_bytes()).unwrap();
-        let response = Utils::read_response(&mut server_node.stream, 2);
-        log::info!("Response from server node {} for deallocate: {:?}", virt_ip, response);
+        stream_write!(server_node.stream, format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id));
+        
+        let response = stream_read_response!(server_node.stream, 2);
+
+        log::trace!("Response from server node {} for deallocate: {:?}", virt_ip, response);
 
         if response[0] != "200" {
-            println!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]);
+            log::error!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]);
             return Err(format!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]));
         }
 
@@ -272,7 +338,7 @@ impl<'a> ServerNodesManager<'a> {
         server_node.virt_servers.retain(|virt_server| virt_server.read().unwrap().rpc_id != rpc_id);
         
         log::trace!("Virt servers after deallocation: {:?}", server_node.virt_servers);
-
+        self.update_server_node(server_node);
         Ok(())
     }
 
@@ -280,7 +346,7 @@ impl<'a> ServerNodesManager<'a> {
         let server_node = self.get_server_node(server_ip);
 
         if server_node.is_none() {
-            println!("Server node not found: {}", server_ip);
+            log::error!("Server node not found: {}", server_ip);
             return Err("Server node not found".to_string());
         }
 
@@ -289,7 +355,7 @@ impl<'a> ServerNodesManager<'a> {
         let target_vserver = server_node.virt_servers.iter_mut().find(|virt_server| virt_server.read().unwrap().rpc_id == rpc_id);
 
         if target_vserver.is_none() {
-            println!("Virt server not found: {}", rpc_id);
+            log::error!("Virt server not found: {}", rpc_id);
             return Err("Virt server not found".to_string());
         }
 
@@ -303,17 +369,18 @@ impl<'a> ServerNodesManager<'a> {
         let memory_diff = memory - target_vserver_write_guard.memory;
 
         if compute_units_diff > gpu.compute_units - gpu.allocated_compute_units || memory_diff > gpu.memory - gpu.allocated_memory {
-            println!("Not enough resources to allocate");
+            log::info!("Not enough resources to allocate");
             return Err("Not enough resources to allocate".to_string());
         }
 
         // call the server node
 
-        server_node.stream.write_all(format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_CHANGE_RESOURCES, rpc_id, compute_units, memory).as_bytes()).unwrap();
-        let response = Utils::read_response(&mut server_node.stream, 2);
+        stream_write!(server_node.stream, format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_CHANGE_RESOURCES, rpc_id, compute_units, memory));
+
+        let response = stream_read_response!(server_node.stream, 2);
 
         if response[0] != "200" {
-            println!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]);
+            log::info!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]);
             return Err(format!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]));
         }
 
@@ -342,3 +409,4 @@ fn check_resource_availability(server_node: &ServerNode, vm_resources: &VMResour
     }
     None
 }
+

@@ -30,6 +30,8 @@ fn get_resource_mgr_address() -> (String, u16) {
 
 fn main() {
 
+    env_logger::init();
+
     let virt_server_manager = Arc::new(VirtServerManager::new(&get_mqueue_path(), get_virt_server_program_path()));
     let resource_manager_handler = ResourceManagerHandler::new(virt_server_manager.clone());
     let (address, port) = get_resource_mgr_address();
@@ -40,12 +42,12 @@ fn main() {
             loop {
                 match resource_manager_handler.connect(&address, port) {
                     Ok(_) => {
-                        println!("Connected to resource manager");
+                        log::info!("Connected to resource manager");
                         resource_manager_handler.incomming_message_handler();
                     },
                     Err(e) => {
-                        println!("Error connecting to resource manager: {}", e);
-                        println!("Retrying in 5 seconds");
+                        log::error!("Error connecting to resource manager: {}", e);
+                        log::error!("Retrying in 5 seconds");
                         thread::sleep(std::time::Duration::from_secs(5));
                     }
                 }

@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <inttypes.h>
 
-#define CLIENTD_MQUEUE_PATH "/tmp/flyt-client-mgr"
 #define PROJ_ID 0x42
 
 typedef struct __mqueue_msg {
