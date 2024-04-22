@@ -86,6 +86,8 @@ impl VirtServerManager {
             virt_server_process.kill().map_err(|e| format!("Error killing virt server: {}", e))?;
             return Err("Error starting virt server".to_string());
         }
+
+        log::info!("Virt server initialized with rpc_id: {}", rpc_id);
         
         let virt_server = VirtServer {
             id: rpc_id,

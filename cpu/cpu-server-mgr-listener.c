@@ -5,13 +5,15 @@
 #include <sys/msg.h>
 #include <pthread.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "msg-handler.h"
 #include "log.h"
 #include "cpu-utils.h"
 #include "cpu-server-resource-controller.h"
 
-#define CLIENTD_MQUEUE_PATH "/tmp/flyt-servernode-queue"
+#define SNODE_MQUEUE_PATH "/tmp/flyt-servernode-queue"
 #define PROJ_ID 0x42
 
 const char* SNODE_VIRTS_CHANGE_RESOURCES = "SNODE_VIRTS_CHANGE_RESOURCES";
@@ -95,14 +97,14 @@ int init_listener(int rpc_id)
     send_type = ((uint64_t)rpc_id) << 32;
     key_t key;
 
-    if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
-        if (mkdir(CLIENTD_MQUEUE_PATH, 0777) == -1) {
+    if (access(SNODE_MQUEUE_PATH, F_OK) == -1) {
+        if (mkdir(SNODE_MQUEUE_PATH, 0777) == -1) {
             LOGE(LOG_ERROR, "Error creating directory for client manager message queue: %s", strerror(errno));
             return -1;
         }
     }
 
-    if ((key = ftok(CLIENTD_MQUEUE_PATH, PROJ_ID)) == -1) {
+    if ((key = ftok(SNODE_MQUEUE_PATH, PROJ_ID)) == -1) {
         LOGE(LOG_ERROR, "Error creating key for client manager message queue: %s", strerror(errno));
         return -1;
     }

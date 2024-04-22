@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 use comfy_table::Table;
 use common::{api_commands::FrontEndCommand, config::RMGR_CONFIG_PATH};
 
-use crate::common::utils::Utils;
+use crate::common::utils::StreamUtils;
 
 #[path = "../common/mod.rs"]
 mod common;
@@ -52,6 +52,7 @@ pub fn get_stream_path() -> String {
 }
 
 fn main() {
+    env_logger::init();
     let args = Args::parse();
     let stream_path = get_stream_path();
 
@@ -72,21 +73,45 @@ fn main() {
 }
 
 fn list_vms(mut stream: UnixStream) {
-    stream
-        .write_all(format!("{}\n", FrontEndCommand::LIST_VMS).as_bytes())
-        .unwrap();
+    match stream.write_all(format!("{}\n", FrontEndCommand::LIST_VMS).as_bytes()) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+            return;
+        }
+    }
+    
     let mut reader = std::io::BufReader::new(stream);
 
-    let status = Utils::read_line(&mut reader);
+    let status = match StreamUtils::read_line(&mut reader) {
+        Ok(status) => status,
+        Err(e) => {
+            log::error!("Error reading status: {}", e);
+            return;
+        }
+    };
 
     if status != "200" {
-        println!("Error: {}", status);
-        let error_msg = Utils::read_line(&mut reader);
-        println!("{}", error_msg);
+        log::error!("Error: {}", status);
+        let error_msg = match StreamUtils::read_line(&mut reader) {
+            Ok(msg) => msg,
+            Err(e) => {
+                log::error!("Error reading error message: {}", e);
+                return;
+            }
+        };
+        log::error!("{}", error_msg);
         return;
     }
 
-    let num_vms_str = Utils::read_line(&mut reader);
+    let num_vms_str = match StreamUtils::read_line(&mut reader) {
+        Ok(num_vms) => num_vms,
+        Err(e) => {
+            log::error!("Error reading number of VMs: {}", e);
+            return;
+        }
+    };
+
     let num_vms = num_vms_str.parse::<usize>().unwrap();
 
     let mut table = Table::new();
@@ -101,7 +126,13 @@ fn list_vms(mut stream: UnixStream) {
     ]);
 
     for _ in 0..num_vms {
-        let row = Utils::read_line(&mut reader);
+        let row = match StreamUtils::read_line(&mut reader) {
+            Ok(row) => row,
+            Err(e) => {
+                log::error!("Error reading VM details: {}", e);
+                return;
+            }
+        };
         let fields = row.split(',').collect::<Vec<&str>>();
         table.add_row(fields);
     }
@@ -110,28 +141,56 @@ fn list_vms(mut stream: UnixStream) {
 }
 
 fn list_servernodes(mut stream: UnixStream) {
-    stream
-        .write_all(format!("{}\n", FrontEndCommand::LIST_SERVER_NODES).as_bytes())
-        .unwrap();
+    match stream.write_all(format!("{}\n", FrontEndCommand::LIST_SERVER_NODES).as_bytes()) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+            return;
+        }
+    }
     let mut reader = std::io::BufReader::new(stream);
 
-    let status = Utils::read_line(&mut reader);
+    let status = match StreamUtils::read_line(&mut reader) {
+        Ok(status) => status,
+        Err(e) => {
+            log::error!("Error reading status: {}", e);
+            return;
+        }
+    };
 
     if status != "200" {
-        println!("Error: {}", status);
-        let error_msg = Utils::read_line(&mut reader);
-        println!("{}", error_msg);
+        log::error!("Error: {}", status);
+        let error_msg = match StreamUtils::read_line(&mut reader) {
+            Ok(msg) => msg,
+            Err(e) => {
+                log::error!("Error reading error message: {}", e);
+                return;
+            }
+        };
+        log::error!("{}", error_msg);
         return;
     }
 
-    let num_servernodes_str = Utils::read_line(&mut reader);
+    let num_servernodes_str = match StreamUtils::read_line(&mut reader) {
+        Ok(num_servernodes) => num_servernodes,
+        Err(e) => {
+            log::error!("Error reading number of server nodes: {}", e);
+            return;
+        }
+    };
     let num_servernodes =num_servernodes_str.parse::<usize>().unwrap();
 
     let mut response = String::new();
 
     // format: ipaddr,num_gpus
     for _ in 0..num_servernodes {
-        let fields_str = Utils::read_line(&mut reader);
+        let fields_str = match StreamUtils::read_line(&mut reader) {
+            Ok(fields) => fields,
+            Err(e) => {
+                log::error!("Error reading server node details: {}", e);
+                return;
+            }
+        };
         let fields = fields_str.split(',').collect::<Vec<&str>>();
         let ipaddr = fields[0];
         let num_gpus = fields[1].parse::<usize>().unwrap();
@@ -150,7 +209,13 @@ fn list_servernodes(mut stream: UnixStream) {
         ]);
 
         for _ in 0..num_gpus {
-            let row_str = Utils::read_line(&mut reader);
+            let row_str = match StreamUtils::read_line(&mut reader) {
+                Ok(row) => row,
+                Err(e) => {
+                    log::error!("Error reading GPU details: {}", e);
+                    return;
+                }
+            };
             let fields = row_str.split(',').collect::<Vec<&str>>();
             table.add_row(fields);
         }
@@ -162,21 +227,44 @@ fn list_servernodes(mut stream: UnixStream) {
 }
 
 fn list_virt_servers(mut stream: UnixStream) {
-    stream
-        .write_all(format!("{}\n", FrontEndCommand::LIST_VIRT_SERVERS).as_bytes())
-        .unwrap();
+    match stream.write_all(format!("{}\n", FrontEndCommand::LIST_VIRT_SERVERS).as_bytes()) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+            return;
+        }
+    }
+
     let mut reader = std::io::BufReader::new(stream);
 
-    let status = Utils::read_line(&mut reader);
+    let status = match StreamUtils::read_line(&mut reader) {
+        Ok(status) => status,
+        Err(e) => {
+            log::error!("Error reading status: {}", e);
+            return;
+        }
+    };
 
     if status != "200" {
-        println!("Error: {}", status);
-        let error_msg = Utils::read_line(&mut reader);
-        println!("{}", error_msg);
+        log::error!("Error: {}", status);
+        let error_msg = match StreamUtils::read_line(&mut reader) {
+            Ok(msg) => msg,
+            Err(e) => {
+                log::error!("Error reading error message: {}", e);
+                return;
+            }
+        };
+        log::error!("{}", error_msg);
         return;
     }
 
-    let num_virtual_servers_str = Utils::read_line(&mut reader);
+    let num_virtual_servers_str = match StreamUtils::read_line(&mut reader) {
+        Ok(num_virt_servers) => num_virt_servers,
+        Err(e) => {
+            log::error!("Error reading number of virtual servers: {}", e);
+            return;
+        }
+    };
     let num_virt_servers = num_virtual_servers_str.parse::<usize>().unwrap();
 
     // format: ipaddr,rpc_id,gpu_id,compute_units,memory
@@ -190,7 +278,13 @@ fn list_virt_servers(mut stream: UnixStream) {
     ]);
 
     for _ in 0..num_virt_servers {
-        let fields_str = Utils::read_line(&mut reader);
+        let fields_str = match StreamUtils::read_line(&mut reader) {
+            Ok(fields) => fields,
+            Err(e) => {
+                log::error!("Error reading virtual server details: {}", e);
+                return;
+            }
+        };
         let fields = fields_str.split(',').collect::<Vec<&str>>();
         table.add_row(fields);
     }
@@ -221,13 +315,25 @@ fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: NewRes
     };
 
     if command.is_empty() {
-        println!("Invalid command");
+        log::error!("Invalid command");
         return;
     }
 
-    stream.write_all(command.as_bytes()).unwrap();
+    match stream.write_all(command.as_bytes()) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+            return;
+        }
+    }
 
-    let response = common::utils::Utils::read_response(&mut stream, 2);
+    let response = match StreamUtils::read_response(&mut stream, 2) {
+        Ok(response) => response,
+        Err(e) => {
+            log::error!("Error reading response: {}", e);
+            return;
+        }
+    };
 
     println!("{}: {}", response[0], response[1]);
 }

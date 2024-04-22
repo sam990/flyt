@@ -1,5 +1,5 @@
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::RwLock, thread};
-use crate::common::utils::Utils;
+use crate::common::utils::StreamUtils;
 use crate::common::api_commands::FlytApiCommand;
 use crate::vcuda_client_handler::VCudaClientManager;
 
@@ -50,7 +50,7 @@ impl <'b> ResourceManagerHandler <'b> {
 
             }
             Err(error) => {
-                println!("Error connecting to server: {}", error);
+                log::error!("Error connecting to server: {}", error);
                 None
             }
         }
@@ -61,12 +61,28 @@ impl <'b> ResourceManagerHandler <'b> {
     }
 
     fn read_virt_server_details(stream: &mut TcpStream) -> Option<VirtServer> {
-        stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT).as_bytes()).unwrap();
-        let respone = Utils::read_response(stream, 2);
-        if respone[0] == "200" {
-            let server_details = respone[1].split(",").collect::<Vec<&str>>();
+        match stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT).as_bytes()) {
+            Ok(_) => {}
+            Err(e) => {
+                log::error!("Error writing to stream: {}", e);
+                return None;
+            }
+        }
+        
+        let response =  match StreamUtils::read_response(stream, 2) {
+            Ok(response) => {
+                response
+            }
+            Err(error) => {
+                log::error!("Error reading response: {}", error);
+                return  None;
+            }
+        };
+
+        if response[0] == "200" {
+            let server_details = response[1].split(",").collect::<Vec<&str>>();
             if server_details.len() != 2 {
-                println!("Server details not in correct format: {}", respone[1]);
+                log::error!("Server details not in correct format: {}", response[1]);
                 return None;
             }
             Some(VirtServer {
@@ -74,7 +90,7 @@ impl <'b> ResourceManagerHandler <'b> {
                 rpc_id: server_details[1].parse::<u64>().unwrap()
             })
         } else {
-            println!("Error getting server details: {} {}", respone[0], respone[1]);
+            log::error!("Error getting server details: {} {}", response[0], response[1]);
             None
         }
     }
@@ -82,7 +98,7 @@ impl <'b> ResourceManagerHandler <'b> {
     fn change_virt_server(&self, response_str: String) {
         let server_details = response_str.split(",").collect::<Vec<&str>>();
         if server_details.len() != 2 {
-            println!("Server details not in correct format: {}", response_str);
+            log::error!("Server details not in correct format: {}", response_str);
             return;
         }
         self.virt_server.write().unwrap().replace(VirtServer {
@@ -92,9 +108,31 @@ impl <'b> ResourceManagerHandler <'b> {
     }
 
     pub fn notify_zero_clients(&self) -> bool {
-        let mut stream = TcpStream::connect(format!("{}:{}", self.server_ip, self.server_port)).unwrap();
-        stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_ZERO_VCUDA_CLIENTS).as_bytes()).unwrap();
-        let response = Utils::read_response(&mut stream, 2);
+        let mut stream = match TcpStream::connect(format!("{}:{}", self.server_ip, self.server_port)) {
+            Ok(stream) => {
+                stream
+            }
+            Err(error) => {
+                log::error!("Error connecting to server: {}", error);
+                return false;
+            }
+        };
+        match stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_ZERO_VCUDA_CLIENTS).as_bytes()) {
+            Ok(_) => {}
+            Err(e) => {
+                log::error!("Error writing to stream: {}", e);
+                return false;
+            }
+        };
+        let response = match StreamUtils::read_response(&mut stream, 2) {
+            Ok(response) => {
+                response
+            }
+            Err(error) => {
+                log::error!("Error reading response: {}", error);
+                return  false;
+            }
+        };
         response[0] == "200"
     }
 
@@ -108,32 +146,48 @@ impl <'b> ResourceManagerHandler <'b> {
 
             loop {
                 let mut command = String::new();
-                let read_len = reader.read_line(&mut command).unwrap();
+                let read_len = match reader.read_line(&mut command) {
+                    Ok(read_len) => {
+                        read_len
+                    }
+                    Err(error) => {
+                        log::error!("Error reading command: {}", error);
+                        break;
+                    }
+                };
                 
                 if read_len == 0 {
-                    println!("Connection closed by server");
+                    log::info!("Connection closed by server");
                     break;
                 }
 
-                println!("Received command: {}", command);
+                log::info!("Received command: {}", command);
 
                 match command.trim() {
                     FlytApiCommand::RMGR_CLIENTD_PAUSE => {
                         let total_clients = self.client_mgr.num_active_clients();
                         let num_paused = self.client_mgr.pause_clients();
-                        writer.write_all(format!("200\nPaused {} out of {} clients\n", num_paused, total_clients).as_bytes()).unwrap();
+                        let _ = StreamUtils::write_all(&mut writer, format!("200\nPaused {} out of {} clients\n", num_paused, total_clients));
                     }
 
                     FlytApiCommand::RMGR_CLIENTD_RESUME => {
                         let num_resumed = self.client_mgr.resume_clients();
-                        writer.write_all(format!("200\nResumed {} clients\n", num_resumed).as_bytes()).unwrap();
+                        let _ = StreamUtils::write_all(&mut writer, format!("200\nResumed {} clients\n", num_resumed));
                     }
 
                     FlytApiCommand::RMGR_CLIENTD_CHANGE_VIRT_SERVER => {
-                        let payload = Utils::read_line(&mut reader);
+                        let payload = match StreamUtils::read_line(&mut reader) {
+                            Ok(payload) => {
+                                payload
+                            }
+                            Err(error) => {
+                                log::error!("Error reading new virt servers. Skipping: {}", error);
+                                continue;
+                            }
+                        };
                         self.change_virt_server(payload);
                         self.client_mgr.change_virt_server(self.virt_server.read().unwrap().as_ref().unwrap());
-                        writer.write_all("200\nChanged virt server\n".as_bytes()).unwrap();
+                        let _ = StreamUtils::write_all(&mut writer, "200\nChanged virt server\n".to_string());
                     }
                     
                     FlytApiCommand::RMGR_CLIENTD_DEALLOC_VIRT_SERVER => {
@@ -144,16 +198,16 @@ impl <'b> ResourceManagerHandler <'b> {
                         if num_clients == 0 {
                             lock_guard.take();
                             log::info!("Deallocated virt server: {:?}", lock_guard.as_ref());
-                            writer.write_all("200\nDeallocated virt server\n".as_bytes()).unwrap();
+                            let _ = StreamUtils::write_all(&mut writer, "200\nDeallocated virt server\n".to_string());
                         } else {
                             log::info!("Cannot deallocate virt server, {} clients still active", num_clients);
-                            writer.write_all(format!("500\n{} clients still active\n", num_clients).as_bytes()).unwrap();
+                            let _ = StreamUtils::write_all(&mut writer, format!("500\n{} clients still active\n", num_clients));
                         }
 
                     }
 
                     _ => {
-                        println!("Unknown command: {}", command);
+                        log::error!("Unknown command: {}", command);
                     }
                 }
             }

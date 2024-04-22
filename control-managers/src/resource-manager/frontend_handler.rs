@@ -1,6 +1,6 @@
-use std::{fs, io::{BufReader, Write}, os::unix::net::{UnixListener, UnixStream}, path::Path};
+use std::{fs, io::BufReader, os::unix::net::{UnixListener, UnixStream}, path::Path};
 
-use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::Utils}, servernode_handler::ServerNodesManager};
+use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};
 
 
 #[derive(PartialEq)]
@@ -30,13 +30,16 @@ impl <'a> FrontendHandler<'a> {
         }
 
         let listener = UnixListener::bind(socket_path).unwrap();
+
+        log::info!("Frontend handler listening on {}", socket_path);
+
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     self.handle_request(stream);
                 }
                 Err(e) => {
-                    println!("Error: {}", e);
+                    log::error!("Error: {}", e);
                     break;
                 }
             }
@@ -44,10 +47,22 @@ impl <'a> FrontendHandler<'a> {
     }
 
     fn handle_request(&self, stream: UnixStream) {
-        let reader_clone = stream.try_clone().unwrap();
+        let reader_clone = match stream.try_clone() {
+            Ok(stream) => stream,
+            Err(e) => {
+                log::error!("Error cloning stream: {}", e);
+                return;
+            }
+        };
         let mut reader = BufReader::new(reader_clone);
         
-        let command = Utils::read_line(&mut reader);
+        let command = match StreamUtils::read_line(&mut reader) {
+            Ok(command) => command,
+            Err(e) => {
+                log::error!("Error reading command: {}", e);
+                return;
+            }
+        };
         
         match command.as_str() {
             FrontEndCommand::LIST_VMS => {
@@ -69,7 +84,7 @@ impl <'a> FrontendHandler<'a> {
                 self.change_resources(stream, ChangeConfigFor::Both);
             }
             _ => {
-                println!("Invalid command");
+                log::error!("Invalid command");
             }
         }
     }
@@ -99,7 +114,7 @@ impl <'a> FrontendHandler<'a> {
             }
             
         }
-        stream.write_all(response.as_bytes()).unwrap();
+        let _ = StreamUtils::write_all(&mut stream, response);
     }
 
     fn list_servernodes(&self, mut stream: UnixStream) {
@@ -123,7 +138,7 @@ impl <'a> FrontendHandler<'a> {
                 ));
             }
         }
-        stream.write_all(response.as_bytes()).unwrap();
+        let _ = StreamUtils::write_all(&mut stream, response);
     }
 
     fn list_virt_servers(&self, mut stream: UnixStream) {
@@ -143,14 +158,21 @@ impl <'a> FrontendHandler<'a> {
             }
         }
         response.insert_str(0, format!("200\n{}\n", response.lines().count()).as_str());
-        stream.write_all(response.as_bytes()).unwrap();
+        let _ = StreamUtils::write_all(&mut stream, response);
     }
 
     fn change_resources(&self, mut stream: UnixStream, change_for: ChangeConfigFor) {
-        let buffer = Utils::read_response(stream.try_clone().unwrap().by_ref(), 1);
+
+        let buffer = match StreamUtils::read_response(&mut stream, 1) {
+            Ok(buffer) => buffer,
+            Err(e) => {
+                log::error!("Error reading buffer: {}", e);
+                return;
+            }
+        };
         let parts: Vec<&str> = buffer[0].split(',').collect();
         if (change_for != ChangeConfigFor::Both && parts.len() != 2) || (change_for == ChangeConfigFor::Both && parts.len() != 3 ){
-            stream.write_all(b"Invalid command").unwrap();
+            let _ = StreamUtils::write_all(&mut stream, "Invalid command".to_string());
             return;
         }
         let ipaddr = parts[0];
@@ -158,14 +180,14 @@ impl <'a> FrontendHandler<'a> {
 
         let client = self.client_mgr.get_client(ipaddr);
         if client.is_none() {
-            stream.write_all(b"500\nVM not found\n").unwrap();
+            let _ = StreamUtils::write_all(&mut stream, "500\nVM not found\n".to_string());
             return;
         }
 
         let client = client.unwrap();
         
         if client.virt_server.is_none() {
-            stream.write_all(b"500\nVM is not running on any server node\n").unwrap();
+            let _ = StreamUtils::write_all(&mut stream, "500\nVM is not running on any server node\n".to_string());
             return;
         }
 
@@ -184,10 +206,10 @@ impl <'a> FrontendHandler<'a> {
         };
 
         if ret.is_ok() {
-            stream.write_all(b"200\nResource updated successfully\n").unwrap();
+            let _ = StreamUtils::write_all(&mut stream, "200\nResource updated successfully\n".to_string());
         }
         else {
-            stream.write_all(b"500\nFailed to update resource\n").unwrap();
+            let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", ret.unwrap_err()));
         }
 
     }
