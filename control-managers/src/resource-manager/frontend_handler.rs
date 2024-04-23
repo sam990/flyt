@@ -3,7 +3,7 @@ use std::{fs, io::BufReader, os::unix::net::{UnixListener, UnixStream}, path::Pa
 use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};
 
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum ChangeConfigFor {
     SmCores,
     Memory,
@@ -75,13 +75,13 @@ impl <'a> FrontendHandler<'a> {
                 self.list_virt_servers(stream);
             }
             FrontEndCommand::CHANGE_SM_CORES => {
-                self.change_resources(stream, ChangeConfigFor::SmCores);
+                self.change_resources(stream, reader, ChangeConfigFor::SmCores);
             }
             FrontEndCommand::CHANGE_MEMORY => {
-                self.change_resources(stream, ChangeConfigFor::Memory);
+                self.change_resources(stream, reader, ChangeConfigFor::Memory);
             }
             FrontEndCommand::CHANGE_SM_CORES_AND_MEMORY => {
-                self.change_resources(stream, ChangeConfigFor::Both);
+                self.change_resources(stream, reader, ChangeConfigFor::Both);
             }
             _ => {
                 log::error!("Invalid command");
@@ -107,7 +107,7 @@ impl <'a> FrontendHandler<'a> {
                 ));
             }
             else {
-                response.push_str(&format!("{},,,,{},\n",
+                response.push_str(&format!("{},,,,,{}\n",
                     vm.ipaddr,
                     *vm.is_active.read().unwrap()
                 ));
@@ -161,9 +161,11 @@ impl <'a> FrontendHandler<'a> {
         let _ = StreamUtils::write_all(&mut stream, response);
     }
 
-    fn change_resources(&self, mut stream: UnixStream, change_for: ChangeConfigFor) {
+    fn change_resources(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>, change_for: ChangeConfigFor) {
 
-        let buffer = match StreamUtils::read_response(&mut stream, 1) {
+        log::info!("Received change resource request");
+
+        let buffer = match StreamUtils::read_response(&mut reader, 1) {
             Ok(buffer) => buffer,
             Err(e) => {
                 log::error!("Error reading buffer: {}", e);
@@ -172,14 +174,18 @@ impl <'a> FrontendHandler<'a> {
         };
         let parts: Vec<&str> = buffer[0].split(',').collect();
         if (change_for != ChangeConfigFor::Both && parts.len() != 2) || (change_for == ChangeConfigFor::Both && parts.len() != 3 ){
-            let _ = StreamUtils::write_all(&mut stream, "Invalid command".to_string());
+            log::error!("Invalid arguments for change resource command {:?} {:?}", change_for, parts);
+            let _ = StreamUtils::write_all(&mut stream, "Invalid arguments".to_string());
             return;
         }
         let ipaddr = parts[0];
         let new_resource = parts[1].parse::<u64>().unwrap();
 
+        log::info!("Changing resource for VM: {}, new resource: {} for {:?}", ipaddr, new_resource, change_for);
+
         let client = self.client_mgr.get_client(ipaddr);
         if client.is_none() {
+            log::error!("Client VM {} not found", ipaddr);
             let _ = StreamUtils::write_all(&mut stream, "500\nVM not found\n".to_string());
             return;
         }
@@ -187,6 +193,7 @@ impl <'a> FrontendHandler<'a> {
         let client = client.unwrap();
         
         if client.virt_server.is_none() {
+            log::error!("VM {} is not running on any server node", ipaddr);
             let _ = StreamUtils::write_all(&mut stream, "500\nVM is not running on any server node\n".to_string());
             return;
         }
@@ -206,9 +213,11 @@ impl <'a> FrontendHandler<'a> {
         };
 
         if ret.is_ok() {
+            log::info!("Resource updated successfully");
             let _ = StreamUtils::write_all(&mut stream, "200\nResource updated successfully\n".to_string());
         }
         else {
+            log::error!("Error updating resource: {:?}", ret);
             let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", ret.unwrap_err()));
         }
 

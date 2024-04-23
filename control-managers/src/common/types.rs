@@ -1,3 +1,5 @@
+use std::io::{BufReader, Read, Write};
+
 
 
 #[derive(Debug, Clone, Copy)]
@@ -15,6 +17,13 @@ impl Default for MqueueClientControlCommand {
         }
     }
 }
+
+
+#[derive(Debug)]
+pub struct StreamEnds <T: Read + Write> {
+    pub reader: BufReader<T>,
+    pub writer: T
+} 
 
 impl MqueueClientControlCommand {
     pub fn new(command: &str, data: &str) -> Self {

@@ -1,12 +1,13 @@
 
 use crate::bookkeeping::*;
+use crate::common::types::StreamEnds;
 use crate::servernode_handler::ServerNodesManager;
 use crate::common::api_commands::FlytApiCommand;
 use crate::common::utils::StreamUtils;
 
 
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -14,7 +15,7 @@ use std::thread;
 #[derive(Debug)]
 pub struct FlytClientNode {
     pub ipaddr: String,
-    pub stream: Option<TcpStream>,
+    pub stream: Arc<RwLock<Option<StreamEnds<TcpStream>>>>,
     pub virt_server: Option<Arc<RwLock<VirtServer>>>,
     pub is_active: RwLock<bool>,
 }
@@ -23,11 +24,23 @@ impl Clone for FlytClientNode {
     fn clone(&self) -> Self {
         FlytClientNode {
             ipaddr: self.ipaddr.clone(),
-            stream: self.stream.as_ref().map(|stream| stream.try_clone().unwrap()),
+            stream: self.stream.clone(),
             virt_server: self.virt_server.clone(),
             is_active: RwLock::new(*self.is_active.read().unwrap()),
         }
     }
+}
+
+macro_rules! get_reader {
+    ($node: expr) => {
+        $node.stream.write().unwrap().as_mut().unwrap().reader.by_ref()
+    };
+}
+
+macro_rules! get_writer {
+    ($node: expr) => {
+        $node.stream.write().unwrap().as_mut().unwrap().writer
+    };
 }
 
 pub struct FlytClientManager<'a> {
@@ -50,10 +63,11 @@ impl<'a> FlytClientManager<'a> {
         clients.insert(client.ipaddr.clone(), client);
     }
 
-    pub fn update_stream(&self, ipaddr: &str, stream: TcpStream) {
+    pub fn update_stream(&self, ipaddr: &str, writer: TcpStream, reader: BufReader<TcpStream>) {
         let mut clients = self.clients.lock().unwrap();
         let client = clients.get_mut(ipaddr).unwrap();
-        client.stream.replace(stream);
+
+        client.stream.write().unwrap().replace(StreamEnds{writer, reader});
     }
 
     pub fn set_client_status(&self, ipaddr: &str, status: bool) {
@@ -116,8 +130,18 @@ impl<'a> FlytClientManager<'a> {
 
     fn handle_flytclient<'b>(&'b self, mut stream: TcpStream, scope: &'b thread::Scope<'b, '_>) {
         let client_ip = stream.peer_addr().unwrap().ip().to_string();
+
+        let stream_clone = match stream.try_clone() {
+            Ok(stream) => stream,
+            Err(e) => {
+                log::error!("Error cloning stream: {}", e);
+                return;
+            }
+        };
+
+        let mut reader = BufReader::new(stream_clone);
         
-        let command = match StreamUtils::read_response(&mut stream, 1) {
+        let command = match StreamUtils::read_response(&mut reader, 1) {
             Ok(command) => command,
             Err(e) => {
                 log::error!("Error reading command from client: {}", e);
@@ -135,7 +159,7 @@ impl<'a> FlytClientManager<'a> {
                     let virt_server = client.virt_server.as_ref().unwrap().read().unwrap();
                     match stream.write_all(format!("200\n{},{}\n", virt_server.ipaddr, virt_server.rpc_id).as_bytes()) {
                         Ok(_) => {
-                            self.update_stream(&client_ip, stream);                  
+                            self.update_stream(&client_ip, stream, reader);                  
                         }
                         Err(e) => {
                             log::error!("Error writing to stream: {}", e);
@@ -148,11 +172,13 @@ impl<'a> FlytClientManager<'a> {
                         let virt_server = virt_server.unwrap();
                         let client = FlytClientNode {
                             ipaddr: client_ip.clone(),
-                            stream: Some(stream.try_clone().unwrap()),
+                            stream: Arc::new(RwLock::new(Some(StreamEnds{writer: stream, reader}))),
                             virt_server: Some(virt_server.clone()),
                             is_active: RwLock::new(true),
                         };
-                        match stream.write_all(format!("200\n{},{}\n", virt_server.read().unwrap().ipaddr, virt_server.read().unwrap().rpc_id).as_bytes()) {
+                        let client_stream_clone = client.stream.clone();
+                        let mut client_stream_clone_writer = client_stream_clone.write().unwrap();
+                        match client_stream_clone_writer.as_mut().unwrap().writer.write_all(format!("200\n{},{}\n", virt_server.read().unwrap().ipaddr, virt_server.read().unwrap().rpc_id).as_bytes()) {
                             Ok(_) => {
                                 log::info!("Adding new client {}", client_ip);
                                 self.add_client(client);
@@ -211,16 +237,16 @@ impl<'a> FlytClientManager<'a> {
         }
 
 
-        if client.stream.is_some() {
+        if client.stream.read().unwrap().is_some() {
             log::trace!("Sending dealloc command to client: {}", ipaddr);
-            match client.stream.as_ref().unwrap().write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_DEALLOC_VIRT_SERVER).as_bytes()) {
+            match get_writer!(client).write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_DEALLOC_VIRT_SERVER).as_bytes()) {
                 Ok(_) => {}
                 Err(e) => {
                     log::error!("Error writing to client: {}", e);
                     return Err("Error writing to client".to_string());
                 }
             };
-            let response = match StreamUtils::read_response(client.stream.as_mut().unwrap(), 2) {
+            let response = match StreamUtils::read_response(get_reader!(client), 2) {
                 Ok(response) => response,
                 Err(e) => {
                     log::error!("Error reading response from client: {}", e);

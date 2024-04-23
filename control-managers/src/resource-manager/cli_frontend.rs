@@ -327,7 +327,9 @@ fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: NewRes
         }
     }
 
-    let response = match StreamUtils::read_response(&mut stream, 2) {
+    let mut reader = std::io::BufReader::new(stream);
+
+    let response = match StreamUtils::read_response(&mut reader, 2) {
         Ok(response) => response,
         Err(e) => {
             log::error!("Error reading response: {}", e);
