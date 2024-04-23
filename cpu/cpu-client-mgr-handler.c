@@ -112,11 +112,11 @@ void stop_client_mgr() {
 
 char* init_client_mgr() {
     LOGE(LOG_DEBUG, "Connecting to client manager");
-    if (access(SNODE_MQUEUE_PATH, F_OK) == -1) {
-        mknod(SNODE_MQUEUE_PATH, S_IFREG | 0666, 0);
+    if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
+        mknod(CLIENTD_MQUEUE_PATH, S_IFREG | 0666, 0);
     }
 
-    key_t key = ftok(SNODE_MQUEUE_PATH, PROJ_ID);
+    key_t key = ftok(CLIENTD_MQUEUE_PATH, PROJ_ID);
     if (key == -1) {
         perror("ftok");
         exit(EXIT_FAILURE);
