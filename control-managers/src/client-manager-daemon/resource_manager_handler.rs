@@ -12,7 +12,6 @@ pub struct VirtServer {
 pub struct ResourceManagerHandler<'b> {
     server_ip: String,
     server_port: u16,
-    stream: RwLock<Option<TcpStream>>,
     virt_server: RwLock<Option<VirtServer>>,
     client_mgr: &'b VCudaClientManager
 }
@@ -24,7 +23,6 @@ impl <'b> ResourceManagerHandler <'b> {
         ResourceManagerHandler {
             server_ip: server_ip,
             server_port: server_port,
-            stream: RwLock::new(None),
             virt_server: RwLock::new(None),
             client_mgr: client_mgr
         }
@@ -37,11 +35,18 @@ impl <'b> ResourceManagerHandler <'b> {
         let stream = TcpStream::connect(format!("{}:{}", self.server_ip, self.server_port));
         match stream {
             Ok(mut stream) => {
-                let vserver = ResourceManagerHandler::read_virt_server_details(&mut stream);
+                let stream_clone = match stream.try_clone() {
+                    Ok(stream) => stream,
+                    Err(e) => {
+                        log::error!("Error cloning stream: {}", e);
+                        return None;
+                    }
+                };
+                let mut reader = BufReader::new(stream_clone);
+                let vserver = ResourceManagerHandler::read_virt_server_details(&mut reader, &mut stream);
                 if vserver.is_some() {
-                    self.stream.write().unwrap().replace(stream);
                     self.virt_server.write().unwrap().replace(vserver.clone().unwrap());
-                    self.launch_cmd_reader_thread(scope);
+                    self.launch_cmd_reader_thread(scope, reader, stream);
                     vserver
                 }
                 else {
@@ -60,7 +65,7 @@ impl <'b> ResourceManagerHandler <'b> {
         self.virt_server.read().unwrap().is_some()
     }
 
-    fn read_virt_server_details(stream: &mut TcpStream) -> Option<VirtServer> {
+    fn read_virt_server_details(reader: &mut BufReader<TcpStream>, stream: &mut TcpStream) -> Option<VirtServer> {
         match stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT).as_bytes()) {
             Ok(_) => {}
             Err(e) => {
@@ -69,7 +74,7 @@ impl <'b> ResourceManagerHandler <'b> {
             }
         }
         
-        let response =  match StreamUtils::read_response(stream, 2) {
+        let response =  match StreamUtils::read_response(reader, 2) {
             Ok(response) => {
                 response
             }
@@ -124,7 +129,8 @@ impl <'b> ResourceManagerHandler <'b> {
                 return false;
             }
         };
-        let response = match StreamUtils::read_response(&mut stream, 2) {
+        let mut reader = BufReader::new(stream);
+        let response = match StreamUtils::read_response(&mut reader, 2) {
             Ok(response) => {
                 response
             }
@@ -137,12 +143,8 @@ impl <'b> ResourceManagerHandler <'b> {
     }
 
 
-    fn launch_cmd_reader_thread<'a>(&'a self, scope: &'a thread::Scope<'a, '_>) {
-        let stream_clone = self.stream.read().unwrap().as_ref().unwrap().try_clone().unwrap();
+    fn launch_cmd_reader_thread<'a>(&'a self, scope: &'a thread::Scope<'a, '_>, mut reader: BufReader<TcpStream>, mut writer: TcpStream) {
         scope.spawn( move || {
-            let reader_clone = stream_clone.try_clone().unwrap();
-            let mut writer = stream_clone;
-            let mut reader = BufReader::new(reader_clone);
 
             loop {
                 let mut command = String::new();
@@ -158,6 +160,8 @@ impl <'b> ResourceManagerHandler <'b> {
                 
                 if read_len == 0 {
                     log::info!("Connection closed by server");
+                    log::info!("Clearing Virt server");
+                    self.virt_server.write().unwrap().take();
                     break;
                 }
 

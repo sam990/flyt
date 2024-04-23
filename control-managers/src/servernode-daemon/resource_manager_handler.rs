@@ -118,17 +118,18 @@ impl ResourceManagerHandler {
 
                     log::info!("Got allocate virt server command");
 
-                    stream_read_line!(reader);
-                    let mut parts = buf.split(",");
+                    let args = stream_read_line!(reader);
+                    let parts = args.split(",").collect::<Vec<&str>>();
 
-                    if parts.clone().count() != 3 {
+                    if parts.len() != 3 {
+                        log::error!("Invalid number of arguments: {:?}", parts);
                         stream_write!(writer, "400\nInvalid number of arguments\n".to_string());
                         continue;
                     }
 
-                    let gpu_id = parts.next().unwrap().parse::<u32>();
-                    let num_cores = parts.next().unwrap().parse::<u32>();
-                    let memory = parts.next().unwrap().parse::<u64>();
+                    let gpu_id = parts[0].parse::<u32>();
+                    let num_cores = parts[1].parse::<u32>();
+                    let memory = parts[2].parse::<u64>();
 
                     if gpu_id.is_err() || num_cores.is_err() || memory.is_err() {
                         stream_write!(writer, "400\nInvalid arguments\n".to_string());
@@ -165,6 +166,7 @@ impl ResourceManagerHandler {
 
                     let rpc_id = stream_read_line!(reader).parse::<u64>();
                     if rpc_id.is_err() {
+                        log::error!("Invalid rpc_id: {:?}", rpc_id);
                         stream_write!(writer, "400\nInvalid rpc_id\n".to_string());
                         continue;
                     }
@@ -187,16 +189,17 @@ impl ResourceManagerHandler {
                     log::info!("Got change resources command");
 
                     let args = stream_read_line!(reader);
-                    let mut parts = args.split(",");
-                    
-                    if parts.clone().count() != 3 {
+                    let parts = args.split(",").collect::<Vec<&str>>();
+
+                    if parts.len() != 3 {
+                        log::error!("Invalid number of arguments: {:?}", parts);
                         stream_write!(writer, "400\nInvalid number of arguments\n".to_string());
                         continue;
                     }
 
-                    let rpc_id = parts.next().unwrap().parse::<u64>();
-                    let num_cores = parts.next().unwrap().parse::<u32>();
-                    let memory = parts.next().unwrap().parse::<u64>();
+                    let rpc_id = parts[0].parse::<u64>();
+                    let num_cores = parts[1].parse::<u32>();
+                    let memory = parts[2].parse::<u64>();
 
                     if rpc_id.is_err() || num_cores.is_err() || memory.is_err() {
                         stream_write!(writer, "400\nInvalid arguments\n".to_string());

@@ -6,6 +6,7 @@ use mongodb::{options::{ClientOptions, ServerAddress, Credential}, sync::Client,
 use serde::{Deserialize, Serialize};
 
 use crate::common::config::RMGR_CONFIG_PATH;
+use crate::common::types::StreamEnds;
 use crate::common::utils::Utils;
 
 struct ConfigOptions;
@@ -43,7 +44,7 @@ impl Default for GPU {
 pub struct ServerNode {
     pub ipaddr: String,
     pub gpus: Vec<Arc<RwLock<GPU>>>,
-    pub stream: TcpStream,
+    pub stream: Arc<RwLock<StreamEnds<TcpStream>>>,
     pub virt_servers: Vec<Arc<RwLock<VirtServer>>>,
 }
 
@@ -52,7 +53,7 @@ impl Clone for ServerNode {
         ServerNode {
             ipaddr: self.ipaddr.clone(),
             gpus: self.gpus.clone(),
-            stream: self.stream.try_clone().unwrap(),
+            stream: self.stream.clone(),
             virt_servers: self.virt_servers.clone()
         }
     }

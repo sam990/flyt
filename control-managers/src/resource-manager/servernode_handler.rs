@@ -4,25 +4,27 @@ use log::info;
 
 use crate::bookkeeping::*;
 use crate::common::api_commands::FlytApiCommand;
+use crate::common::types::StreamEnds;
 use crate::common::utils::StreamUtils;
 
 use std::collections::HashMap;
-use std::io::{ BufReader, Write};
+use std::io::{ BufReader, Write };
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, RwLock};
 
 
-macro_rules! stream_clone {
-    ($stream: expr) => {
-        match $stream.try_clone() {
-            Ok(stream) => stream,
-            Err(e) => {
-                log::error!("Error cloning stream: {}", e);
-                return Err(format!("Error cloning stream: {}", e));
-            }
-        }
+macro_rules! get_reader {
+    ($server_node: expr) => {
+        $server_node.stream.write().unwrap().reader
     };
 }
+
+macro_rules! get_writer {
+    ($server_node: expr) => {
+        $server_node.stream.write().unwrap().writer
+    };
+}
+
 
 macro_rules! stream_write {
     ($stream: expr, $data: expr) => {
@@ -49,8 +51,8 @@ macro_rules! stream_read_line {
 }
 
 macro_rules! stream_read_response {
-    ($stream: expr, $num_lines: expr) => {
-        match StreamUtils::read_response(&mut $stream, $num_lines) {
+    ($reader: expr, $num_lines: expr) => {
+        match StreamUtils::read_response(&mut $reader, $num_lines) {
             Ok(response) => response,
             Err(e) => {
                 log::error!("Error reading response from stream: {}", e);
@@ -127,12 +129,22 @@ impl<'a> ServerNodesManager<'a> {
             }
         };
 
+        let reader_clone = match stream.try_clone() {
+            Ok(stream) => stream,
+            Err(e) => {
+                log::error!("Error cloning stream: {}", e);
+                return;
+            }
+        };
+
+        let reader = BufReader::new(reader_clone);
+    
         log::info!("Server node connected: {}", server_ip);
 
         let server_node = ServerNode {
             ipaddr: server_ip.clone(),
             gpus: Vec::new(),
-            stream: stream,
+            stream: Arc::new(RwLock::new(StreamEnds{writer: stream, reader })),
             virt_servers: Vec::new(),
         };
     
@@ -157,27 +169,24 @@ impl<'a> ServerNodesManager<'a> {
 
         let mut server_node = self.get_server_node(server_node_ip).unwrap();
 
-        let stream_clone = stream_clone!(server_node.stream);
-        let mut reader = BufReader::new(stream_clone);
+        stream_write!(get_writer!(server_node), format!("{}\n", FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO));
 
-        stream_write!(server_node.stream, format!("{}\n", FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO));
-
-        let status = stream_read_line!(reader);
+        let status = stream_read_line!(get_reader!(server_node));
 
         if status != "200" {
-            let err_msg = stream_read_line!(reader);
+            let err_msg = stream_read_line!(get_reader!(server_node));
             log::error!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status, err_msg);
             return Err(format!("RMGR_SNODE_SEND_GPU_INFO, Status: {}\n{}", status, err_msg));
         }
         
-        let num_gpus_str = stream_read_line!(reader);
+        let num_gpus_str = stream_read_line!(get_reader!(server_node));
         
         let num_gpus = num_gpus_str.parse::<u64>().unwrap();
 
         let mut gpus = Vec::new();
 
         for _ in 0..num_gpus {
-            let gpu_info_str = stream_read_line!(reader);
+            let gpu_info_str = stream_read_line!(get_reader!(server_node));
             let gpu_info = gpu_info_str.split(",").collect::<Vec<&str>>();
             // gpu_id, name, memory, compute_units, compute_power
             let gpu = Arc::new(RwLock::new (GPU {
@@ -247,18 +256,15 @@ impl<'a> ServerNodesManager<'a> {
 
         // communicate with the node
         let mut target_server_node = self.get_server_node(&target_server_ip).unwrap();
-        let stream_clone = stream_clone!(target_server_node.stream);
-        
-        let mut reader = BufReader::new(stream_clone);
 
-        stream_write!(target_server_node.stream, format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory));
+        stream_write!(get_writer!(target_server_node), format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory));
 
-        let status = stream_read_line!(reader);
-        let payload = stream_read_line!(reader);
+        let status = stream_read_line!(get_reader!(target_server_node));
+        let payload = stream_read_line!(get_reader!(target_server_node));
 
         if status != "200" {
-            log::error!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload);
-            return Err(format!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", status, payload));
+            log::error!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}: {}", status, payload);
+            return Err(format!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}: {}", status, payload));
         }
         
         let target_gpu_id = target_gpu_id.unwrap();
@@ -314,9 +320,9 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         log::trace!("Sending dealloc command to server node: {}/{}", virt_ip, rpc_id);
-        stream_write!(server_node.stream, format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id));
+        stream_write!(get_writer!(server_node), format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id));
         
-        let response = stream_read_response!(server_node.stream, 2);
+        let response = stream_read_response!(get_reader!(server_node), 2);
 
         log::trace!("Response from server node {} for deallocate: {:?}", virt_ip, response);
 
@@ -369,18 +375,18 @@ impl<'a> ServerNodesManager<'a> {
         let memory_diff = memory - target_vserver_write_guard.memory;
 
         if compute_units_diff > gpu.compute_units - gpu.allocated_compute_units || memory_diff > gpu.memory - gpu.allocated_memory {
-            log::info!("Not enough resources to allocate");
+            log::error!("Not enough resources to allocate");
             return Err("Not enough resources to allocate".to_string());
         }
 
         // call the server node
 
-        stream_write!(server_node.stream, format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_CHANGE_RESOURCES, rpc_id, compute_units, memory));
+        stream_write!(get_writer!(server_node), format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_CHANGE_RESOURCES, rpc_id, compute_units, memory));
 
-        let response = stream_read_response!(server_node.stream, 2);
+        let response = stream_read_response!(get_reader!(server_node), 2);
 
         if response[0] != "200" {
-            log::info!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]);
+            log::error!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]);
             return Err(format!("RMGR_SNODE_CHANGE_RESOURCES, Status: {}\n{}", response[0], response[1]));
         }
 
