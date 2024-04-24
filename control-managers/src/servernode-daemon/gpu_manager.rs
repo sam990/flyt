@@ -1,3 +1,4 @@
+
 use nvml_wrapper::{enum_wrappers::device::Clock, Nvml};
 
 extern "C" {
@@ -15,10 +16,37 @@ pub struct GPU {
     pub virt_servers: Vec<u32>
 }
 
+pub struct GPUManager {
+    gpu_list: Option<Vec<GPU>>
+}
+
+impl GPUManager {
+    pub fn new() -> GPUManager {
+        GPUManager {
+            gpu_list: None
+        }
+    }
+
+    pub fn get_all_gpus(&mut self) -> Option<Vec<GPU>> {
+        if self.gpu_list.is_none() {
+            self.gpu_list = get_all_gpus();
+        }
+        self.gpu_list.clone()
+    }
+
+    pub fn get_gpu(&mut self, gpu_id: u32) -> Option<GPU> {
+        let gpus = self.get_all_gpus()?;
+        for gpu in gpus {
+            if gpu.gpu_id == gpu_id {
+                return Some(gpu);
+            }
+        }
+        None
+    }
+}
+
 pub fn get_all_gpus() -> Option<Vec<GPU>> {
     
-
-
     let nvml = Nvml::init().ok()?;
     let num_devices = nvml.device_count().ok()?;
 
@@ -49,9 +77,10 @@ pub fn get_all_gpus() -> Option<Vec<GPU>> {
             virt_servers: Vec::new()
         });
     }
-
     Some(gpus)
 }
+
+
 
 #[cfg(test)]
 mod tests {

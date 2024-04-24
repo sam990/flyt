@@ -1,6 +1,7 @@
 #MIT License...
 
-.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu control-managers install-cmgr 
+.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu control-managers 
+.PHONY: install-cmgr install-cpu-server install-cpu-client install-tests install-gpu
 
 all: cpu install
 
@@ -28,13 +29,18 @@ gpu: cuda-gdb
 	@echo -e "\033[36m----> Building gpu\033[0m"
 	$(MAKE) -C gpu
 
-cpu: libtirpc
-	@echo -e "\033[36m----> Building cpu\033[0m"
-	$(MAKE) -C cpu
+
+cpu-server: libtirpc
+	@echo -e "\033[36m----> Building cpu-server\033[0m"
+	$(MAKE) -C cpu cricket-rpc-server
 
 cpu-client: libtirpc
 	@echo -e "\033[36m----> Building cpu-client\033[0m"
 	$(MAKE) -C cpu cricket-client.so
+
+cpu: libtirpc cpu-server cpu-client
+	@echo -e "\033[36m----> Building cpu\033[0m"
+
 
 install-cpu-client: cpu-client bin/cricket-client.so
 	@echo -e "\033[36m----> Copying cpu-client to build/bin\033[0m"
@@ -47,7 +53,10 @@ tests:
 	@echo -e "\033[36m----> Building test kernels\033[0m"
 	$(MAKE) -C tests
 
-install-cpu: bin/cricket-client.so bin/cricket-rpc-server bin/libtirpc.so bin/libtirpc.so.3
+install-cpu-server: bin/cricket-rpc-server
+	@echo -e "\033[36m----> Copying cpu-server to build/bin\033[0m"
+
+install-cpu: install-cpu-server install-cpu-client bin/libtirpc.so bin/libtirpc.so.3
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
 
 install-tests: bin/tests
@@ -68,15 +77,14 @@ bin:
 bin/tests: bin tests
 	ln -sf ../tests/bin bin/tests
 
-bin/cricket-client.so: bin cpu
+bin/cricket-client.so: bin cpu-client
 	cp cpu/cricket-client.so bin
 
-bin/cricket-server.so: bin
+bin/cricket-server.so: bin cpu-server
 	$(MAKE) -C cpu cricket-server.so
 	cp cpu/cricket-server.so bin/cricket-server.so
 
-
-bin/cricket-rpc-server: bin cpu
+bin/cricket-rpc-server: bin cpu-server
 	cp cpu/cricket-rpc-server bin/cricket-rpc-server
 
 bin/cricket: bin gpu

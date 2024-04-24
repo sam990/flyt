@@ -374,8 +374,10 @@ impl<'a> ServerNodesManager<'a> {
         let compute_units_diff = compute_units - target_vserver_write_guard.compute_units;
         let memory_diff = memory - target_vserver_write_guard.memory;
 
-        if compute_units_diff > gpu.compute_units - gpu.allocated_compute_units || memory_diff > gpu.memory - gpu.allocated_memory {
-            log::error!("Not enough resources to allocate");
+        if compute_units_diff + gpu.allocated_compute_units > gpu.compute_units|| memory_diff + gpu.allocated_memory > gpu.memory {
+            log::error!("Not enough resources to allocate compute_units: {}, memory: {}", compute_units, memory);
+            log::error!("Available compute_units: {}, memory: {}", gpu.compute_units - gpu.allocated_compute_units, gpu.memory - gpu.allocated_memory);
+            log::error!("Current compute_units: {}, memory: {}", target_vserver_write_guard.compute_units, target_vserver_write_guard.memory);
             return Err("Not enough resources to allocate".to_string());
         }
 

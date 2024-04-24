@@ -36,6 +36,8 @@
 #include "cpu-server-cublaslt.h"
 #include "mt-memcpy.h"
 #include "gsched.h"
+#include "cpu-server-resource-controller.h"
+#include "cpu-server-driver.h"
 
 typedef struct host_alloc_info {
     size_t idx;
@@ -1381,7 +1383,9 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
                 hainfo_cnt++;
             }    
 #else
+    PRIMARY_CTX_RETAIN;
     result->err = cudaMalloc((void **)&result->ptr_result_u.ptr, argp);
+    PRIMARY_CTX_RELEASE;
     resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
 #endif
 
@@ -1402,7 +1406,9 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
                                 .width = width};
     struct cudaPitchedPtr pptr;
     LOGE(LOG_DEBUG, "cudaMalloc3D");
+    PRIMARY_CTX_RETAIN;
     result->err = cudaMalloc3D(&pptr, extent);
+    PRIMARY_CTX_RELEASE;
     result->pptr_result_u.ptr.pitch = pptr.pitch;
     result->pptr_result_u.ptr.ptr = (ptr)pptr.ptr;
     result->pptr_result_u.ptr.xsize = pptr.xsize;
@@ -1433,7 +1439,9 @@ bool_t cuda_malloc_3d_array_1_svc(cuda_channel_format_desc desc, size_t depth, s
                                 .height = height,
                                 .width = width};
     LOGE(LOG_DEBUG, "cudaMalloc3DArray");
+    PRIMARY_CTX_RETAIN;
     result->err = cudaMalloc3DArray((void*)&result->ptr_result_u.ptr, &cuda_desc, extent, flags);
+    PRIMARY_CTX_RELEASE;
     resource_mg_create(&rm_arrays, (void*)result->ptr_result_u.ptr);
 
     RECORD_RESULT(integer, result->err);
@@ -1456,7 +1464,9 @@ bool_t cuda_malloc_array_1_svc(cuda_channel_format_desc desc, size_t width, size
       .y = desc.y,
       .z = desc.z};
     LOGE(LOG_DEBUG, "cudaMallocArray");
+    PRIMARY_CTX_RETAIN;
     result->err = cudaMallocArray((void*)&result->ptr_result_u.ptr, &cuda_desc, width, height, flags);
+    PRIMARY_CTX_RELEASE;
     resource_mg_create(&rm_arrays, (void*)result->ptr_result_u.ptr);
 
     RECORD_RESULT(integer, result->err);
@@ -1475,9 +1485,11 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
     RECORD_ARG(1, width);
     RECORD_ARG(2, height);
     LOGE(LOG_DEBUG, "cudaMallocPitch");
+    PRIMARY_CTX_RETAIN;
     result->err = cudaMallocPitch((void*)&result->ptrsz_result_u.data.p,
                                   &result->ptrsz_result_u.data.s,
                                   width, height);
+    PRIMARY_CTX_RELEASE;
     resource_mg_create(&rm_memory, (void*)result->ptrsz_result_u.data.p);
 
     RECORD_RESULT(integer, result->err);

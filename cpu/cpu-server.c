@@ -28,6 +28,7 @@
 #include "cpu-server-nvml.h"
 #include "cpu-server-cudnn.h"
 #include "cpu-server-mgr-listener.h"
+#include "cpu-server-resource-controller.h"
 
 INIT_SOCKTYPE
 
@@ -272,7 +273,8 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     // }
 
     sched = &sched_fixed;
-    
+    set_active_device(gpu_id);
+
     if (sched->init() != 0) {
         LOGE(LOG_ERROR, "initializing scheduler failed.");
         goto cleanup4;
@@ -320,7 +322,14 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         goto cleanup00;
     }
 
+
     init_listener(vers);
+    if (init_resource_controller(num_sm_cores, memory) != 0) {
+        LOGE(LOG_ERROR, "initializing resource controller failed.");
+        goto cleanup00;
+    }
+    
+
     send_initialised_msg();
 
 

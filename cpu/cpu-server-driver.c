@@ -12,6 +12,7 @@
 #define WITH_RECORDER
 #include "api-recorder.h"
 #include "gsched.h"
+#include "cpu-server-resource-controller.h"
 
 static list rm_function_regs;
 
@@ -82,6 +83,9 @@ int server_driver_function_restore(void)
         char* deviceName = arg->arg4;
         int thread_limit = arg->arg5;
 
+        LOGE(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
+            fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
+
         void *module = NULL;
         CUresult res;
         if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
@@ -93,6 +97,7 @@ int server_driver_function_restore(void)
             LOGE(LOG_ERROR, "cuModuleGetFunction failed: %d", res);
             return 1;
         }
+        LOGE(LOG_DEBUG, "registering function %p->%p", hostFun, func);
         if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)func) != 0) {
             LOGE(LOG_ERROR, "error in resource manager");
             return 1;
@@ -185,11 +190,11 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
                             char* deviceName, int thread_limit, ptr_result *result, struct svc_req *rqstp)
 {
     void *module = NULL;
-    RECORD_API(rpc_register_function_1_argument);
+    RECORD_API_STR(rpc_register_function_1_argument, 2);
     RECORD_ARG(1, fatCubinHandle);
     RECORD_ARG(2, hostFun);
-    RECORD_ARG(3, deviceFun);
-    RECORD_ARG(4, deviceName);
+    RECORD_ARG_STR(3, deviceFun);
+    RECORD_ARG_STR(4, deviceName);
     RECORD_ARG(5, thread_limit);
     LOG(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
         fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
@@ -199,8 +204,8 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
 
     reg_args->arg1 = fatCubinHandle;
     reg_args->arg2 = hostFun;
-    reg_args->arg3 = deviceFun;
-    reg_args->arg4 = deviceName;
+    reg_args->arg3 = strdup(deviceFun);
+    reg_args->arg4 = strdup(deviceName);
     reg_args->arg5 = thread_limit;
 
     GSCHED_RETAIN;

@@ -1,6 +1,5 @@
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::{Arc, RwLock}};
-use crate::{common::api_commands::FlytApiCommand, gpu_manager::GPU, virt_server_manager::VirtServerManager, common::utils::StreamUtils};
-use crate::gpu_manager;
+use crate::{common::api_commands::FlytApiCommand, gpu_manager::GPUManager, virt_server_manager::VirtServerManager, common::utils::StreamUtils};
 
 macro_rules! stream_clone {
     ($stream:expr) => {
@@ -40,17 +39,17 @@ macro_rules! stream_read_line {
 
 pub struct ResourceManagerHandler {
     resource_manager_stream: RwLock<Option<TcpStream>>,
-    node_gpus: RwLock<Option<Vec<GPU>>>,
     virt_server_manager: Arc<VirtServerManager>,
+    gpu_manager: GPUManager
 }
 
 impl ResourceManagerHandler {
 
-    pub fn new( virt_server_manager: Arc<VirtServerManager> ) -> ResourceManagerHandler {
+    pub fn new( virt_server_manager: Arc<VirtServerManager>, gpu_manager: GPUManager ) -> ResourceManagerHandler {
         ResourceManagerHandler {
             resource_manager_stream: RwLock::new(None),
-            node_gpus: RwLock::new(None),
-            virt_server_manager
+            virt_server_manager,
+            gpu_manager
         }
     }
 
@@ -68,7 +67,7 @@ impl ResourceManagerHandler {
         }
     }
 
-    pub fn incomming_message_handler(&self) {
+    pub fn incomming_message_handler(&mut self) {
         if self.resource_manager_stream.read().unwrap().is_none() {
             return;
         }
@@ -96,10 +95,9 @@ impl ResourceManagerHandler {
             match buf.trim() {
                 FlytApiCommand::RMGR_SNODE_SEND_GPU_INFO => {
                     log::info!("Got send gpu info command");
-                    let gpus = gpu_manager::get_all_gpus();
+                    let gpus = self.gpu_manager.get_all_gpus();
                     match gpus {
                         Some(gpus) => {
-                            self.node_gpus.write().unwrap().replace(gpus.clone());
                             stream_write!(writer, format!("200\n{}\n", gpus.len()));
                             for gpu in gpus {
                                 let message = format!("{},{},{},{},{},{}\n", gpu.gpu_id, gpu.name, gpu.memory, gpu.sm_cores, gpu.total_cores, gpu.max_clock);
@@ -142,9 +140,14 @@ impl ResourceManagerHandler {
 
                     log::info!("Allocating virt server: gpu_id: {}, num_cores: {}, memory: {}", gpu_id, num_cores, memory);
 
-                    let total_gpu_sm_cores = self.node_gpus.read().unwrap().as_ref().unwrap().iter().find(|gpu| gpu.gpu_id == gpu_id).unwrap().total_cores;
+                    if self.gpu_manager.get_gpu(gpu_id).is_none() {
+                        log::error!("GPU not found: {}", gpu_id);
+                        stream_write!(writer, "400\nGPU not found\n".to_string());
+                        continue;
+                    }
 
-                    let ret = self.virt_server_manager.create_virt_server(gpu_id, memory, num_cores, total_gpu_sm_cores);
+
+                    let ret = self.virt_server_manager.create_virt_server(gpu_id, memory, num_cores);
                     
                     match ret {
                         Ok(rpc_id) => {

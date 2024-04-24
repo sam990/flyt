@@ -15,5 +15,17 @@ uint64_t get_mem_limit();
 
 int allow_mem_alloc(uint64_t size);
 
+void check_and_change_resource(void);
+
+int set_new_config(uint32_t new_num_sm_cores, uint64_t new_mem);
+
+int init_resource_controller(uint32_t num_sm_cores, uint64_t mem);
+
+void set_primary_context();
+
+void unset_primary_context();
+
+#define PRIMARY_CTX_RETAIN set_primary_context()
+#define PRIMARY_CTX_RELEASE unset_primary_context()
 
 #endif // _CPU_SERVER_RESOURCE_CONTROLLER_H_
