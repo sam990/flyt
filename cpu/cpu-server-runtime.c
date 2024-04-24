@@ -1117,8 +1117,10 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 
     #else
 
+    PRIMARY_CTX_RETAIN;
     *result = cudaFree(resource_mg_get(&rm_memory, (void*)devPtr));
-
+    PRIMARY_CTX_RELEASE;
+    
     #endif
 
     /* The cleanup/simplification of the record could also be
