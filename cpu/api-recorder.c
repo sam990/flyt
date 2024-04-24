@@ -37,11 +37,28 @@ static void api_records_free_data(void)
     }
 }
 
+static void api_records_free_str(void) {
+    api_record_t *record;
+    for (size_t i = 0; i < api_records.length; i++) {
+        if (list_at(&api_records, i, (void**)&record) != 0) {
+            LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
+            continue;
+        }
+        for (size_t j = 0; j < record->str_args_num; j++) {
+            free(record->str_args[j]);
+            record->str_args[j] = NULL;
+        }
+        free(record->str_args);
+        record->str_args = NULL;
+    }
+}
+
 
 void api_records_free(void)
 {
     api_records_free_args();
     api_records_free_data();
+    api_records_free_str();
     list_free(&api_records);
 }
 

@@ -1,40 +1,43 @@
 #include "gsched.h"
-#include <pthread.h>
+// #include <pthread.h>
 
+#include "cpu-server-resource-controller.h"
 
-
-pthread_rwlock_t rwlock;
+// pthread_rwlock_t rwlock;
 
 
 
 int gsched_fixed_init(void)
 {
-    pthread_rwlock_init(&rwlock, NULL);
+    // pthread_rwlock_init(&rwlock, NULL);
     return 0;
 }
 
 int gsched_fixed_shared(void)
 {
-    pthread_rwlock_rdlock(&rwlock);
+    // pthread_rwlock_rdlock(&rwlock);
+    check_and_change_resource();
     return 0;
 }
 
 int gsched_fixed_exclusive(void)
 {
-    pthread_rwlock_wrlock(&rwlock);
+    // pthread_rwlock_wrlock(&rwlock);
+    check_and_change_resource();
     return 0;
 }
 
 
 int gsched_fixed_release(void)
 {
-    pthread_rwlock_unlock(&rwlock);
+    // pthread_rwlock_unlock(&rwlock);
+    check_and_change_resource();
     return 0;
 }
 
 void gsched_fixed_deinit(void)
 {
-    pthread_rwlock_destroy(&rwlock);
+    // pthread_rwlock_destroy(&rwlock);
 }
 
 gsched_fixed_t sched_fixed = {

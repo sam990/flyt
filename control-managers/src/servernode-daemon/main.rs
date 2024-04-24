@@ -3,6 +3,7 @@
 use std::{sync::Arc, thread};
 
 use common::config::SNODE_CONFIG_PATH;
+use gpu_manager::GPUManager;
 use resource_manager_handler::ResourceManagerHandler;
 use virt_server_manager::VirtServerManager;
 
@@ -32,8 +33,10 @@ fn main() {
 
     env_logger::init();
 
+    let gpu_manager = GPUManager::new();
+
     let virt_server_manager = Arc::new(VirtServerManager::new(&get_mqueue_path(), get_virt_server_program_path()));
-    let resource_manager_handler = ResourceManagerHandler::new(virt_server_manager.clone());
+    let mut resource_manager_handler = ResourceManagerHandler::new(virt_server_manager.clone(), gpu_manager);
     let (address, port) = get_resource_mgr_address();
 
     thread::scope(|s| {

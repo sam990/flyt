@@ -12,6 +12,7 @@
 #include "log.h"
 #include "cpu-utils.h"
 #include "cpu-server-resource-controller.h"
+#include <signal.h>
 
 #define SNODE_MQUEUE_PATH "/tmp/flyt-servernode-queue"
 #define PROJ_ID 0x42
@@ -37,27 +38,21 @@ static void resource_change_handler(const char* data, uint32_t *response) {
     uint32_t new_num_sm_cores = atoi(split_str->str[0]);
     uint64_t new_mem = strtoll(split_str->str[1], NULL, 10);
 
-    // call change handler
-    if (change_sm_cores(new_num_sm_cores) != 0) {
-        *response = htonl(400);
-        free_splitted_str(split_str);
-        return;
-    }
-
-    if (set_mem_limit(new_mem) != 0) {
-        *response = htonl(400);
-        free_splitted_str(split_str);
-        return;
-    }
-
     *response = htonl(200);
-    free_splitted_str(split_str);
-    return;
+    
+    // This will only set the new configuration if the new configuration is valid
+    // Actual change will be done when the next cuda call is made
+    if (set_new_config(new_num_sm_cores, new_mem) != 0) {
+        *response = htonl(400);
+    }
 
+
+    free_splitted_str(split_str);
 }
 
 
 static void *client_msg_handler(void *arg) {
+
     struct msgbuf msg;
 
     while (1) {
@@ -70,6 +65,7 @@ static void *client_msg_handler(void *arg) {
             
             struct msgbuf_uint32 rsp;
             resource_change_handler(msg.msg.data, &rsp.data);
+            
             rsp.mtype = send_type;
             if (msgsnd(clientd_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
                 LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));

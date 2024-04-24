@@ -56,22 +56,22 @@ impl VirtServerManager {
     }
 
 
-    pub fn create_virt_server(&self, gpu_id: u32, gpu_memory: u64, num_sm_cores: u32, total_gpu_sm_cores: u32) -> Result<u64,String> {
+    pub fn create_virt_server(&self, gpu_id: u32, gpu_memory: u64, num_sm_cores: u32) -> Result<u64,String> {
+        log::debug!("create_virt_server: gpu_id: {}, gpu_memory: {}, num_sm_cores: {}", gpu_id, gpu_memory, num_sm_cores);
         let rpc_id = {
             let mut counter = self.counter.lock().unwrap();
             *counter += 1;
             *counter
         };
         
-        let gpu_cores_percentage = (num_sm_cores as f64 / total_gpu_sm_cores as f64).round() as u32;
-
         let send_id = rpc_id as i64;
         let recv_id = send_id << 32;
+
+        log::info!("Starting virt server with rpc_id: {}", rpc_id);
 
         let mut virt_server_process = Command::new(self.virt_server_program_path.as_str())
             .env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
             .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
-            .env("CUDA_MPS_ACTIVE_THREAD_PERCENTAGE", gpu_cores_percentage.to_string())
             .arg(rpc_id.to_string())
             .arg(gpu_id.to_string())
             .arg(num_sm_cores.to_string())
@@ -118,6 +118,7 @@ impl VirtServerManager {
     pub fn change_resources(&self, rpc_id: u64, new_num_sm_cores: u32, new_gpu_memory: u64) -> Result<(),String> {
 
         let mut virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
+
         let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_VIRTS_CHANGE_RESOURCES, format!("{},{}", new_num_sm_cores, new_gpu_memory).as_str()).as_bytes();
 
         self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
