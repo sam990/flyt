@@ -87,6 +87,8 @@ impl VirtServerManager {
             return Err("Error starting virt server".to_string());
         }
 
+        log::debug!("Received message from virt server: {:?}", Utils::convert_bytes_to_u32(response.unwrap().as_slice()));
+
         log::info!("Virt server initialized with rpc_id: {}", rpc_id);
         
         let virt_server = VirtServer {
@@ -138,3 +140,25 @@ impl VirtServerManager {
     
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init() {
+        let _ = env_logger::builder().is_test(true).filter_level(log::LevelFilter::Trace).try_init();
+    }
+
+    #[test]
+    fn test_create_vserver() {
+        init();
+        let program_path = "/home/ub-12-3/flyt/bin/cricket-rpc-server";
+        let mqueue_path = "/tmp/flyt-servernode-queue";
+
+        let virt_server_manager = VirtServerManager::new(mqueue_path, program_path.to_string());
+        let gpu_mem = 1024u64 * 1024 * 1024; // 1GB
+        let rpc_id = virt_server_manager.create_virt_server(0, gpu_mem , 10);
+        assert!(rpc_id.is_ok());
+    }
+        
+        
+}
