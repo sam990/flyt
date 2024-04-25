@@ -330,13 +330,14 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     }
     
 
-    send_initialised_msg();
 
 
     LOG(LOG_INFO, "waiting for RPC requests...");
 
     // make sure that our output is flushed even for non line-buffered shells
     fflush(stdout);
+    
+    send_initialised_msg();
 
     svc_run();
 
