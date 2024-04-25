@@ -23,16 +23,16 @@ name = "flyt-client-manager"
 path = "src/client-manager-daemon/main.rs"
 
 [[bin]]
-name = "flyt-resource-manager"
-path = "src/resource-manager/main.rs"
+name = "flyt-cluster-manager"
+path = "src/cluster-manager/main.rs"
 
 [[bin]]
 name = "flyt-node-manager"
 path = "src/servernode-daemon/main.rs"
 
 [[bin]]
-name = "rmgr-cli"
-path = "src/resource-manager/cli_frontend.rs"
+name = "flytctl"
+path = "src/cluster-manager/cli_frontend.rs"
 
 [build-dependencies]
 cc = "1.0.94"
