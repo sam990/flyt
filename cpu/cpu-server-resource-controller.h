@@ -13,6 +13,10 @@ int set_mem_limit(uint64_t limit);
 
 uint64_t get_mem_limit();
 
+void inc_mem_usage(uint64_t size);
+
+void dec_mem_usage(uint64_t size);
+
 int allow_mem_alloc(uint64_t size);
 
 void check_and_change_resource(void);

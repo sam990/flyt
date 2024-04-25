@@ -11,6 +11,7 @@
 #include "log.h"
 #include "cpu-server-driver.h"
 #include "cpu-server-resource-controller.h"
+#include "device-management.h"
 
 static int active_device = -1;
 static uint64_t mem_limit = 0;
@@ -94,7 +95,12 @@ uint64_t get_mem_limit() {
 }
 
 int allow_mem_alloc(uint64_t size) {
-    return size <= mem_limit;
+    size_t gpu_memusage = get_gpu_memory_usage();
+    LOGE(LOG_DEBUG, "Current memory usage: %zu, mem_limit: %llu", gpu_memusage, mem_limit);
+    if (gpu_memusage + size > mem_limit) {
+        return 0;
+    }
+    return 1;
 } 
 
 void inc_mem_usage(uint64_t size) {
@@ -102,7 +108,12 @@ void inc_mem_usage(uint64_t size) {
 }
 
 void dec_mem_usage(uint64_t size) {
-    current_mm_usage -= size;
+    if (current_mm_usage >= size) {
+        current_mm_usage -= size;
+    }
+    else {
+        current_mm_usage = 0;
+    }
 }
 
 void check_and_change_resource(void) {
@@ -177,10 +188,11 @@ int init_resource_controller(uint32_t num_sm_cores, uint64_t mem) {
         return -1;
     }
 
-    return 0;
+    return init_device_management(active_device);
 }
 
 void set_primary_context() {
+    cudaDeviceSynchronize();
     cuCtxPushCurrent(primaryCtx);
 }
 

@@ -141,19 +141,29 @@ impl<'a> ServerNodesManager<'a> {
     
         log::info!("Server node connected: {}", server_ip);
 
-        let server_node = ServerNode {
-            ipaddr: server_ip.clone(),
-            gpus: Vec::new(),
-            stream: Arc::new(RwLock::new(StreamEnds{writer: stream, reader })),
-            virt_servers: Vec::new(),
-        };
-    
-        if self.exists(&server_node.ipaddr) {
-            log::error!("Server node already exists: {}", server_node.ipaddr);
-            return;
+        if self.exists(&server_ip) {
+            log::info!("Server node already exists: {}", server_ip);
+            
+            let mut server_node = self.get_server_node(&server_ip).unwrap();
+            server_node.stream.write().unwrap().writer = stream;
+            server_node.stream.write().unwrap().reader = reader;
+            server_node.virt_servers = Vec::new();
+            server_node.gpus = Vec::new();
+
+            self.update_server_node(server_node);
         }
+        else {
+            
+            let server_node = ServerNode {
+                ipaddr: server_ip.clone(),
+                gpus: Vec::new(),
+                stream: Arc::new(RwLock::new(StreamEnds{writer: stream, reader })),
+                virt_servers: Vec::new(),
+            };
         
-        self.add_server_node(server_node);
+            self.add_server_node(server_node);
+        }
+
         let _ = self.update_server_node_gpus(&server_ip);
         
     }

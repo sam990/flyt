@@ -46,7 +46,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-cublaslt.c      \
 			 cpu-server-mgr-listener.c  \
 			 cpu-server-resource-controller.c \
-			 gsched_fixed.c
+			 gsched_fixed.c \
+			 device-management.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
