@@ -38,6 +38,7 @@
 #include "gsched.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-driver.h"
+#include "device-management.h"
 
 typedef struct host_alloc_info {
     size_t idx;
@@ -1374,6 +1375,14 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     RECORD_SINGLE_ARG(argp);
     LOGE(LOG_DEBUG, "cudaMalloc(%d)", argp);
 
+    if (allow_mem_alloc(argp) == 0) {
+        LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
+        result->err = cudaErrorMemoryAllocation;
+        RECORD_RESULT(ptr_result_u, *result);
+        GSCHED_RELEASE;
+        return 1;
+    }
+
 
 #ifdef WITH_IB
         result->err = ib_allocate_memreg((void**)&result->ptr_result_u.ptr, argp, hainfo_cnt, true);
@@ -1408,6 +1417,15 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
                                 .width = width};
     struct cudaPitchedPtr pptr;
     LOGE(LOG_DEBUG, "cudaMalloc3D");
+
+    if (allow_mem_alloc(depth*height*width) == 0) {
+        LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
+        result->err = cudaErrorMemoryAllocation;
+        RECORD_RESULT(integer, result->err);
+        GSCHED_RELEASE;
+        return 1;
+    }
+
     PRIMARY_CTX_RETAIN;
     result->err = cudaMalloc3D(&pptr, extent);
     PRIMARY_CTX_RELEASE;
@@ -1444,6 +1462,11 @@ bool_t cuda_malloc_3d_array_1_svc(cuda_channel_format_desc desc, size_t depth, s
     PRIMARY_CTX_RETAIN;
     result->err = cudaMalloc3DArray((void*)&result->ptr_result_u.ptr, &cuda_desc, extent, flags);
     PRIMARY_CTX_RELEASE;
+    if (result->err == cudaSuccess && get_gpu_memory_usage() > get_mem_limit()) {
+        LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
+        cudaFree((void*)result->ptr_result_u.ptr);
+        result->err = cudaErrorMemoryAllocation;
+    }
     resource_mg_create(&rm_arrays, (void*)result->ptr_result_u.ptr);
 
     RECORD_RESULT(integer, result->err);
@@ -1469,6 +1492,11 @@ bool_t cuda_malloc_array_1_svc(cuda_channel_format_desc desc, size_t width, size
     PRIMARY_CTX_RETAIN;
     result->err = cudaMallocArray((void*)&result->ptr_result_u.ptr, &cuda_desc, width, height, flags);
     PRIMARY_CTX_RELEASE;
+    if (result->err == cudaSuccess && get_gpu_memory_usage() > get_mem_limit()) {
+        LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
+        cudaFree((void*)result->ptr_result_u.ptr);
+        result->err = cudaErrorMemoryAllocation;
+    }
     resource_mg_create(&rm_arrays, (void*)result->ptr_result_u.ptr);
 
     RECORD_RESULT(integer, result->err);
@@ -1487,6 +1515,13 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
     RECORD_ARG(1, width);
     RECORD_ARG(2, height);
     LOGE(LOG_DEBUG, "cudaMallocPitch");
+    if (allow_mem_alloc(width*height) == 0) {
+        LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
+        result->err = cudaErrorMemoryAllocation;
+        RECORD_RESULT(integer, result->err);
+        GSCHED_RELEASE;
+        return 1;
+    }
     PRIMARY_CTX_RETAIN;
     result->err = cudaMallocPitch((void*)&result->ptrsz_result_u.data.p,
                                   &result->ptrsz_result_u.data.s,
