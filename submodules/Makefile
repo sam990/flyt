@@ -3,12 +3,29 @@
 
 all: libtirpc cuda-gdb-libs
 
-clean:
+clean: libtirpc/uninstall patchelf/uninstall
 	@echo -e "\033[31m----> Cleaning up libtirpc\033[0m"
 	$(MAKE) -C libtirpc clean
+	@echo -e "\033[31m----> Cleaning up patchelf\033[0m"
+	$(MAKE) -C patchelf clean
 	rm -rf cuda-gdb/build
 	cd cuda-gdb && git apply -R ../cuda-gdb.patch
 	rm -rf lib
+
+patchelf/install:
+	@echo -e "\033[36m----> autogen patchelf\033[0m"
+	if [ ! -f "patchelf/configure" ]; then cd patchelf && ./bootstrap.sh; fi
+	@echo -e "\033[36m----> Configuring patchelf\033[0m"
+	cd patchelf && ./configure --prefix=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))/patchelf/install
+	@echo -e "\033[36m----> Building patchelf\033[0m"
+	$(MAKE) -C patchelf
+	@echo -e "\033[36m----> Installing patchelf to ./patchelf/install\033[0m"
+	$(MAKE) -C patchelf install
+
+patchelf/uninstall:
+	@echo -e "\033[31m----> Uninstalling patchelf\033[0m"
+	$(MAKE) -C patchelf uninstall
+	rm -rf patchelf/install
 
 libtirpc/uninstall:
 	@echo -e "\033[31m----> Uninstalling libtirpc\033[0m"

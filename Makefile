@@ -1,5 +1,8 @@
 #MIT License...
 
+TARGET_LIBCUDART_MAJOR_VERS = 12
+export TARGET_LIBCUDART_MAJOR_VERS
+
 .PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu control-managers 
 .PHONY: install-cmgr install-cpu-server install-cpu-client install-tests install-gpu
 
@@ -95,3 +98,37 @@ bin/libtirpc.so: bin submodules/libtirpc/install/lib/libtirpc.so
 
 bin/libtirpc.so.3: bin submodules/libtirpc/install/lib/libtirpc.so.3 libtirpc
 	cp submodules/libtirpc/install/lib/libtirpc.so.3 bin
+
+install-client-lib: bin/cricket-client.so /usr/local/cuda/lib64/libcudarto.so
+	@echo -e "\033[36m----> Backup of original library\033[0m"
+	cp bin/cricket-client.so /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
+	sudo sh -c "cd /usr/local/cuda/lib64 && ln -sf libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999 libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS) && ldconfig"
+
+restore-client-lib: /usr/local/cuda/bkp
+	@echo -e "\033[36m----> Restoring original library\033[0m"
+	sudo cp -f /usr/local/cuda/bkp/* /usr/local/cuda/lib64/
+	sudo rm -rf /usr/local/cuda/bkp
+	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
+	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS)
+	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so
+	sudo sh -c "cd /usr/local/cuda/lib64 && ldconfig"
+
+submodules/patchelf/include/bin/patchelf:
+	@echo -e "\033[36m----> Building patchelf\033[0m"
+	$(MAKE) -C submodules patchelf/install
+
+/usr/local/cuda/bkp:
+	@echo -e "\033[36m----> Backup of original library\033[0m"
+	sudo mkdir -p /usr/local/cuda/bkp
+	$(eval CUDA_LIB := $(shell readlink -f /usr/local/cuda/lib64/libcudart.so))
+	sudo cp $(CUDA_LIB) /usr/local/cuda/bkp
+
+/usr/local/cuda/lib64/libcudarto.so: submodules/patchelf/include/bin/patchelf /usr/local/cuda/bkp
+	@echo -e "\033[36m----> Patching libcudart.so\033[0m"
+	$(eval CUDA_LIB := $(shell readlink -f /usr/local/cuda/lib64/libcudart.so))
+	$(eval LIB_VERSION := $(shell basename ${CUDA_LIB} | sed 's/libcudart\.so\.//g'))
+	sudo cp ${CUDA_LIB} /usr/local/cuda/lib64/libcudarto.so.${LIB_VERSION}
+	sudo /usr/local/cuda/patchelf --set-soname libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS) /usr/local/cuda/lib64/libcudarto.so.$(LIB_VERSION)
+	sudo ln -sf /usr/local/cuda/lib64/libcudarto.so.$(LIB_VERSION) /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS)
+	sudo ln -sf /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS) /usr/local/cuda/lib64/libcudarto.so
+	sudo sh -c "cd /usr/local/cuda/lib64 && ldconfig"

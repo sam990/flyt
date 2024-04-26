@@ -2,3 +2,6 @@
 	path = submodules/libtirpc
 	url = git://git.linux-nfs.org/projects/steved/libtirpc.git
     ignore = dirty
+[submodule "submodules/patchelf"]
+	path = submodules/patchelf
+	url = https://github.com/NixOS/patchelf.git

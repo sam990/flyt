@@ -3,6 +3,7 @@ SERVER = cricket-rpc-server
 SERVER_LIB = cricket-server.so
 #RPC client library
 CLIENT = cricket-client.so
+CLIENT_TARGET_LIB = libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS)
 
 CUDA_SRC = /usr/local/cuda
 LIBTIRPC_PREFIX = ../submodules/libtirpc/install
@@ -118,7 +119,7 @@ endif
 
 SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread -lnvidia-ml -lcudnn -lcublasLt
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
-CLIENT_LD_FLAGS = -Wl,-soname,libcudart.so.12 $(LD_FLAGS) -lrt
+CLIENT_LD_FLAGS = -Wl,-soname,$(CLIENT_TARGET_LIB) $(LD_FLAGS) -lrt
 
 # Targets
 .PHONY: all clean
