@@ -113,7 +113,7 @@ restore-client-lib: /usr/local/cuda/bkp
 	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so
 	sudo sh -c "cd /usr/local/cuda/lib64 && ldconfig"
 
-submodules/patchelf/include/bin/patchelf:
+submodules/patchelf/install/bin/patchelf:
 	@echo -e "\033[36m----> Building patchelf\033[0m"
 	$(MAKE) -C submodules patchelf/install
 
@@ -123,12 +123,12 @@ submodules/patchelf/include/bin/patchelf:
 	$(eval CUDA_LIB := $(shell readlink -f /usr/local/cuda/lib64/libcudart.so))
 	sudo cp $(CUDA_LIB) /usr/local/cuda/bkp
 
-/usr/local/cuda/lib64/libcudarto.so: submodules/patchelf/include/bin/patchelf /usr/local/cuda/bkp
+/usr/local/cuda/lib64/libcudarto.so: submodules/patchelf/install/bin/patchelf /usr/local/cuda/bkp
 	@echo -e "\033[36m----> Patching libcudart.so\033[0m"
 	$(eval CUDA_LIB := $(shell readlink -f /usr/local/cuda/lib64/libcudart.so))
 	$(eval LIB_VERSION := $(shell basename ${CUDA_LIB} | sed 's/libcudart\.so\.//g'))
 	sudo cp ${CUDA_LIB} /usr/local/cuda/lib64/libcudarto.so.${LIB_VERSION}
-	sudo /usr/local/cuda/patchelf --set-soname libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS) /usr/local/cuda/lib64/libcudarto.so.$(LIB_VERSION)
+	sudo submodules/patchelf/install/bin/patchelf --set-soname libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS) /usr/local/cuda/lib64/libcudarto.so.$(LIB_VERSION)
 	sudo ln -sf /usr/local/cuda/lib64/libcudarto.so.$(LIB_VERSION) /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS)
 	sudo ln -sf /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS) /usr/local/cuda/lib64/libcudarto.so
 	sudo sh -c "cd /usr/local/cuda/lib64 && ldconfig"
