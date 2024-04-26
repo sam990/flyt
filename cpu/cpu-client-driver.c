@@ -22,6 +22,10 @@
 //DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
 //DEF_FN(CUresult, cuProfilerStart)
 //DEF_FN(CUresult, cuProfilerStop)
+DEF_FN(CUresult, __cudaInitModule, long, ptr)
+DEF_FN(CUresult, __cudaPopCallConfiguration, long, arg1, long, arg2, long, arg3, long, arg4)
+DEF_FN(CUresult, __cudaPushCallConfiguration, long, arg1, int, arg2, long, arg3, int, arg4, long, arg5, long, arg6)
+DEF_FN(CUresult, __cudaRegisterFatBinaryEnd, long, arg1)
 DEF_FN(CUresult, cuVDPAUGetDevice, CUdevice*, pDevice, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
 #undef cuVDPAUCtxCreate
 DEF_FN(CUresult, cuVDPAUCtxCreate, CUcontext*, pCtx, unsigned int, flags, CUdevice, device, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)

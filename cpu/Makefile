@@ -69,7 +69,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-cudnn.c			\
 			 cpu-client-cublas.c        \
 			 cpu-client-cublaslt.c      \
-			 cpu-client-mgr-handler.c
+			 cpu-client-mgr-handler.c   \
+			 resource-mg.c
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c
@@ -117,7 +118,7 @@ endif
 
 SERVER_LD_FLAGS = $(LD_FLAGS) -lcudart -lcusolver -lcuda -lcublas -lrt -lpthread -lnvidia-ml -lcudnn -lcublasLt
 SERVER_BIN_LD_FLAGS = $(SERVER_LD_FLAGS) -Wl,--unresolved-symbols=ignore-in-object-files
-CLIENT_LD_FLAGS = $(LD_FLAGS)
+CLIENT_LD_FLAGS = -Wl,-soname,libcudart.so.12 $(LD_FLAGS) -lrt
 
 # Targets
 .PHONY: all clean
