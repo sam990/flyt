@@ -5,3 +5,4 @@
 [submodule "submodules/patchelf"]
 	path = submodules/patchelf
 	url = https://github.com/NixOS/patchelf.git
+	ignore = dirty
