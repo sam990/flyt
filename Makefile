@@ -100,17 +100,16 @@ bin/libtirpc.so.3: bin submodules/libtirpc/install/lib/libtirpc.so.3 libtirpc
 	cp submodules/libtirpc/install/lib/libtirpc.so.3 bin
 
 install-client-lib: bin/cricket-client.so /usr/local/cuda/lib64/libcudarto.so
-	@echo -e "\033[36m----> Backup of original library\033[0m"
-	cp bin/cricket-client.so /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
-	sudo sh -c "cd /usr/local/cuda/lib64 && ln -sf libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999 libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS) && ldconfig"
+	@echo -e "\033[36m----> Installing vcuda library\033[0m"
+	sudo cp bin/cricket-client.so /usr/local/cuda/lib64/libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
+	sudo sh -c "cd /usr/local/cuda/lib64 && ln -sf libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999 libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS) && ldconfig"
 
 restore-client-lib: /usr/local/cuda/bkp
 	@echo -e "\033[36m----> Restoring original library\033[0m"
 	sudo cp -f /usr/local/cuda/bkp/* /usr/local/cuda/lib64/
 	sudo rm -rf /usr/local/cuda/bkp
-	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
-	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so.$(TARGET_LIBCUDART_MAJOR_VERS)
-	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so
+	sudo rm -rf /usr/local/cuda/lib64/libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
+	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so*
 	sudo sh -c "cd /usr/local/cuda/lib64 && ldconfig"
 
 submodules/patchelf/install/bin/patchelf:
