@@ -97,7 +97,7 @@ bool_t rpc_cublasltmatmuldescdestroy_1_svc(ptr matmulDesc, int *result, struct s
     LOGE(LOG_DEBUG, "cublasLtMatmulDescDestroy");
 
     GSCHED_RETAIN;
-    *result = cublasLtMatmulDescDestroy(resource_mg_get(&rm_cublaslt, (void*)matmulDesc));
+    *result = cublasLtMatmulDescDestroy(resource_mg_get_or_null(&rm_cublaslt, (void*)matmulDesc));
     GSCHED_RELEASE;
     return 1;
 }
@@ -107,7 +107,7 @@ bool_t rpc_cublasltmatmulpreferencedestroy_1_svc(ptr pref, int *result, struct s
     LOGE(LOG_DEBUG, "cublasLtMatmulPreferenceDestroy");
 
     GSCHED_RETAIN;
-    *result = cublasLtMatmulPreferenceDestroy(resource_mg_get(&rm_cublaslt, (void*)pref));
+    *result = cublasLtMatmulPreferenceDestroy(resource_mg_get_or_null(&rm_cublaslt, (void*)pref));
     GSCHED_RELEASE;
     return 1;
 }
@@ -117,7 +117,7 @@ bool_t rpc_cublasltmatrixlayoutdestroy_1_svc(ptr matLayout, int *result, struct 
     LOGE(LOG_DEBUG, "cublasLtMatrixLayoutDestroy");
 
     GSCHED_RETAIN;
-    *result = cublasLtMatrixLayoutDestroy(resource_mg_get(&rm_cublaslt, (void*)matLayout));
+    *result = cublasLtMatrixLayoutDestroy(resource_mg_get_or_null(&rm_cublaslt, (void*)matLayout));
     GSCHED_RELEASE;
     return 1;
 }
@@ -133,13 +133,13 @@ bool_t rpc_cublasltmatmulalgogetheuristic_1_svc(ptr lightHandle, ptr operationDe
      }
 
     result->err = cublasLtMatmulAlgoGetHeuristic(
-        (cublasLtHandle_t)resource_mg_get(&rm_cublaslt, (void*)lightHandle),
-        (cublasLtMatmulDesc_t)resource_mg_get(&rm_cublaslt, (void*)operationDesc),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Adesc),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Bdesc),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Cdesc),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Ddesc),
-        (cublasLtMatmulPreference_t)resource_mg_get(&rm_cublaslt, (void*)preference),
+        (cublasLtHandle_t)resource_mg_get_or_null(&rm_cublaslt, (void*)lightHandle),
+        (cublasLtMatmulDesc_t)resource_mg_get_or_null(&rm_cublaslt, (void*)operationDesc),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Adesc),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Bdesc),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Cdesc),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Ddesc),
+        (cublasLtMatmulPreference_t)resource_mg_get_or_null(&rm_cublaslt, (void*)preference),
         requestedAlgoCount,
         (void*)&result->matmul_hr_result_u.data.p,
         &result->matmul_hr_result_u.data.s);
@@ -154,7 +154,7 @@ bool_t rpc_cublasltmatmuldescsetattribute_1_svc(ptr matmulDesc, int attr, mem_da
     GSCHED_RETAIN;
 
     *result = cublasLtMatmulDescSetAttribute(
-        (cublasLtMatmulDesc_t)resource_mg_get(&rm_cublaslt, (void*)matmulDesc),
+        (cublasLtMatmulDesc_t)resource_mg_get_or_null(&rm_cublaslt, (void*)matmulDesc),
         (cublasLtMatmulDescAttributes_t)attr,
         data.mem_data_val,
         data.mem_data_len
@@ -187,23 +187,23 @@ bool_t rpc_cublasltmatmul_1_svc(ptr lightHandle,
     GSCHED_RETAIN;
 
     *result = cublasLtMatmul(
-        (cublasLtHandle_t)resource_mg_get(&rm_cublaslt, (void*)lightHandle),
-        (cublasLtMatmulDesc_t)resource_mg_get(&rm_cublaslt, (void*)computeDesc),
+        (cublasLtHandle_t)resource_mg_get_or_null(&rm_cublaslt, (void*)lightHandle),
+        (cublasLtMatmulDesc_t)resource_mg_get_or_null(&rm_cublaslt, (void*)computeDesc),
         &alpha,
-        resource_mg_get(&rm_memory, (void*)A),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Adesc),
-        resource_mg_get(&rm_memory, (void*)B),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Bdesc),
+        resource_mg_get_or_null(&rm_memory, (void*)A),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Adesc),
+        resource_mg_get_or_null(&rm_memory, (void*)B),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Bdesc),
         &beta,
-        resource_mg_get(&rm_memory, (void*)C),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Cdesc),
-        resource_mg_get(&rm_memory, (void*)D),
-        (cublasLtMatrixLayout_t)resource_mg_get(&rm_cublaslt, (void*)Ddesc),
+        resource_mg_get_or_null(&rm_memory, (void*)C),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Cdesc),
+        resource_mg_get_or_null(&rm_memory, (void*)D),
+        (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Ddesc),
         // (const cublasLtMatmulAlgo_t *)algo,
 	NULL,
-        resource_mg_get(&rm_memory, (void*)workspace),
+        resource_mg_get_or_null(&rm_memory, (void*)workspace),
         workspaceSizeInBytes,
-       (cudaStream_t)resource_mg_get(&rm_streams, (void*)stream)
+       (cudaStream_t)resource_mg_get_or_null(&rm_streams, (void*)stream)
     );
 
     GSCHED_RELEASE;

@@ -92,7 +92,7 @@ int server_driver_function_restore(void)
 
         void *module = NULL;
         CUresult res;
-        if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
+        if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
             LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
             return 1;
         }
@@ -132,7 +132,7 @@ int server_driver_var_restore(void)
         size_t d_size = 0;
         CUresult res;
         void *module = NULL;
-        if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
+        if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
             LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
             return 1;
         }
@@ -195,7 +195,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
     CUmodule module = NULL;
     CUresult res;
     
-    if ((module = (CUmodule)resource_mg_get(&rm_modules, (void*)elf_handle)) == NULL) {
+    if (resource_mg_get(&rm_modules, (void*)elf_handle, &module) != 0) {
         LOG(LOG_ERROR, "resource_mg_get failed");
         *result = -1;
         return 1;
@@ -219,7 +219,12 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 
     resource_mg_remove(&rm_modules, (void*)elf_handle);
     
-    mem_data *elf = resource_mg_get(&rm_elfs, (void*)elf_handle);
+    mem_data *elf;
+    if (resource_mg_get(&rm_elfs, (void*)elf_handle, (void**)&elf) != 0) {
+        LOG(LOG_ERROR, "resource_mg_get failed");
+        *result = -1;
+        return 1;
+    }
     free(elf->mem_data_val);
     free(elf);
     resource_mg_remove(&rm_elfs, (void*)elf_handle);
@@ -253,7 +258,7 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
 
     GSCHED_RETAIN;
     //resource_mg_print(&rm_modules);
-    if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
+    if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
         LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         result->err = -1;
         return 1;
@@ -304,7 +309,7 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
     CUresult res;
     void *module = NULL;
     GSCHED_RETAIN;
-    if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
+    if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
         LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         *result = -1;
         return 1;
@@ -442,8 +447,15 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
     RECORD_ARG(2, name);
     LOG(LOG_DEBUG, "(fd:%d) %s(%s)", rqstp->rq_xprt->xp_fd, __FUNCTION__, name);
     GSCHED_RETAIN;
+
+    void *module_ptr = NULL;
+    if (resource_mg_get(&rm_modules, (void*)module, &module_ptr) != 0) {
+        LOGE(LOG_ERROR, "module not found in resource manager");
+        result->err = CUDA_ERROR_INVALID_HANDLE;
+        return 1;
+    }
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
-                    resource_mg_get(&rm_streams, (void*)module),
+                    module_ptr,
                     name);
     GSCHED_RELEASE;
     if (resource_mg_create(&rm_functions, (void*)result->ptr_result_u.ptr) != 0) {
@@ -501,7 +513,15 @@ bool_t rpc_cumoduleunload_1_svc(ptr module, int *result,
     RECORD_SINGLE_ARG(module);
     LOG(LOG_DEBUG, "%s(%p)", __FUNCTION__, (void*)module);
     GSCHED_RETAIN;
-    *result = cuModuleUnload(resource_mg_get(&rm_modules, (void*)module));
+
+    void *module_ptr = NULL;
+    if (resource_mg_get(&rm_modules, (void*)module, &module_ptr) != 0) {
+        LOGE(LOG_ERROR, "module not found in resource manager");
+        *result = CUDA_ERROR_INVALID_HANDLE;
+        return 1;
+    }
+
+    *result = cuModuleUnload((CUmodule)module_ptr);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -657,14 +677,21 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        *(void**)cuda_args[i] = resource_mg_get(&rm_memory, *(void**)cuda_args[i]);
+        *(void**)cuda_args[i] = resource_mg_get_default(&rm_memory, *(void**)cuda_args[i], *(void**)cuda_args[i]);
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    LOGE(LOG_DEBUG, "cuLaunchKernel(func=%p->%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", f, resource_mg_get(&rm_functions, (void*)f), gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, cuda_args, sharedMemBytes, (void*)hStream);
+    void *f_ptr = NULL;
+    if (resource_mg_get(&rm_functions, (void*)f, &f_ptr) != 0) {
+        LOGE(LOG_ERROR, "function not found in resource manager");
+        *result = CUDA_ERROR_INVALID_HANDLE;
+        return 1;
+    }
+
+    LOGE(LOG_DEBUG, "cuLaunchKernel(func=%p->%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", f, f_ptr, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, cuda_args, sharedMemBytes, (void*)hStream);
 
     GSCHED_RETAIN;
-    *result = cuLaunchKernel((CUfunction)resource_mg_get(&rm_functions, (void*)f),
+    *result = cuLaunchKernel((CUfunction)f_ptr,
                               gridDimX, gridDimY, gridDimZ,
                               blockDimX, blockDimY, blockDimZ,
                               sharedMemBytes,
