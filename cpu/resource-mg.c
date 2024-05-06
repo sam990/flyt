@@ -38,7 +38,7 @@ int resource_mg_create(resource_mg *mg, void *cuda_address)
     return 0;
 }
 
-static void* resource_mg_search_map(resource_mg *mg, void *client_address, int use_default, void *default_val)
+static int resource_mg_search_map(resource_mg *mg, void *client_address, void **cuda_address)
 {
     size_t start = 0;
     size_t end;
@@ -46,10 +46,11 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address, int u
     resource_mg_map_elem *mid_elem;
     if (mg == NULL) {
         LOGE(LOG_ERROR, "resource manager mg is NULL");
-        return NULL;
+        return -1;
     }
-    if (mg->map_res.length == 0) {
-        return client_address;
+    if (mg->map_res.length == -1) {
+        LOGE(LOG_DEBUG, "no resources in map_res");
+        return -1;
     }
     end = mg->map_res.length-1;
     
@@ -58,7 +59,7 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address, int u
         mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
             LOG(LOG_ERROR, "list state of map_res is inconsistent");
-            return NULL;
+            return -1;
         }
 
         if (mid_elem->client_address > client_address) {
@@ -69,11 +70,12 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address, int u
         } else if (mid_elem->client_address < client_address) {
             start = mid+1;
         } else /*if (mid_elem->client_address == client_address)*/ {
-            return mid_elem->cuda_address;
+            *cuda_address = mid_elem->cuda_address;
+            return 0;
         }
     }
     LOGE(LOG_DEBUG, "no find: %p", client_address);
-    return use_default ? default_val : client_address;
+    return -1;
 }
 
 void resource_mg_print(resource_mg *mg)
@@ -97,24 +99,33 @@ void resource_mg_print(resource_mg *mg)
     }
 }
 
-inline void* resource_mg_get(resource_mg *mg, void* client_address)
+inline int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address)
 {
     if (mg->bypass) {
-        return client_address;
-    } else {
-        return resource_mg_search_map(mg, client_address, 0, NULL);
+        *cuda_address = client_address;
+        return 1;
     }
-    return 0;
+    return resource_mg_search_map(mg, client_address, cuda_address);
 }
+
 
 inline void* resource_mg_get_default(resource_mg *mg, void* client_address, void* default_val)
 {
+    void *cuda_address;
     if (mg->bypass) {
         return client_address;
     } else {
-        return resource_mg_search_map(mg, client_address, 1, default_val);
+        if (resource_mg_search_map(mg, client_address, &cuda_address)) {
+            return cuda_address;
+        }
+        else {
+            return default_val;
+        }
     }
-    return 0;
+}
+
+inline void *resource_mg_get_or_null(resource_mg *mg, void *client_address) {
+    return resource_mg_get_default(mg, client_address, NULL);
 }
 
 #include <stdio.h>
