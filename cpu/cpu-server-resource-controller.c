@@ -69,6 +69,13 @@ int change_sm_cores(uint32_t nm_sm_cores) {
         return -1;
     }
 
+    ret = server_driver_var_restore();
+
+    if (ret != 0) {
+        LOGE(LOG_ERROR, "Failed to restore variables: %d", ret);
+        return -1;
+    }
+
     LOGE(LOG_INFO, "Changed SM cores to %u", nm_sm_cores);
 
     cuCtxDestroy(currentContext);
