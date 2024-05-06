@@ -231,6 +231,7 @@ program RPC_CD_PROG {
         int          rpc_elf_load(mem_data, ptr)                                 = 51;
         int          rpc_elf_unload(ptr)                                         = 52;
         int          rpc_register_var(ptr, ptr, ptr, string, int, size_t, int, int) = 53;
+        int          rpc_init(int)                                               = 54;
 
         /* RUNTIME API */
         /* ### Device Management ### */

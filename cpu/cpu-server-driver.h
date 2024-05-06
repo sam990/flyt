@@ -8,4 +8,6 @@ int server_driver_deinit(void);
 int server_driver_elf_restore(void);
 int server_driver_function_restore(void);
 
+int server_driver_var_restore(void);
+
 #endif //_CPU_SERVER_DRIVER_H_

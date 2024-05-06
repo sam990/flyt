@@ -38,7 +38,7 @@ int resource_mg_create(resource_mg *mg, void *cuda_address)
     return 0;
 }
 
-static void* resource_mg_search_map(resource_mg *mg, void *client_address)
+static void* resource_mg_search_map(resource_mg *mg, void *client_address, int use_default, void *default_val)
 {
     size_t start = 0;
     size_t end;
@@ -73,7 +73,7 @@ static void* resource_mg_search_map(resource_mg *mg, void *client_address)
         }
     }
     LOGE(LOG_DEBUG, "no find: %p", client_address);
-    return client_address;
+    return use_default ? default_val : client_address;
 }
 
 void resource_mg_print(resource_mg *mg)
@@ -102,7 +102,17 @@ inline void* resource_mg_get(resource_mg *mg, void* client_address)
     if (mg->bypass) {
         return client_address;
     } else {
-        return resource_mg_search_map(mg, client_address);
+        return resource_mg_search_map(mg, client_address, 0, NULL);
+    }
+    return 0;
+}
+
+inline void* resource_mg_get_default(resource_mg *mg, void* client_address, void* default_val)
+{
+    if (mg->bypass) {
+        return client_address;
+    } else {
+        return resource_mg_search_map(mg, client_address, 1, default_val);
     }
     return 0;
 }

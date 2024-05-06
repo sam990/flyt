@@ -15,6 +15,7 @@
 #include "cpu-server-resource-controller.h"
 
 static list rm_function_regs;
+static list rm_var_regs;
 
 
 int server_driver_init(int restore)
@@ -32,6 +33,7 @@ int server_driver_init(int restore)
         ret &= resource_mg_init(&rm_streams, 0);
         ret &= resource_mg_init(&rm_elfs, 0);
         ret &= list_init(&rm_function_regs, sizeof(rpc_register_function_1_argument));
+        ret &= list_init(&rm_var_regs, sizeof(rpc_register_var_1_argument));
     } else {
         ret &= resource_mg_init(&rm_modules, 0);
         ret &= resource_mg_init(&rm_functions, 0);
@@ -39,12 +41,14 @@ int server_driver_init(int restore)
         ret &= resource_mg_init(&rm_streams, 0);
         ret &= resource_mg_init(&rm_elfs, 0);
         ret &= list_init(&rm_function_regs, sizeof(rpc_register_function_1_argument));
+        ret &= list_init(&rm_var_regs, sizeof(rpc_register_var_1_argument));
         //ret &= server_driver_restore("ckp");
     }
     return ret;
 }
 
 #include <cuda_runtime_api.h>
+#include "cpu-server-driver.h"
 
 // restore elf_modules
 int server_driver_elf_restore(void)
@@ -104,6 +108,45 @@ int server_driver_function_restore(void)
         }
     }
     return 0;
+}
+
+int server_driver_var_restore(void)
+{
+    size_t num_vars = rm_var_regs.length;
+    for (size_t i = 0; i < num_vars; ++i) {
+        rpc_register_var_1_argument *arg = list_get(&rm_var_regs, i);
+        ptr fatCubinHandle = arg->arg1;
+        ptr hostVar = arg->arg2;
+        ptr deviceAddress = arg->arg3;
+        char *deviceName = arg->arg4;
+        int ext = arg->arg5;
+        size_t size = arg->arg6;
+        int constant = arg->arg7;
+        int global = arg->arg8;
+
+        LOGE(LOG_DEBUG, "rpc_register_var(fatCubinHandle: %p, hostVar: %p, deviceAddress: %p, deviceName: %s, "
+                   "ext: %d, size: %d, constant: %d, global: %d)",
+                   fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
+
+        CUdeviceptr dptr = 0;
+        size_t d_size = 0;
+        CUresult res;
+        void *module = NULL;
+        if ((module = resource_mg_get(&rm_modules, (void*)fatCubinHandle)) == (void*)fatCubinHandle) {
+            LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
+            return 1;
+        }
+        if ((res = cuModuleGetGlobal(&dptr, &d_size, module, deviceName)) != CUDA_SUCCESS) {
+            LOGE(LOG_ERROR, "cuModuleGetGlobal failed: %d", res);
+            return 1;
+        }
+        if (resource_mg_add_sorted(&rm_globals, (void*)hostVar, (void*)dptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+            return 1;
+        }
+    }
+    return 0;
+
 }
 
 
@@ -243,6 +286,18 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
     LOG(LOG_DEBUG, "rpc_register_var(fatCubinHandle: %p, hostVar: %p, deviceAddress: %p, deviceName: %s, "
                    "ext: %d, size: %d, constant: %d, global: %d)",
                    fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
+
+    rpc_register_var_1_argument *reg_args;
+    list_append(&rm_var_regs, (void**)&reg_args);
+
+    reg_args->arg1 = fatCubinHandle;
+    reg_args->arg2 = hostVar;
+    reg_args->arg3 = deviceAddress;
+    reg_args->arg4 = strdup(deviceName);
+    reg_args->arg5 = ext;
+    reg_args->arg6 = size;
+    reg_args->arg7 = constant;
+    reg_args->arg8 = global;
     
     CUdeviceptr dptr = 0;
     size_t d_size = 0;

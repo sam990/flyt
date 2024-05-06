@@ -67,6 +67,12 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
     return 1;
 }
 
+bool_t rpc_init_1_svc(int pid, int *result, struct svc_req *rqstp) {
+    // create and initialize 
+    LOG(LOG_INFO, "RPC init requested.");
+    // rqstp->rq_xprt->xp_fd 
+}
+
 int cricket_server_checkpoint(int dump_memory)
 {
     int ret;
