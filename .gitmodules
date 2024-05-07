@@ -6,3 +6,4 @@
 	path = submodules/patchelf
 	url = https://github.com/NixOS/patchelf.git
 	ignore = dirty
+	branch = 0.17.2
