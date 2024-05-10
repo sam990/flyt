@@ -115,7 +115,7 @@ void* resource_mg_get_default(resource_mg *mg, void* client_address, void* defau
     if (mg->bypass) {
         return client_address;
     } else {
-        if (resource_mg_search_map(mg, client_address, &cuda_address)) {
+        if (resource_mg_search_map(mg, client_address, &cuda_address) == 0) {
             return cuda_address;
         }
         else {
