@@ -13,9 +13,11 @@
 #include "api-recorder.h"
 #include "gsched.h"
 #include "cpu-server-resource-controller.h"
+#include "cpu-server-client-mgr.h"
 
 static list rm_function_regs;
 static list rm_var_regs;
+
 
 
 int server_driver_init(int restore)
@@ -51,14 +53,14 @@ int server_driver_init(int restore)
 #include "cpu-server-driver.h"
 
 // restore elf_modules
-int server_driver_elf_restore(void)
+int server_driver_modules_restore(resource_mg *modules)
 {
-    size_t num_elfs = rm_elfs.map_res.length;
+    size_t num_elfs = modules->map_res.length;
 
     for (size_t i = 0; i < num_elfs; ++i) {
-        resource_mg_map_elem *map = list_get(&rm_elfs.map_res, i);
-        void* module_key = map->client_address;
-        mem_data *elf = map->cuda_address;
+        addr_data_pair_t *map = list_get(&modules->map_res, i);
+
+        mem_data *elf = map->reg_data;
 
         CUmodule module = NULL;
         CUresult res;
@@ -67,20 +69,26 @@ int server_driver_elf_restore(void)
             return 1;
         }
 
-        if ((res = resource_mg_add_sorted(&rm_modules, (void*)module_key, (void*)module)) != CUDA_SUCCESS) {
-            LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
-            return 1;
-        }
-        
+        map->addr = module;
     }
+    
+
     return 0;
 }
 
-int server_driver_function_restore(void) 
+int server_driver_function_restore(resource_map *func_map, resource_mg *modules) 
 {
-    size_t num_funcs = rm_function_regs.length;
-    for (size_t i = 0; i < num_funcs; ++i) {
-        rpc_register_function_1_argument *arg = list_get(&rm_function_regs, i);
+
+    resource_map_iter *iter = resource_map_iter_create(func_map);
+    if (iter == NULL) {
+        LOGE(LOG_ERROR, "resource_map_iter_create failed");
+        return 1;
+    }
+
+    uint64_t i;
+
+    while ((i = resource_map_iter_next(iter)) != 0) {
+        rpc_register_function_1_argument *arg = resource_map_get(func_map, i)->args;
         ptr fatCubinHandle = arg->arg1;
         ptr hostFun = arg->arg2;
         char* deviceFun = arg->arg3;
@@ -90,31 +98,35 @@ int server_driver_function_restore(void)
         LOGE(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
             fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
 
-        void *module = NULL;
+        addr_data_pair_t *module = NULL;
         CUresult res;
-        if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
+        if (resource_mg_get(modules, (void*)fatCubinHandle, &module) != 0) {
             LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
+            resource_map_free_iter(iter);
             return 1;
         }
         CUfunction func;
-        if ((res = cuModuleGetFunction(&func, module, deviceName)) != CUDA_SUCCESS) {
+        if ((res = cuModuleGetFunction(&func, module->addr, deviceName)) != CUDA_SUCCESS) {
             LOGE(LOG_ERROR, "cuModuleGetFunction failed: %d", res);
+            resource_map_free_iter(iter);
             return 1;
         }
         LOGE(LOG_DEBUG, "registering function %p->%p", hostFun, func);
-        if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)func) != 0) {
-            LOGE(LOG_ERROR, "error in resource manager");
-            return 1;
-        }
+        resource_map_get(func_map, i)->mapped_addr = func;
     }
+
+    resource_map_free_iter(iter);
     return 0;
 }
 
-int server_driver_var_restore(void)
+int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
 {
-    size_t num_vars = rm_var_regs.length;
+    size_t num_vars = vars->map_res.length;
+
     for (size_t i = 0; i < num_vars; ++i) {
-        rpc_register_var_1_argument *arg = list_get(&rm_var_regs, i);
+        addr_data_pair_t *map = list_get(&vars->map_res, i);
+
+        rpc_register_var_1_argument *arg = map->reg_data;
         ptr fatCubinHandle = arg->arg1;
         ptr hostVar = arg->arg2;
         ptr deviceAddress = arg->arg3;
@@ -128,25 +140,46 @@ int server_driver_var_restore(void)
                    "ext: %d, size: %d, constant: %d, global: %d)",
                    fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
 
-        CUdeviceptr dptr = 0;
-        size_t d_size = 0;
+        addr_data_pair_t *module = NULL;
         CUresult res;
-        void *module = NULL;
-        if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
+        if (resource_mg_get(modules, (void*)fatCubinHandle, &module) != 0) {
             LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
             return 1;
         }
-        if ((res = cuModuleGetGlobal(&dptr, &d_size, module, deviceName)) != CUDA_SUCCESS) {
+        CUdeviceptr dptr = 0;
+        size_t d_size = 0;
+        if ((res = cuModuleGetGlobal(&dptr, &d_size, module->addr, deviceName)) != CUDA_SUCCESS) {
             LOGE(LOG_ERROR, "cuModuleGetGlobal failed: %d", res);
             return 1;
         }
-        if (resource_mg_add_sorted(&rm_globals, (void*)hostVar, (void*)dptr) != 0) {
-            LOGE(LOG_ERROR, "error in resource manager");
-            return 1;
-        }
+        map->addr = dptr;
     }
     return 0;
+}
 
+
+int server_driver_ctx_state_restore(void) {
+
+    cricket_client_iter iter = get_client_iter();
+
+    cricket_client *client;
+
+    while ((client = get_next_client(&iter)) != NULL ) {
+        
+        int ret = server_driver_modules_restore(&client->modules) && 
+        server_driver_function_restore(client->functions, &client->modules) &&
+        server_driver_var_restore(&client->vars, &client->modules);
+
+
+        if (ret != 0) {
+            LOGE(LOG_ERROR, "restoring client failed");
+            return 1;
+        }
+        // stream creation needed?
+
+
+    }
+    return 0;
 }
 
 
@@ -156,6 +189,13 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
     LOGE(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %#x)", elf.mem_data_val, elf.mem_data_len, module_key);
     CUresult res;
     CUmodule module = NULL;
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "client not found");
+        *result = CUDA_ERROR_NOT_INITIALIZED;
+        return 1;
+    }
     
     if ((res = cuModuleLoadData(&module, elf.mem_data_val)) != CUDA_SUCCESS) {
         LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
@@ -165,20 +205,20 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 
     // We add our module using module_key as key. This means a fatbinaryHandle on the client is translated
     // to a CUmodule on the server.
-    if ((res = resource_mg_add_sorted(&rm_modules, (void*)module_key, (void*)module)) != CUDA_SUCCESS) {
-        LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
-        *result = res;
-        return 1;
-    }
+    
 
     mem_data *elf_copy = malloc(sizeof(mem_data));
     elf_copy->mem_data_val = malloc(elf.mem_data_len);
     memcpy(elf_copy->mem_data_val, elf.mem_data_val, elf.mem_data_len);
     elf_copy->mem_data_len = elf.mem_data_len;
 
-    if ((res = resource_mg_add_sorted(&rm_elfs, (void*)module_key, (void*)elf_copy)) != CUDA_SUCCESS) {
-        LOGE(LOG_ERROR, "resource_mg_create failed: %d", res);
-        *result = res;
+    addr_data_pair_t *module_info = malloc(sizeof(addr_data_pair_t));
+    module_info->addr = module;
+    module_info->reg_data = elf_copy;
+
+    if (resource_mg_add_sorted(&client->modules, (void*)module_key, (void*)module_info) != 0) {
+        LOGE(LOG_ERROR, "resource_mg_create failed");
+        *result = -1;
         return 1;
     }
 
@@ -192,10 +232,18 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "rpc_elf_unload(elf_handle: %p)", elf_handle);
-    CUmodule module = NULL;
+    addr_data_pair_t* module = NULL;
     CUresult res;
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "client not found");
+        *result = CUDA_ERROR_NOT_INITIALIZED;
+        return 1;
+    }
     
-    if (resource_mg_get(&rm_modules, (void*)elf_handle, &module) != 0) {
+    
+    if (resource_mg_get(&client->modules, (void*)elf_handle, &module) != 0) {
         LOG(LOG_ERROR, "resource_mg_get failed");
         *result = -1;
         return 1;
@@ -209,7 +257,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
     //     return 1;
     // }
 
-    if ((res = cuModuleUnload(module)) != CUDA_SUCCESS) {
+    if ((res = cuModuleUnload(module->addr)) != CUDA_SUCCESS) {
         const char *errstr;
         cuGetErrorString(res, &errstr);
         LOG(LOG_ERROR, "cuModuleUnload failed: %s (%d)", errstr, res);
@@ -217,18 +265,12 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
         return 1;
     }
 
-    resource_mg_remove(&rm_modules, (void*)elf_handle);
-    
-    mem_data *elf;
-    if (resource_mg_get(&rm_elfs, (void*)elf_handle, (void**)&elf) != 0) {
-        LOG(LOG_ERROR, "resource_mg_get failed");
-        *result = -1;
-        return 1;
-    }
-    free(elf->mem_data_val);
-    free(elf);
-    resource_mg_remove(&rm_elfs, (void*)elf_handle);
+    free(((mem_data*)module->reg_data)->mem_data_val);
+    free(module->reg_data);
+    free(module);
 
+    resource_mg_remove(&client->modules, (void*)elf_handle);
+   
     *result = 0;
     return 1;
 }
@@ -237,7 +279,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun,
                             char* deviceName, int thread_limit, ptr_result *result, struct svc_req *rqstp)
 {
-    void *module = NULL;
+    addr_data_pair_t *module = NULL;
     RECORD_API_STR(rpc_register_function_1_argument, 2);
     RECORD_ARG(1, fatCubinHandle);
     RECORD_ARG(2, hostFun);
@@ -247,8 +289,15 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     LOG(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
         fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
 
-    rpc_register_function_1_argument *reg_args;
-    list_append(&rm_function_regs, (void**)&reg_args);
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "client not found");
+        result->err = CUDA_ERROR_NOT_INITIALIZED;
+        return 1;
+    }
+
+    rpc_register_function_1_argument *reg_args = malloc(sizeof(rpc_register_function_1_argument));
+    // list_append(&rm_function_regs, (void**)&reg_args);
 
     reg_args->arg1 = fatCubinHandle;
     reg_args->arg2 = hostFun;
@@ -258,17 +307,23 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
 
     GSCHED_RETAIN;
     //resource_mg_print(&rm_modules);
-    if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
+    if (resource_mg_get(&client->modules, (void*)fatCubinHandle, &module) != 0) {
         LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         result->err = -1;
         return 1;
     }
-    result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
-                    module,
+
+    CUfunction func_d_ptr;
+
+    result->err = cuModuleGetFunction(&func_d_ptr,
+                    module->addr,
                     deviceName);
-    if (resource_mg_add_sorted(&rm_functions, (void*)hostFun, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
+    
+
+    if (result->err == CUDA_SUCCESS) {
+        resource_map_add(client->functions, func_d_ptr, reg_args, &result->ptr_result_u.ptr);
     }
+
     GSCHED_RELEASE;
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
@@ -292,8 +347,15 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
                    "ext: %d, size: %d, constant: %d, global: %d)",
                    fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
 
-    rpc_register_var_1_argument *reg_args;
-    list_append(&rm_var_regs, (void**)&reg_args);
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "client not found");
+        *result = CUDA_ERROR_NOT_INITIALIZED;
+        return 1;
+    }
+
+    rpc_register_var_1_argument *reg_args = malloc(sizeof(rpc_register_var_1_argument));
 
     reg_args->arg1 = fatCubinHandle;
     reg_args->arg2 = hostVar;
@@ -307,19 +369,24 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
     CUdeviceptr dptr = 0;
     size_t d_size = 0;
     CUresult res;
-    void *module = NULL;
+    addr_data_pair_t *module = NULL;
     GSCHED_RETAIN;
-    if (resource_mg_get(&rm_modules, (void*)fatCubinHandle, &module) != 0) {
+    if (resource_mg_get(&client->modules, (void*)fatCubinHandle, &module) != 0) {
         LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         *result = -1;
         return 1;
     }
-    if ((res = cuModuleGetGlobal(&dptr, &d_size, module, deviceName)) != CUDA_SUCCESS) {
+    if ((res = cuModuleGetGlobal(&dptr, &d_size, module->addr, deviceName)) != CUDA_SUCCESS) {
         LOGE(LOG_ERROR, "cuModuleGetGlobal failed: %d", res);
         *result = 1;
         return 1;
     }
-    if (resource_mg_add_sorted(&rm_globals, (void*)hostVar, (void*)dptr) != 0) {
+
+    addr_data_pair_t *var_info = malloc(sizeof(addr_data_pair_t));
+    var_info->addr = dptr;
+    var_info->reg_data = reg_args;
+
+    if (resource_mg_add_sorted(&client->vars, (void*)hostVar, (void*)var_info) != 0) {
         LOGE(LOG_ERROR, "error in resource manager");
         *result = 1;
     } else {
@@ -655,6 +722,14 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     void **cuda_args;
     uint16_t *arg_offsets;
     size_t param_num;
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "client not found");
+        *result = CUDA_ERROR_INVALID_HANDLE;
+        return 1;
+    }
+
     if (args.mem_data_val == NULL) {
         LOGE(LOG_ERROR, "param.mem_data_val is NULL");
         *result = CUDA_ERROR_INVALID_VALUE;
@@ -689,6 +764,12 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     }
 
     LOGE(LOG_DEBUG, "cuLaunchKernel(func=%p->%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", f, f_ptr, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, cuda_args, sharedMemBytes, (void*)hStream);
+    
+    cudaStream_t target_stream = hStream ? resource_map_get(client->custom_streams, hStream)->mapped_addr : client->default_stream;
+
+    LOGE(LOG_DEBUG, "target_stream: %p", target_stream);
+
+
 
     GSCHED_RETAIN;
     *result = cuLaunchKernel((CUfunction)f_ptr,

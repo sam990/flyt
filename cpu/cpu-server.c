@@ -29,6 +29,7 @@
 #include "cpu-server-cudnn.h"
 #include "cpu-server-mgr-listener.h"
 #include "cpu-server-resource-controller.h"
+#include "cpu-server-client-mgr.h"
 
 INIT_SOCKTYPE
 
@@ -64,6 +65,9 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
 {
     LOG(LOG_INFO, "RPC deinit requested.");
     //svc_exit();
+    
+    remove_client(rqstp->rq_xprt->xp_fd);
+
     return 1;
 }
 
@@ -71,6 +75,14 @@ bool_t rpc_init_1_svc(int pid, int *result, struct svc_req *rqstp) {
     // create and initialize 
     LOG(LOG_INFO, "RPC init requested.");
     // rqstp->rq_xprt->xp_fd 
+    int ret = add_new_client(pid, rqstp->rq_xprt->xp_fd);
+    if (ret != 0) {
+        LOGE(LOG_ERROR, "Failed to initialize client manager for pid %d", pid);
+        *result = 1;
+        return 1;
+    }
+    *result = 0;
+    return 1;
 }
 
 int cricket_server_checkpoint(int dump_memory)
@@ -334,9 +346,11 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         LOGE(LOG_ERROR, "initializing resource controller failed.");
         goto cleanup00;
     }
-    
 
-
+    if (init_cpu_server_client_mgr() != 0) {
+        LOGE(LOG_ERROR, "initializing client manager failed.");
+        goto cleanup00;
+    }
 
     LOG(LOG_INFO, "waiting for RPC requests...");
 

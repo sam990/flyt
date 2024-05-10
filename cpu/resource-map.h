@@ -4,8 +4,13 @@
 #include <stdint.h>
 #include "cbitset/bitset.h"
 
+typedef struct __resource_map_item {
+    void *mapped_addr;
+    void *args;
+} resource_map_item;
+
 typedef struct __resource_map {
-    uint64_t *list;
+    resource_map_item *list;
     uint64_t length;
     uint64_t free_ptr_idx;
     uint64_t tail_idx;
@@ -21,11 +26,11 @@ resource_map *init_resource_map(u_int64_t init_length);
 
 void free_resource_map(resource_map *map);
 
-uint64_t get_resource(resource_map *map, void *mapped_addr);
+resource_map_item* resource_map_get(resource_map *map, void *mapped_addr);
 
-int set_resource(resource_map *map, void *orig_addr, void **mapped_addr);
+int resource_map_add(resource_map *map, void *orig_addr, void* args, void **mapped_addr);
 
-void unset_resource(resource_map *map, void *mapped_addr);
+void resource_map_unset(resource_map *map, void *mapped_addr);
 
 resource_map_iter *resource_map_init_iter(resource_map *map);
 
