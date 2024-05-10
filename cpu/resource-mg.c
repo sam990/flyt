@@ -99,7 +99,7 @@ void resource_mg_print(resource_mg *mg)
     }
 }
 
-inline int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address)
+int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address)
 {
     if (mg->bypass) {
         *cuda_address = client_address;
@@ -109,7 +109,7 @@ inline int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_ad
 }
 
 
-inline void* resource_mg_get_default(resource_mg *mg, void* client_address, void* default_val)
+void* resource_mg_get_default(resource_mg *mg, void* client_address, void* default_val)
 {
     void *cuda_address;
     if (mg->bypass) {
@@ -124,7 +124,7 @@ inline void* resource_mg_get_default(resource_mg *mg, void* client_address, void
     }
 }
 
-inline void *resource_mg_get_or_null(resource_mg *mg, void *client_address) {
+void *resource_mg_get_or_null(resource_mg *mg, void *client_address) {
     return resource_mg_get_default(mg, client_address, NULL);
 }
 

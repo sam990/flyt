@@ -68,11 +68,11 @@ void resource_mg_free(resource_mg *mg);
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address);
 int resource_mg_create(resource_mg *mg, void* cuda_address);
 
-inline int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address);
+int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address);
 
-inline void *resource_mg_get_default(resource_mg *mg, void *client_address,
+void *resource_mg_get_default(resource_mg *mg, void *client_address,
                               void *default_val);
-inline void *resource_mg_get_or_null(resource_mg *mg, void *client_address);
+void *resource_mg_get_or_null(resource_mg *mg, void *client_address);
 
 void resource_mg_print(resource_mg *mg);
 
