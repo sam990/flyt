@@ -212,12 +212,17 @@ void __attribute__((constructor)) init_rpc(void)
     //     LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
     //     exit(1);
     // }
-
     FUNC_BEGIN 
-    retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
+    retval_1 = rpc_init_1(getpid(), &result_1,  clnt);
     FUNC_END
+    
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror(clnt, "call failed");
+    }
+
+    if (result_1 != 0) {
+        LOGE(LOG_ERROR, "cricket initialisation failed");
+        exit(1);
     }
 
     if (list_init(&kernel_infos, sizeof(kernel_info_t)) != 0) {

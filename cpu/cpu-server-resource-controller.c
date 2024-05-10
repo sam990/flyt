@@ -55,24 +55,10 @@ int change_sm_cores(uint32_t nm_sm_cores) {
         return -1;
     }
     
-    int ret = server_driver_elf_restore();
+    int ret = server_driver_ctx_state_restore();
 
     if (ret != 0) {
-        LOGE(LOG_ERROR, "Failed to restore ELF: %d", ret);
-        return -1;
-    }
-
-    ret = server_driver_function_restore();
-
-    if (ret != 0) {
-        LOGE(LOG_ERROR, "Failed to restore functions: %d", ret);
-        return -1;
-    }
-
-    ret = server_driver_var_restore();
-
-    if (ret != 0) {
-        LOGE(LOG_ERROR, "Failed to restore variables: %d", ret);
+        LOGE(LOG_DEBUG, "Unable to restore ctx state");
         return -1;
     }
 
@@ -80,7 +66,6 @@ int change_sm_cores(uint32_t nm_sm_cores) {
 
     cuCtxDestroy(currentContext);
     
-
     return 0;
     
 }
