@@ -48,7 +48,10 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-mgr-listener.c  \
 			 cpu-server-resource-controller.c \
 			 gsched_fixed.c \
-			 device-management.c
+			 device-management.c \
+			 resource-map.c \
+			 cpu-server-client-mgr.c \
+			 cbitset/bitset.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
