@@ -192,7 +192,7 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 
     cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
     if (client == NULL) {
-        LOGE(LOG_ERROR, "client not found");
+        LOGE(LOG_ERROR, "client with fd %d not found", rqstp->rq_xprt->xp_fd);
         *result = CUDA_ERROR_NOT_INITIALIZED;
         return 1;
     }
@@ -237,7 +237,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 
     cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
     if (client == NULL) {
-        LOGE(LOG_ERROR, "client not found");
+        LOGE(LOG_ERROR, "client with fd %d not found", rqstp->rq_xprt->xp_fd);
         *result = CUDA_ERROR_NOT_INITIALIZED;
         return 1;
     }
