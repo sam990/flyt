@@ -20,7 +20,7 @@ typedef struct __cricket_client {
     void* default_stream;
     resource_map* custom_streams;
     resource_mg modules;
-    resource_map* functions;
+    resource_mg functions;
     resource_mg vars;
     // further can be added
 } cricket_client;

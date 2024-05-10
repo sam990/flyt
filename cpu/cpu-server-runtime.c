@@ -1186,28 +1186,22 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        *(void**)cuda_args[i] = resource_mg_get_default(&rm_memory, *(void**)cuda_args[i], *(void**)cuda_args[i]);
+        *(void**)cuda_args[i] = resource_map_contains(client->gpu_mem, *(void**)cuda_args[i]) ?
+            resource_map_get(client->gpu_mem, *(void**)cuda_args[i])->mapped_addr :
+            *(void**)cuda_args[i];
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
-    void *func_ptr;
-    if (resource_mg_get(&rm_functions, (void*)func, &func_ptr) != 0) {
+    addr_data_pair_t *func_ptr;
+    if (resource_mg_get(&client->functions, (void*)func, &func_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting function");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
         return 1;
     }
 
-    cudaStream_t stream_ptr;
-    if (resource_mg_get(&rm_streams, (void*)stream, &stream_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting stream");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
     LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)",
-                    func_ptr,
+                    func_ptr->addr,
                     cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z,
                     cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z,
                     cuda_args,
@@ -1218,7 +1212,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
 
     LOGE(LOG_DEBUG, "target_stream: %p", target_stream);
 
-    *result = cuLaunchKernel((CUfunction)func_ptr,
+    *result = cuLaunchKernel((CUfunction)func_ptr->addr,
                             gridDim.x, gridDim.y, gridDim.z,
                             blockDim.x, blockDim.y, blockDim.z,
                             sharedMem,
@@ -1372,17 +1366,19 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 
     #else
 
-    void *mem_ptr;
+    resource_map_item *mem_ptr;
 
-    if (resource_mg_get(&rm_memory, (void*)devPtr, &mem_ptr) != 0) {
+    if (!resource_map_contains(client->gpu_mem, (void*)devPtr)) {
         LOGE(LOG_ERROR, "error getting memory");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
         return 1;
     }
 
+    mem_ptr = resource_map_get(client->gpu_mem, (void*)devPtr);
+
     PRIMARY_CTX_RETAIN;
-    *result = cudaFree(mem_ptr);
+    *result = cudaFree(mem_ptr->mapped_addr);
 
     if (*result == cudaSuccess) {
         resource_map_unset(client->gpu_mem, (void*)devPtr);
@@ -1906,6 +1902,15 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     RECORD_ARG(2, mem);
     RECORD_ARG(3, size);
 
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "error getting client from fd %d", rqstp->rq_xprt->xp_fd);\
+        *result = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
+
     LOGE(LOG_DEBUG, "cudaMemcpyHtoD(%p, %p, %zu)", (void*)ptr, mem.mem_data_val, size);
     if (size != mem.mem_data_len) {
         LOGE(LOG_ERROR, "data size mismatch");
@@ -1920,15 +1925,15 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
         return 1;
     }
 #endif
-    void *mem_ptr;
-    if (resource_mg_get(&rm_memory, (void*)ptr, &mem_ptr) != 0) {
+    resource_map_item *mem_ptr;
+    if (( mem_ptr = resource_map_get(client->gpu_mem, (void*)ptr)) == NULL) {
         LOGE(LOG_ERROR, "error getting memory");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
         return 1;
     }
     *result = cudaMemcpy(
-      mem_ptr,
+      mem_ptr->mapped_addr,
       mem.mem_data_val,
       size,
       cudaMemcpyHostToDevice);
@@ -1951,6 +1956,7 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, din
     RECORD_ARG(3, thread_num);
 
     LOGE(LOG_DEBUG, "cudaMemcpyMTHtoD");
+    
     mt_memcpy_server_t *server;
     if (list_append(&mt_memcpy_list, (void**)&server) != 0) {
         LOGE(LOG_ERROR, "list_append failed.");
@@ -2196,8 +2202,18 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     GSCHED_RETAIN;
     //Does not need to be recorded because doesn't change device state
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)", ptr, size);
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "error getting client from fd %d", rqstp->rq_xprt->xp_fd);
+        result->err = cudaErrorInvalidValue;
+        goto out;
+    }
+
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
+
+
 #ifdef WITH_MEMCPY_REGISTER
     if ((result->err = cudaHostRegister(result->mem_result_u.data.mem_data_val,
                                         size, cudaHostRegisterMapped)) != cudaSuccess) {
@@ -2206,8 +2222,8 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     }
 #endif
 
-    void *mem_ptr;
-    if (resource_mg_get(&rm_memory, (void*)ptr, &mem_ptr) != 0) {
+    resource_map_item *mem_ptr;
+    if ((mem_ptr = resource_map_get(client->gpu_mem, (void*)ptr)) == NULL) {
         LOGE(LOG_ERROR, "error getting memory");
         result->err = cudaErrorInvalidValue;
         goto out;
@@ -2215,7 +2231,7 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
 
     result->err = cudaMemcpy(
       result->mem_result_u.data.mem_data_val,
-      mem_ptr,
+      mem_ptr->mapped_addr,
       size,
       cudaMemcpyDeviceToHost);
 #ifdef WITH_MEMCPY_REGISTER
@@ -2296,8 +2312,25 @@ bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struc
     RECORD_ARG(2, value);
     RECORD_ARG(3, count);
     LOGE(LOG_DEBUG, "cudaMemset");
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "error getting client");
+        *result = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
+    resource_map_item *mem_ptr;
+    if ((mem_ptr = resource_map_get(client->gpu_mem, (void*)devPtr)) == NULL) {
+        LOGE(LOG_ERROR, "error getting memory");
+        *result = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
     *result = cudaMemset(
-      resource_mg_get_default(&rm_memory, (void*)devPtr, NULL),
+      mem_ptr->mapped_addr,
       value,
       count);
     RECORD_RESULT(integer, *result);
