@@ -2,16 +2,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "log.h"
 #include "resource-map.h"
 
-#define OFFSET 0x0011111111111111ull
+#define OFFSET 0x00ffffffffffffffull
 
-resource_map* init_resource_map(u_int64_t init_length) {
+resource_map* init_resource_map(uint64_t init_length) {
     resource_map* map = (resource_map*)malloc(sizeof(resource_map));
     if (map == NULL) {
         return NULL;
     }
-    map->list = (u_int64_t*)malloc(sizeof(u_int64_t) * init_length);
+    map->list = (resource_map_item*)malloc(sizeof(resource_map_item) * init_length);
     if (map->list == NULL) {
         free(map);
         return NULL;
@@ -36,9 +37,17 @@ resource_map_item* resource_map_get(resource_map* map, void* addr) {
     return &(map->list[(uint64_t)addr - OFFSET]);
 }
 
+uint8_t resource_map_contains(resource_map* map, void* addr) {
+    LOGE(LOG_DEBUG, "Checking if %p is in resource map", addr);
+    LOGE(LOG_DEBUG, "Tail idx: %lu", map->tail_idx);
+    LOGE(LOG_DEBUG, "Free ptr idx: %lu", map->free_ptr_idx);
+    LOGE(LOG_DEBUG, "Translated offset: %lu", addr - OFFSET);
+    return (uint64_t)addr - OFFSET < map->tail_idx && map->list[(uint64_t)addr - OFFSET].present;
+}
+
 int resource_map_add(resource_map* map, void* orig_addr, void *args, void **new_addr) {
     if (map->free_ptr_idx >= map->length && map->tail_idx >= map->length) {
-        uint64_t *new_list = (uint64_t*)realloc(map->list, sizeof(uint64_t) * map->length * 2);
+        resource_map_item *new_list = (resource_map_item*)realloc(map->list, sizeof(resource_map_item) * map->length * 2);
         if (new_list == NULL) {
             return -1;
         }
@@ -48,21 +57,25 @@ int resource_map_add(resource_map* map, void* orig_addr, void *args, void **new_
     if (map->tail_idx == map->free_ptr_idx) {
         map->list[map->tail_idx].mapped_addr = orig_addr;
         map->list[map->tail_idx].args = args;
-        *new_addr = (void*)map->tail_idx + OFFSET;
+        map->list[map->tail_idx].present = 1;
+        *new_addr = (void*)(map->tail_idx + OFFSET);
         map->tail_idx++;
         map->free_ptr_idx++;
     }
     else {
         uint64_t alloc_idx = map->free_ptr_idx;
-        map->free_ptr_idx = map->list[map->free_ptr_idx].mapped_addr;
-        map->list[alloc_idx].mapped_addr = (uint64_t)orig_addr;
-        *new_addr = (void*)alloc_idx + OFFSET;
+        map->free_ptr_idx = (uint64_t)map->list[map->free_ptr_idx].mapped_addr;
+        map->list[alloc_idx].mapped_addr = (void*)orig_addr;
+        map->list[alloc_idx].args = args;
+        map->list[alloc_idx].present = 1;
+        *new_addr = (void*)(alloc_idx + OFFSET);
     }
     return 0;
 }
 
 void resource_map_unset(resource_map* map, void* mapped_addr) {
-    map->list[(uint64_t)mapped_addr].mapped_addr = map->free_ptr_idx;
+    map->list[(uint64_t)mapped_addr].mapped_addr = (void*)map->free_ptr_idx;
+    map->list[(uint64_t)mapped_addr].present = 0;
     free(map->list[(uint64_t)mapped_addr].args);
     map->free_ptr_idx = (uint64_t)mapped_addr;
 }
@@ -84,7 +97,7 @@ resource_map_iter* resource_map_init_iter(resource_map* map) {
         return NULL;
     }
 
-    for (uint64_t i = map->free_ptr_idx; i < map->tail_idx; i = map->list[i].mapped_addr) {
+    for (uint64_t i = map->free_ptr_idx; i < map->tail_idx; i = (uint64_t)map->list[i].mapped_addr) {
         bitset_set(free_ptr, i);
     }
 
@@ -105,7 +118,7 @@ resource_map_iter* resource_map_init_iter(resource_map* map) {
     iter->allocated = allocated;
     iter->current_idx = 0;
 
-    return 0;
+    return iter;
 }
 
 void resource_map_free_iter(resource_map_iter* iter) {

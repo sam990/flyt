@@ -55,10 +55,28 @@ int server_driver_init(int restore)
 // restore elf_modules
 int server_driver_modules_restore(resource_mg *modules)
 {
+
+    LOGE(LOG_DEBUG, "Restoring modules");
+
+    if (modules == NULL) {
+        LOGE(LOG_ERROR, "modules is NULL");
+        return 1;
+    }
+
     size_t num_elfs = modules->map_res.length;
 
     for (size_t i = 0; i < num_elfs; ++i) {
-        addr_data_pair_t *map = list_get(&modules->map_res, i);
+        resource_mg_map_elem *elem = ((resource_mg_map_elem*)list_get(&modules->map_res, i));
+        if (elem == NULL) {
+            LOGE(LOG_ERROR, "elem is NULL");
+            return 1;
+        }
+
+        addr_data_pair_t *map = (addr_data_pair_t *)elem->client_address;
+        if (map == NULL) {
+            LOGE(LOG_ERROR, "map is NULL");
+            return 1;
+        }
 
         mem_data *elf = map->reg_data;
 
@@ -76,23 +94,18 @@ int server_driver_modules_restore(resource_mg *modules)
     return 0;
 }
 
-int server_driver_function_restore(resource_map *func_map, resource_mg *modules) 
+int server_driver_function_restore(resource_mg *func, resource_mg *modules) 
 {
+    LOGE(LOG_DEBUG, "Restoring functions");
+    size_t num_funcs = func->map_res.length;
+    for (size_t i = 0; i < num_funcs; i++) {
+        addr_data_pair_t *map = ((resource_mg_map_elem*)list_get(&func->map_res, i))->client_address;
 
-    resource_map_iter *iter = resource_map_iter_create(func_map);
-    if (iter == NULL) {
-        LOGE(LOG_ERROR, "resource_map_iter_create failed");
-        return 1;
-    }
-
-    uint64_t i;
-
-    while ((i = resource_map_iter_next(iter)) != 0) {
-        rpc_register_function_1_argument *arg = resource_map_get(func_map, i)->args;
+        rpc_register_function_1_argument *arg = map->reg_data;
         ptr fatCubinHandle = arg->arg1;
         ptr hostFun = arg->arg2;
-        char* deviceFun = arg->arg3;
-        char* deviceName = arg->arg4;
+        char *deviceFun = arg->arg3;
+        char *deviceName = arg->arg4;
         int thread_limit = arg->arg5;
 
         LOGE(LOG_DEBUG, "rpc_register_function(fatCubinHandle: %p, hostFun: %p, deviceFun: %s, deviceName: %s, thread_limit: %d)",
@@ -102,29 +115,26 @@ int server_driver_function_restore(resource_map *func_map, resource_mg *modules)
         CUresult res;
         if (resource_mg_get(modules, (void*)fatCubinHandle, &module) != 0) {
             LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
-            resource_map_free_iter(iter);
             return 1;
         }
-        CUfunction func;
-        if ((res = cuModuleGetFunction(&func, module->addr, deviceName)) != CUDA_SUCCESS) {
+        CUfunction func_d_ptr;
+        if ((res = cuModuleGetFunction(&func_d_ptr,
+                        module->addr,
+                        deviceName)) != CUDA_SUCCESS) {
             LOGE(LOG_ERROR, "cuModuleGetFunction failed: %d", res);
-            resource_map_free_iter(iter);
             return 1;
         }
-        LOGE(LOG_DEBUG, "registering function %p->%p", hostFun, func);
-        resource_map_get(func_map, i)->mapped_addr = func;
+        map->addr = func_d_ptr;
     }
-
-    resource_map_free_iter(iter);
-    return 0;
 }
 
 int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
 {
+    LOGE(LOG_DEBUG, "Restoring vars");
     size_t num_vars = vars->map_res.length;
 
     for (size_t i = 0; i < num_vars; ++i) {
-        addr_data_pair_t *map = list_get(&vars->map_res, i);
+        addr_data_pair_t *map = ((resource_mg_map_elem*)list_get(&vars->map_res, i))->client_address;
 
         rpc_register_var_1_argument *arg = map->reg_data;
         ptr fatCubinHandle = arg->arg1;
@@ -160,14 +170,16 @@ int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
 
 int server_driver_ctx_state_restore(void) {
 
+    LOGE(LOG_DEBUG, "Restoring context state");
+
     cricket_client_iter iter = get_client_iter();
 
     cricket_client *client;
 
     while ((client = get_next_client(&iter)) != NULL ) {
         
-        int ret = server_driver_modules_restore(&client->modules) && 
-        server_driver_function_restore(client->functions, &client->modules) &&
+        int ret = server_driver_modules_restore(&client->modules) || 
+        server_driver_function_restore(&client->functions, &client->modules) ||
         server_driver_var_restore(&client->vars, &client->modules);
 
 
@@ -321,7 +333,11 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     
 
     if (result->err == CUDA_SUCCESS) {
-        resource_map_add(client->functions, func_d_ptr, reg_args, &result->ptr_result_u.ptr);
+        addr_data_pair_t *func_info = malloc(sizeof(addr_data_pair_t));
+        func_info->addr = func_d_ptr;
+        func_info->reg_data = reg_args;
+
+        resource_mg_add_sorted(&client->functions, (void*)hostFun, (void*)func_info);
     }
 
     GSCHED_RELEASE;

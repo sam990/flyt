@@ -86,7 +86,7 @@ int add_new_client(int pid, int xp_fd) {
     }
 
     resource_mg_init(&client->modules, 0);
-    client->functions = init_resource_map(INIT_FUNCTION_SLOTS);
+    resource_mg_init(&client->functions, 0);
     resource_mg_init(&client->vars, 0);
 
     return 0;
@@ -122,7 +122,6 @@ int remove_client(int xp_fd) {
     // free client
     free_resource_map(client->gpu_mem);
     free_resource_map(client->custom_streams);
-    free_resource_map(client->functions);
 
     for (size_t i = 0; i < client->modules.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->modules.map_res, i);
@@ -146,8 +145,21 @@ int remove_client(int xp_fd) {
         free(pair);
     }
 
+    for (size_t i = 0; i < client->functions.map_res.length; i++) {
+        resource_mg_map_elem *elem = list_get(&client->functions.map_res, i);
+
+        addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+        rpc_register_function_1_argument* data = (rpc_register_function_1_argument *)pair->reg_data;
+        
+        free(data->arg3); // it is an string arg
+        free(data->arg4); // it is an string arg
+        free(pair->reg_data);
+        free(pair);
+    }
+
     resource_mg_free(&client->modules);
     resource_mg_free(&client->vars);
+    resource_mg_free(&client->functions);
 
     free(client);
     return resource_mg_remove(&xp_fd_to_client, (void *)xp_fd);
