@@ -1,6 +1,7 @@
 # ifndef __FLYT_CPU_SERVER_CLIENT_MGR_H
 # define __FLYT_CPU_SERVER_CLIENT_MGR_H
 
+#include "resource-mg.h"
 #include "resource-map.h"
 
 #define INIT_MEM_SLOTS 4096

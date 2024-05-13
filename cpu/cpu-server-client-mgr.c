@@ -17,6 +17,11 @@ static pthread_mutex_t client_mgr_mutex = PTHREAD_MUTEX_INITIALIZER;
 static resource_mg pid_to_xp_fd;
 static resource_mg xp_fd_to_client;
 
+
+static int freeResources(cricket_client* client);
+
+
+
 int init_cpu_server_client_mgr() {
     int ret = 0;
     ret = resource_mg_init(&pid_to_xp_fd, 0);
@@ -54,7 +59,7 @@ int add_new_client(int pid, int xp_fd) {
     }
     client->default_stream = NULL; // create a default stream
 
-    cudaError_t err = cudaStreamCreate(&client->default_stream);
+    cudaError_t err = cudaStreamCreate((cudaStream_t *)&client->default_stream);
     if (err != cudaSuccess) {
         LOGE(LOG_ERROR, "Failed to create default stream for new client: %s", cudaGetErrorString(err));
         free_resource_map(client->gpu_mem);
@@ -72,8 +77,8 @@ int add_new_client(int pid, int xp_fd) {
 
     pthread_mutex_lock(&client_mgr_mutex);
 
-    int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)pid, (void *)xp_fd);
-    ret &= resource_mg_add_sorted(&xp_fd_to_client, (void *)xp_fd, client);
+    int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)pid, (void *)(long)xp_fd);
+    ret &= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
 
     pthread_mutex_unlock(&client_mgr_mutex);
 
@@ -93,11 +98,11 @@ int add_new_client(int pid, int xp_fd) {
 }
 
 inline cricket_client* get_client(int xp_fd) {
-    return (cricket_client*)resource_mg_get_default(&xp_fd_to_client, (void *)xp_fd, NULL);
+    return (cricket_client*)resource_mg_get_default(&xp_fd_to_client, (void *)(long)xp_fd, NULL);
 }
 
 inline cricket_client* get_client_by_pid(int pid) {
-    int xp_fd = resource_mg_get_default(&pid_to_xp_fd, (void *)pid, -1);
+    int xp_fd = (int)(long)resource_mg_get_default(&pid_to_xp_fd, (void *)(long)pid, (void*)-1ll);
     if (xp_fd == -1) {
         return NULL;
     }
@@ -112,7 +117,7 @@ int remove_client(int xp_fd) {
     }
 
     pthread_mutex_lock(&client_mgr_mutex);
-    resource_mg_remove(&pid_to_xp_fd, (void *)client->pid);
+    resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid);
     pthread_mutex_unlock(&client_mgr_mutex);
     
     // need to free gpu resources and custom streams
@@ -162,12 +167,10 @@ int remove_client(int xp_fd) {
     resource_mg_free(&client->functions);
 
     free(client);
-    return resource_mg_remove(&xp_fd_to_client, (void *)xp_fd);
+    return resource_mg_remove(&xp_fd_to_client, (void *)(long)xp_fd);
 }
 
-
-
-int freeResources(cricket_client* client) {
+static int freeResources(cricket_client* client) {
     PRIMARY_CTX_RETAIN;
     
     resource_map_iter *mem_iter = resource_map_init_iter(client->gpu_mem);
@@ -193,7 +196,7 @@ int freeResources(cricket_client* client) {
 
     uint64_t stream_idx;
     while ((stream_idx = resource_map_iter_next(stream_iter)) != 0) {
-        cudaStreamDestroy(resource_map_get(client->custom_streams, (void *)stream_idx));
+        cudaStreamDestroy((cudaStream_t)resource_map_get(client->custom_streams, (void *)stream_idx));
     }
 
     resource_map_free_iter(stream_iter);
@@ -203,6 +206,7 @@ int freeResources(cricket_client* client) {
 
     PRIMARY_CTX_RELEASE;
 }
+
 
 
 cricket_client_iter get_client_iter() {
