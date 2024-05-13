@@ -29,6 +29,9 @@ void free_resource_map(resource_map *map);
 
 resource_map_item* resource_map_get(resource_map *map, void *mapped_addr);
 
+int resource_map_update_addr_idx(resource_map *map, uint64_t idx,
+                                 void *new_addr);
+
 uint8_t resource_map_contains(resource_map *map, void *addr);
 
 int resource_map_add(resource_map *map, void *orig_addr, void* args, void **mapped_addr);

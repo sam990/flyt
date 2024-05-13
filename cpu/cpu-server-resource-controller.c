@@ -12,6 +12,7 @@
 #include "cpu-server-driver.h"
 #include "cpu-server-resource-controller.h"
 #include "device-management.h"
+#include "cpu-server-client-mgr.h"
 
 static int active_device = -1;
 static uint64_t mem_limit = 0;
@@ -22,6 +23,32 @@ static volatile uint64_t new_mem = 0;
 static volatile int change_resource_flag = 0;
 
 static CUcontext primaryCtx = NULL;
+
+static int delete_context_resources() {
+    // iterate over all client
+    cricket_client_iter iter = get_client_iter();
+    cricket_client *client;
+
+    while ((client = get_next_client(&iter)) != NULL) {
+        
+        // delete all streams
+        cudaStreamDestroy(client->default_stream);
+
+        resource_map_iter *stream_iter = resource_map_init_iter(client->custom_streams);
+        uint64_t idx;
+
+        while ((idx = resource_map_iter_next(stream_iter)) != 0) {
+            cudaStreamDestroy(client->custom_streams->list[idx].mapped_addr);
+        }
+
+        resource_map_free_iter(stream_iter);
+        
+    }
+
+    return 0;
+
+}
+
 
 int change_sm_cores(uint32_t nm_sm_cores) {
 
@@ -38,6 +65,9 @@ int change_sm_cores(uint32_t nm_sm_cores) {
         LOGE(LOG_ERROR, "Failed to get current context: %s", errStr);
         return -1;
     }
+
+    // delete resources on the current context
+    delete_context_resources();
 
     CUcontext newContext;
     CUresult res2;
@@ -80,6 +110,7 @@ int get_active_device() {
 
 int set_mem_limit(uint64_t limit) {
     mem_limit = limit;
+    return 0;
 }
 
 uint64_t get_mem_limit() {

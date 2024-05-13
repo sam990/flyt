@@ -37,15 +37,18 @@ resource_map_item* resource_map_get(resource_map* map, void* addr) {
     return &(map->list[(uint64_t)addr - OFFSET]);
 }
 
+int resource_map_update_addr_idx(resource_map* map, uint64_t idx, void* new_addr) {
+    if (idx >= map->tail_idx || map->list[idx].present == 0) {
+        return -1;
+    }
+    map->list[idx].mapped_addr = new_addr;
+}
+
 uint8_t resource_map_contains(resource_map* map, void* addr) {
-    LOGE(LOG_DEBUG, "Checking if %p is in resource map", addr);
-    LOGE(LOG_DEBUG, "Tail idx: %lu", map->tail_idx);
-    LOGE(LOG_DEBUG, "Free ptr idx: %lu", map->free_ptr_idx);
-    LOGE(LOG_DEBUG, "Translated offset: %lu", addr - OFFSET);
     return (uint64_t)addr - OFFSET < map->tail_idx && map->list[(uint64_t)addr - OFFSET].present;
 }
 
-int resource_map_add(resource_map* map, void* orig_addr, void *args, void **new_addr) {
+int resource_map_add(resource_map* map, void* mapped_addr, void *args, void **client_addr) {
     if (map->free_ptr_idx >= map->length && map->tail_idx >= map->length) {
         resource_map_item *new_list = (resource_map_item*)realloc(map->list, sizeof(resource_map_item) * map->length * 2);
         if (new_list == NULL) {
@@ -55,20 +58,20 @@ int resource_map_add(resource_map* map, void* orig_addr, void *args, void **new_
         map->length *= 2;
     }
     if (map->tail_idx == map->free_ptr_idx) {
-        map->list[map->tail_idx].mapped_addr = orig_addr;
+        map->list[map->tail_idx].mapped_addr = mapped_addr;
         map->list[map->tail_idx].args = args;
         map->list[map->tail_idx].present = 1;
-        *new_addr = (void*)(map->tail_idx + OFFSET);
+        *client_addr = (void*)(map->tail_idx + OFFSET);
         map->tail_idx++;
         map->free_ptr_idx++;
     }
     else {
         uint64_t alloc_idx = map->free_ptr_idx;
         map->free_ptr_idx = (uint64_t)map->list[map->free_ptr_idx].mapped_addr;
-        map->list[alloc_idx].mapped_addr = (void*)orig_addr;
+        map->list[alloc_idx].mapped_addr = (void*)mapped_addr;
         map->list[alloc_idx].args = args;
         map->list[alloc_idx].present = 1;
-        *new_addr = (void*)(alloc_idx + OFFSET);
+        *client_addr = (void*)(alloc_idx + OFFSET);
     }
     return 0;
 }
