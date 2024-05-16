@@ -83,16 +83,16 @@ int server_driver_modules_restore(resource_mg *modules)
             return 1;
         }
 
-        mem_data *elf = map->reg_data;
-        if (elf == NULL) {
-            LOGE(LOG_ERROR, "elf is NULL");
+        rpc_elf_load_1_argument *elf_args = map->reg_data;
+        if (elf_args == NULL) {
+            LOGE(LOG_ERROR, "elf_args is NULL");
             return 1;
         }
 
         CUmodule module = NULL;
         CUresult res;
-        LOGE(LOG_DEBUG, "Restoring module %p", elf->mem_data_val);
-        if ((res = cuModuleLoadData(&module, elf->mem_data_val)) != CUDA_SUCCESS) {
+        LOGE(LOG_DEBUG, "Restoring module %p", elf_args->arg1.mem_data_val);
+        if ((res = cuModuleLoadData(&module, elf_args->arg1.mem_data_val)) != CUDA_SUCCESS) {
             LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
             return 1;
         }
@@ -181,15 +181,17 @@ int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
 }
 
 
-int server_driver_ctx_state_restore(void) {
+static int __server_driver_ctx_state_restore(int ckp_restore) {
 
     LOGE(LOG_DEBUG, "Restoring context state");
 
     cricket_client_iter iter = get_client_iter();
 
+    cricket_client * (*iter_fn) (cricket_client_iter *) = ckp_restore ? get_next_restored_client : get_next_client;
+
     cricket_client *client;
 
-    while ((client = get_next_client(&iter)) != NULL ) {
+    while ((client = iter_fn(&iter)) != NULL ) {
 
 
         LOGE(LOG_DEBUG, "Restoring client %p. pid: %d", client, client->pid);
@@ -234,10 +236,16 @@ int server_driver_ctx_state_restore(void) {
         }
 
         resource_map_free_iter(stream_iter);
-
-
     }
     return 0;
+}
+
+int server_driver_ctx_state_restore(void) {
+    return __server_driver_ctx_state_restore(0);
+}
+
+int server_driver_ctx_state_restore_ckp(void) {
+    return __server_driver_ctx_state_restore(1);
 }
 
 
@@ -265,18 +273,17 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 
     // We add our module using module_key as key. This means a fatbinaryHandle on the client is translated
     // to a CUmodule on the server.
-    
 
-    mem_data *elf_copy = malloc(sizeof(mem_data));
-    elf_copy->mem_data_val = malloc(elf.mem_data_len);
-    memcpy(elf_copy->mem_data_val, elf.mem_data_val, elf.mem_data_len);
-    elf_copy->mem_data_len = elf.mem_data_len;
+    rpc_elf_load_1_argument *elf_args = malloc(sizeof(rpc_elf_load_1_argument));
+    elf_args->arg1.mem_data_len = elf.mem_data_len;
+    elf_args->arg1.mem_data_val = malloc(elf.mem_data_len);
+    memcpy(elf_args->arg1.mem_data_val, elf.mem_data_val, elf.mem_data_len);
 
     addr_data_pair_t *module_info = malloc(sizeof(addr_data_pair_t));
     module_info->addr = module;
-    module_info->reg_data = elf_copy;
+    module_info->reg_data = elf_args;
 
-    LOGE(LOG_DEBUG, "module: %p, module_info: %p, elfcopy: %p", module, module_info, elf_copy);
+    LOGE(LOG_DEBUG, "module: %p, module_info: %p, elfargs: %p", module, module_info, elf_args);
 
     if (resource_mg_add_sorted(&client->modules, (void*)module_key, (void*)module_info) != 0) {
         LOGE(LOG_ERROR, "resource_mg_create failed");

@@ -27,6 +27,10 @@ resource_map *init_resource_map(uint64_t init_length);
 
 void free_resource_map(resource_map *map);
 
+void *resource_map_addr_from_index(uint64_t idx);
+
+uint64_t resource_map_index_from_addr(void *addr);
+
 resource_map_item* resource_map_get(resource_map *map, void *mapped_addr);
 
 int resource_map_update_addr_idx(resource_map *map, uint64_t idx,

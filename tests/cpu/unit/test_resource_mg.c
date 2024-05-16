@@ -19,22 +19,22 @@ int main()
     for(void *i=0; i < (void*)10; ++i) {
         ret = resource_mg_create(&rm1, i);
         assert(ret == 0);
-        address = resource_mg_get(&rm1, i);
+        address = resource_mg_get_or_null(&rm1, i);
         assert(address == i);
     }
     for(void *i=0; i < (void*)10; i+=2) {
         ret = resource_mg_create(&rm2, i);
         assert(ret == 0);
-        address = resource_mg_get(&rm2, i);
+        address = resource_mg_get_or_null(&rm2, i);
         assert(address == i);
     }
 
     for(void *i=0; i < (void*)10; ++i) {
-        address = resource_mg_get(&rm1, i);
+        address = resource_mg_get_or_null(&rm1, i);
         assert(address == i);
     }
     for(void *i=0; i < (void*)10; i+=2) {
-        address = resource_mg_get(&rm2, i);
+        address = resource_mg_get_or_null(&rm2, i);
         assert(address == i);
     }
 
@@ -44,15 +44,15 @@ int main()
     for(void *i=0; i < (void*)10; i+=2) {
         ret = resource_mg_add_sorted(&rm2, i, i+1000);
         assert(ret == 0);
-        address = resource_mg_get(&rm2, i);
+        address = resource_mg_get_or_null(&rm2, i);
         assert(address == i+1000);
     }
     for(void *i=0; i < (void*)10; i+=2) {
-        address = resource_mg_get(&rm2, i);
+        address = resource_mg_get_or_null(&rm2, i);
         assert(address == i+1000);
     }
     for(void *i=(void*)1; i < (void*)10; i+=2) {
-        address = resource_mg_get(&rm2, i);
+        address = resource_mg_get_or_null(&rm2, i);
         assert(address == (void*)i);
     }
 

@@ -85,6 +85,20 @@ bool_t rpc_init_1_svc(int pid, int *result, struct svc_req *rqstp) {
     return 1;
 }
 
+bool_t rpc_ckp_restore_1_svc(int pid, int *result, struct svc_req *rqstp) {
+    // create and initialize 
+    LOG(LOG_INFO, "RPC ckp_restore requested %d", rqstp->rq_xprt->xp_fd);
+    // rqstp->rq_xprt->xp_fd 
+    int ret = move_restored_client(pid, rqstp->rq_xprt->xp_fd);
+    if (ret != 0) {
+        LOGE(LOG_ERROR, "Failed to initialize client manager for pid %d", pid);
+        *result = 1;
+        return 1;
+    }
+    *result = 0;
+    return 1;
+}
+
 int cricket_server_checkpoint(int dump_memory)
 {
     int ret;

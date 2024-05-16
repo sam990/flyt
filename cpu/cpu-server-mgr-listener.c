@@ -12,12 +12,15 @@
 #include "log.h"
 #include "cpu-utils.h"
 #include "cpu-server-resource-controller.h"
+#include "flyt-cr.h"
 #include <signal.h>
 
 #define SNODE_MQUEUE_PATH "/tmp/flyt-servernode-queue"
 #define PROJ_ID 0x42
 
 const char* SNODE_VIRTS_CHANGE_RESOURCES = "SNODE_VIRTS_CHANGE_RESOURCES";
+const char* SNODE_VIRTS_CHECKPOINT = "SNODE_VIRTS_CHECKPOINT";
+const char* SNODE_VIRTS_RESTORE = "SNODE_VIRTS_RESTORE";
 
 pthread_t handler_thread;
 
@@ -71,7 +74,39 @@ static void *client_msg_handler(void *arg) {
                 LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));
             }
 
-        } else {
+        } 
+        
+        if (strncmp(msg.msg.cmd, SNODE_VIRTS_CHECKPOINT, strlen(SNODE_VIRTS_CHECKPOINT)) == 0) {
+            LOGE(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
+            
+            struct msgbuf_uint32 rsp;
+            
+            int ret = flyt_create_checkpoint(msg.msg.data);
+
+            rsp.mtype = send_type;
+            rsp.data = htonl(ret);
+
+            if (msgsnd(clientd_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
+                LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));
+            }
+        }
+
+        if (strncmp(msg.msg.cmd, SNODE_VIRTS_RESTORE, strlen(SNODE_VIRTS_RESTORE)) == 0) {
+            LOGE(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
+            
+            struct msgbuf_uint32 rsp;
+            
+            int ret = flyt_restore_checkpoint(msg.msg.data);
+
+            rsp.mtype = send_type;
+            rsp.data = htonl(ret);
+
+            if (msgsnd(clientd_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
+                LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));
+            }
+        }
+        
+        else {
             LOGE(LOG_ERROR, "Unknown message received from client manager: %s", msg.msg.cmd);
         }
     }

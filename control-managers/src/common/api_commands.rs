@@ -18,6 +18,10 @@ impl FlytApiCommand {
     pub const RMGR_SNODE_ALLOC_VIRT_SERVER: &'static str = "RMGR_SNODE_ALLOC_VIRT_SERVER";
     pub const RMGR_SNODE_CHANGE_RESOURCES: &'static str = "RMGR_SNODE_CHANGE_RESOURCES";
     pub const SNODE_VIRTS_CHANGE_RESOURCES: &'static str = "SNODE_VIRTS_CHANGE_RESOURCES";
+    pub const SNODE_VIRTS_CHECKPOINT: &'static str = "SNODE_VIRTS_CHECKPOINT";
+    pub const SNODE_VIRTS_RESTORE: &'static str = "SNODE_VIRTS_RESTORE";
+    pub const RMGR_SNODE_CHECKPOINT: &'static str = "RMGR_SNODE_CHECKPOINT";
+    pub const RMGR_SNODE_ALLOC_RESTORE: &'static str = "RMGR_SNODE_ALLOC_RESTORE";
 }
 
 pub struct FrontEndCommand;
@@ -29,4 +33,5 @@ impl FrontEndCommand {
     pub const CHANGE_SM_CORES: &'static str = "CHANGE_SM_CORES";
     pub const CHANGE_MEMORY: &'static str = "CHANGE_MEMORY";
     pub const CHANGE_SM_CORES_AND_MEMORY: &'static str = "CHANGE_SM_CORES_AND_MEMORY";
+    pub const MIGRATE_VIRT_SERVER: &'static str = "MIGRATE_VIRT_SERVER";
 }

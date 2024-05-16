@@ -8,4 +8,6 @@ int server_driver_deinit(void);
 
 int server_driver_ctx_state_restore(void);
 
+int server_driver_ctx_state_restore_ckp(void);
+
 #endif //_CPU_SERVER_DRIVER_H_

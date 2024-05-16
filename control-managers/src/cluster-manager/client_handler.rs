@@ -113,6 +113,122 @@ impl<'a> FlytClientManager<'a> {
         clients.contains_key(ipaddr)
     }
 
+    pub fn stop_client(&self, ipaddr: &str) -> Result<(),String> {
+        if self.exists(ipaddr) {
+            let client = self.get_client(ipaddr).unwrap();
+            if client.stream.read().unwrap().is_some() {
+                match get_writer!(client).write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_PAUSE).as_bytes()) {
+                    Ok(_) => {
+                        let response = match StreamUtils::read_response(get_reader!(client), 2) {
+                            Ok(response) => {
+                                log::info!("Response from client {} for stop: {:?}", ipaddr, response);
+                                response
+                            }
+                            Err(e) => {
+                                log::error!("Error reading response from client: {}", e);
+                                return Err("Error reading response from client".to_string());
+                            }
+                        };
+                        if response[0] != "200" {
+                            return Err(format!("Error stopping client: {}", response[1]));
+                        }
+
+                        Ok(())
+
+                    }
+                    Err(e) => {
+                        log::error!("Error writing to client: {}", e);
+                        return Err("Error writing to client".to_string());
+                    }
+                }
+            }
+            else {
+                log::info!("Client stream is None");
+                Err("Client stream is None".to_string())
+            }
+        }
+        else {
+            Err("Client not found".to_string())
+        }
+    }
+
+    pub fn change_virt_server(&self, ipaddr: &str, new_snode_ip: &String, new_rpc_id: u64) -> Result<(), String> {
+        if self.exists(ipaddr) {
+            let client = self.get_client(ipaddr).unwrap();
+            if client.stream.read().unwrap().is_some() {
+                match get_writer!(client).write_all(format!("{}\n{},{}\n", FlytApiCommand::RMGR_CLIENTD_CHANGE_VIRT_SERVER, new_snode_ip, new_rpc_id).as_bytes()) {
+                    Ok(_) => {
+                        let response = match StreamUtils::read_response(get_reader!(client), 2) {
+                            Ok(response) => {
+                                log::info!("Response from client {} for change virt server: {:?}", ipaddr, response);
+                                response
+                            }
+                            Err(e) => {
+                                log::error!("Error reading response from client: {}", e);
+                                return Err("Error reading response from client".to_string());
+                            }
+                        };
+                        if response[0] != "200" {
+                            return Err(format!("Error changing virt server: {}", response[1]));
+                        }
+
+                        Ok(())
+
+                    }
+                    Err(e) => {
+                        log::error!("Error writing to client: {}", e);
+                        return Err("Error writing to client".to_string());
+                    }
+                }
+            }
+            else {
+                log::info!("Client stream is None");
+                Err("Client stream is None".to_string())
+            }
+        }
+        else {
+            Err("Client not found".to_string())
+        }
+    }
+
+    pub fn resume_client(&self, ipaddr: &str) -> Result<(),String> {
+        if self.exists(ipaddr) {
+            let client = self.get_client(ipaddr).unwrap();
+            if client.stream.read().unwrap().is_some() {
+                match get_writer!(client).write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_RESUME).as_bytes()) {
+                    Ok(_) => {
+                        let response = match StreamUtils::read_response(get_reader!(client), 2) {
+                            Ok(response) => {
+                                log::info!("Response from client {} for resume: {:?}", ipaddr, response);
+                                response
+                            }
+                            Err(e) => {
+                                log::error!("Error reading response from client: {}", e);
+                                return Err("Error reading response from client".to_string());
+                            }
+                        };
+                        if response[0] != "200" {
+                            return Err(format!("Error resuming client: {}", response[1]));
+                        }
+
+                        Ok(())
+
+                    }
+                    Err(e) => {
+                        log::error!("Error writing to client: {}", e);
+                        return Err("Error writing to client".to_string());
+                    }
+                }
+            }
+            else {
+                log::info!("Client stream is None");
+                Err("Client stream is None".to_string())
+            }
+        }
+        else {
+            Err("Client not found".to_string())
+        }
+    }
 
     pub fn start_flytclient_handler<'b>(&'b self, port: u16, scope: &'b thread::Scope<'b, '_>) {
         let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();

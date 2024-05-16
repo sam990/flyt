@@ -13,7 +13,7 @@ enum MEM_ALLOC_TYPE {
 
 typedef struct __mem_alloc_args {
     enum MEM_ALLOC_TYPE type;
-    long long arg1;
+    long long size;
     long long arg2;
     long long arg3;
     long long arg4;

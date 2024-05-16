@@ -107,6 +107,46 @@ impl VirtServerManager {
         
     }
 
+    pub fn checkpoint_virt_server(&self, rpc_id: u64, ckp_path: &str) -> Result<(),String> {
+        log::debug!("checkpoint_virt_server: rpc_id: {}, ckp_path: {}", rpc_id, ckp_path);
+        
+        let virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
+
+        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_VIRTS_CHECKPOINT, ckp_path).as_bytes();
+
+        self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
+
+        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(5)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+
+        let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
+
+        if recv_status != 200 {
+            return Err("Error checkpointing virt server".to_string());
+        }
+        
+        Ok(())
+    }
+
+    pub fn restore_virt_server(&self, rpc_id: u64, ckp_path: &str) -> Result<(),String> {
+        log::debug!("restore_virt_server: rpc_id: {}, ckp_path: {}", rpc_id, ckp_path);
+        
+        let virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
+
+        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_VIRTS_RESTORE, ckp_path).as_bytes();
+
+        self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
+
+        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(5)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+
+        let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
+
+        if recv_status != 200 {
+            return Err("Error restoring virt server".to_string());
+        }
+        
+        Ok(())
+    }
+
     pub fn remove_virt_server(&self, rpc_id: u64) -> Result<(),String> {
         let mut virt_servers = self.virts_servers.lock().unwrap();
         let virt_server = virt_servers.get(&rpc_id).ok_or("Virt server not found")?;
