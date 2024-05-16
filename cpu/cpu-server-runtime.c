@@ -1685,7 +1685,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     // resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
     mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
     args->type = MEM_ALLOC_TYPE_DEFAULT;
-    args->arg1 = argp;
+    args->size = argp;
     resource_map_add(client->gpu_mem, dev_mem_ptr, args, &(result->ptr_result_u.ptr));
 #endif
 

@@ -154,10 +154,17 @@ void change_server(char *server_info)
     }
     LOG(LOG_INFO, "changing server to %s", server_info);
     rpc_connect(server_info);
-    retval_1 = cuda_device_synchronize_1(&result_1, clnt);
+}
+
+void resume_connection(void)
+{
+    enum clnt_stat retval_1;
+    int result_1;
+    FUNC_BEGIN 
+    retval_1 = rpc_ckp_restore_1(getpid(), &result_1, clnt);
     FUNC_END
     if (retval_1 != RPC_SUCCESS) {
-        LOGE(LOG_ERROR, "error calling cudaDeviceSynchronize");
+        LOGE(LOG_ERROR, "error calling rpc_init");
     }
 }
 

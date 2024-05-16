@@ -33,7 +33,13 @@ int init_cpu_server_client_mgr();
 
 void free_cpu_server_client_mgr();
 
+cricket_client *create_client(int pid);
+
 int add_new_client(int pid, int xp_fd);
+
+int add_restored_client(cricket_client *client);
+
+int move_restored_client(int pid, int xp_fd);
 
 cricket_client* get_client(int xp_fd);
 
@@ -44,6 +50,8 @@ int remove_client(int xp_fd);
 cricket_client_iter get_client_iter();
 
 cricket_client *get_next_client(cricket_client_iter *iter);
+
+cricket_client *get_next_restored_client(cricket_client_iter *iter);
 
 int remove_client_by_pid(int pid);
 

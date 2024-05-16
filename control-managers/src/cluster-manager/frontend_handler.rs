@@ -1,6 +1,6 @@
 use std::{fs, io::BufReader, os::unix::net::{UnixListener, UnixStream}, path::Path};
 
-use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};
+use crate::{bookkeeping, client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};
 
 
 #[derive(PartialEq, Debug)]
@@ -83,10 +83,143 @@ impl <'a> FrontendHandler<'a> {
             FrontEndCommand::CHANGE_SM_CORES_AND_MEMORY => {
                 self.change_resources(stream, reader, ChangeConfigFor::Both);
             }
+            FrontEndCommand::MIGRATE_VIRT_SERVER => {
+                self.migrate_vm(stream, reader);
+            }
             _ => {
                 log::error!("Invalid command");
             }
         }
+    }
+
+    fn migrate_vm(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>) {
+
+        log::info!("Received migrate request");
+
+        let request_params = match StreamUtils::read_response(&mut reader, 1) {
+            Ok(params) => params,
+            Err(e) => {
+                log::error!("Error reading request params: {}", e);
+                return;
+            }
+        };
+        
+        let parts: Vec<&str> = request_params[0].split(',').collect();
+        if parts.len() != 5 {
+            log::error!("Invalid arguments for migrate command: {:?}", parts);
+            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+            return;
+        }
+
+        let ipaddr = parts[0];
+        let new_server_ip = parts[1];
+        let new_server_gpu_id = match parts[2].parse::<u64>() {
+            Ok(gpu_id) => gpu_id,
+            Err(e) => {
+                log::error!("Error parsing gpu_id: {}", e);
+                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+                return;
+            }
+        };
+
+        let new_server_compute_units = match parts[3].parse::<u32>() {
+            Ok(sm_cores) => sm_cores,
+            Err(e) => {
+                log::error!("Error parsing sm_cores: {}", e);
+                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+                return;
+            }
+        };
+
+        let new_server_memory = match parts[4].parse::<u64>() {
+            Ok(memory) => memory,
+            Err(e) => {
+                log::error!("Error parsing memory: {}", e);
+                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+                return;
+            }
+        };
+
+        log::info!("Migrating VM: {} to server: {} with gpu_id: {}", ipaddr, new_server_ip, new_server_gpu_id);
+
+        match self.client_mgr.stop_client(ipaddr) {
+            Ok(_) => {
+                log::info!("Client VM {} stopped successfully", ipaddr);
+            }
+            Err(e) => {
+                log::error!("Error stopping client VM {}: {}", ipaddr, e);
+                let _ = StreamUtils::write_all(&mut stream, "500\nError stopping client VM\n".to_string());
+                return;
+            }
+        }
+
+        let ckp_base_path = bookkeeping::get_ckp_base_path();
+        if ckp_base_path.is_none() {
+            log::error!("Checkpoint base path not found");
+            let _ = StreamUtils::write_all(&mut stream, "500\nCheckpoint base path not configured\n".to_string());
+            return;
+        }
+
+        let ckp_base_path = ckp_base_path.unwrap();
+        let ckp_path = format!("{}/{}", ckp_base_path, ipaddr);
+
+        // if path exists, remove it
+        if Path::new(&ckp_path).exists() {
+            let res = fs::remove_dir_all(&ckp_path);
+            if res.is_err() {
+                log::error!("Error removing path: {}", res.err().unwrap());
+                let _ = StreamUtils::write_all(&mut stream, "500\nError removing path\n".to_string());
+                return;
+            }
+        }
+
+        // create new path
+        if fs::create_dir_all(&ckp_path).is_err() {
+            log::error!("Error creating path: {}", ckp_path);
+            let _ = StreamUtils::write_all(&mut stream, "500\nError creating path\n".to_string());
+            return;
+        }
+
+        let snode_ip = self.client_mgr.get_client(ipaddr).unwrap().virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
+        let rpc_id = self.client_mgr.get_client(ipaddr).unwrap().virt_server.as_ref().unwrap().read().unwrap().rpc_id;
+
+        let res = self.server_nodes_manager.checkpoint(&snode_ip, rpc_id, &ckp_path);
+
+        if res.is_err() {
+            log::error!("Error checkpointing virt server: {}", res.err().unwrap());
+            let _ = StreamUtils::write_all(&mut stream, "500\nError checkpointing virt server\n".to_string());
+            return;
+        }
+
+        let res = self.server_nodes_manager.alloc_and_restore(&snode_ip, new_server_gpu_id, new_server_compute_units,  new_server_memory, &ckp_path);
+
+        if res.is_err() {
+            log::error!("Error restoring virt server: {}", res.err().unwrap());
+            let _ = StreamUtils::write_all(&mut stream, "500\nError restoring virt server\n".to_string());
+            return;
+        }
+
+        let new_rpc_id = res.unwrap();
+
+        let res = self.client_mgr.change_virt_server(ipaddr, &snode_ip, new_rpc_id);
+
+        if res.is_err() {
+            log::error!("Error changing virt server: {}", res.err().unwrap());
+            let _ = StreamUtils::write_all(&mut stream, "500\nError changing virt server\n".to_string());
+            return;
+        }
+
+        let res = self.client_mgr.resume_client(ipaddr);
+
+        if res.is_err() {
+            log::error!("Error resuming client VM: {}", res.err().unwrap());
+            let _ = StreamUtils::write_all(&mut stream, "500\nError resuming client VM\n".to_string());
+            return;
+        }
+
+        log::info!("VM migrated successfully");
+        let _ = StreamUtils::write_all(&mut stream, "200\nVM migrated successfully\n".to_string());
+    
     }
 
     fn list_vms(&self, mut stream: UnixStream){
@@ -175,7 +308,7 @@ impl <'a> FrontendHandler<'a> {
         let parts: Vec<&str> = buffer[0].split(',').collect();
         if (change_for != ChangeConfigFor::Both && parts.len() != 2) || (change_for == ChangeConfigFor::Both && parts.len() != 3 ){
             log::error!("Invalid arguments for change resource command {:?} {:?}", change_for, parts);
-            let _ = StreamUtils::write_all(&mut stream, "Invalid arguments".to_string());
+            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
             return;
         }
         let ipaddr = parts[0];

@@ -263,49 +263,167 @@ impl<'a> ServerNodesManager<'a> {
 
         let target_server_ip = target_server_ip.unwrap();
 
+        let virt_server = self.create_virt_server(&target_server_ip, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory, false);
 
-        // communicate with the node
-        let mut target_server_node = self.get_server_node(&target_server_ip).unwrap();
-
-        stream_write!(get_writer!(target_server_node), format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory));
-
-        let status = stream_read_line!(get_reader!(target_server_node));
-        let payload = stream_read_line!(get_reader!(target_server_node));
-
-        if status != "200" {
-            log::error!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}: {}", status, payload);
-            return Err(format!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}: {}", status, payload));
+        if virt_server.is_err() {
+            log::error!("Error creating virt server for client: {}", client_ip);
+            return Err("Error creating virt server".to_string());
         }
-        
-        let target_gpu_id = target_gpu_id.unwrap();
-        let virt_server_rpc_id = payload.parse::<u64>().unwrap();
 
-        let target_gpu = target_server_node.gpus.iter_mut().find(|gpu| gpu.read().unwrap().gpu_id == target_gpu_id).unwrap();
+        let virt_server = virt_server.unwrap();
+
+        Ok(virt_server)
+
+    }
+
+    pub fn create_virt_server(&self, snode_ip: &String, gpu_id: u64, compute_units: u32, memory: u64, allow_overprovision: bool) -> Result<Arc<RwLock<VirtServer>>,String> {
         
-        
-        // rwlock guard block
+        let server_node = self.get_server_node(&snode_ip);
+
+        if server_node.is_none() {
+            log::error!("Server node not found: {}", snode_ip);
+            return Err("Server node not found".to_string());
+        }
+
+        let mut server_node = server_node.unwrap();
+
+        let target_gpu = server_node.gpus.iter_mut().find(|gpu| gpu.read().unwrap().gpu_id == gpu_id);
+
+        if target_gpu.is_none() {
+            log::error!("GPU not found: {}", gpu_id);
+            return Err("GPU not found".to_string());
+        }
+
+        let target_gpu = target_gpu.unwrap();
+
         {
-            let mut gpu_write = target_gpu.write().unwrap();
-            gpu_write.allocated_compute_units += vm_required_resources.compute_units;
-            gpu_write.allocated_memory += vm_required_resources.memory;
+            let gpu_read = target_gpu.read().unwrap();
+
+            if !allow_overprovision && (compute_units > gpu_read.compute_units || memory > gpu_read.memory) {
+                log::error!("Not enough resources to allocate compute_units: {}, memory: {}", compute_units, memory);
+                log::error!("Available compute_units: {}, memory: {}", gpu_read.compute_units - gpu_read.allocated_compute_units, gpu_read.memory - gpu_read.allocated_memory);
+                return Err("Not enough resources to allocate".to_string());
+            }
         }
 
-        log::info!("Virt server {}/{} allocated for client: {}", target_server_ip, virt_server_rpc_id, client_ip);
-        
+        stream_write!(get_writer!(server_node), format!("{}\n{},{},{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER, gpu_id, compute_units, memory));
+
+        let response = stream_read_response!(get_reader!(server_node), 2);
+
+        if response[0] != "200" {
+            log::error!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]);
+            return Err(format!("RMGR_SNODE_ALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]));
+        }
+
+        let virt_server_rpc_id = response[1].parse::<u64>().unwrap();
+
         let virt_server = Arc::new(RwLock::new(VirtServer {
-            ipaddr: target_server_ip,
-            compute_units: vm_required_resources.compute_units,
-            memory: vm_required_resources.memory,
-            rpc_id: virt_server_rpc_id as u64,
+            ipaddr: server_node.ipaddr.clone(),
+            compute_units,
+            memory,
+            rpc_id: virt_server_rpc_id,
             gpu: target_gpu.clone(),
         }));
 
-        target_server_node.virt_servers.push(virt_server.clone());
-        
-        self.update_server_node(target_server_node);
+        server_node.virt_servers.push(virt_server.clone());
 
+        {
+            let mut gpu_write = target_gpu.write().unwrap();
+            gpu_write.allocated_compute_units += compute_units;
+            gpu_write.allocated_memory += memory;
+        }
+
+        self.update_server_node(server_node);
 
         Ok(virt_server)
+    }
+
+    pub fn checkpoint(&self, virt_ip: &String, rpc_id: u64, ckp_path: &String) -> Result<(),String> {
+        let server_node = self.get_server_node(&virt_ip);
+
+        if server_node.is_none() {
+            log::error!("Server node not found: {}", virt_ip);
+            return Err("Server node not found".to_string());
+        }
+
+        let server_node = server_node.unwrap();
+
+        let target_vserver = server_node.virt_servers.iter().find(|virt_server| virt_server.read().unwrap().rpc_id == rpc_id);
+
+        if target_vserver.is_none() {
+            log::error!("Virt server not found: {}", rpc_id);
+            return Err("Virt server not found".to_string());
+        }
+
+        stream_write!(get_writer!(server_node), format!("{}\n{}\n{}\n", FlytApiCommand::RMGR_SNODE_CHECKPOINT, rpc_id, ckp_path));
+
+        let response = stream_read_response!(get_reader!(server_node), 2);
+
+        if response[0] != "200" {
+            log::error!("RMGR_SNODE_CHECKPOINT, Status: {}\n{}", response[0], response[1]);
+            return Err(format!("RMGR_SNODE_CHECKPOINT, Status: {}\n{}", response[0], response[1]));
+        }
+
+        Ok(())
+    }
+
+    pub fn alloc_and_restore(&self, snode_ip: &String, gpu_id: u64, compute_units: u32, memory: u64, ckp_path: &String) -> Result<u64,String> {
+        let server_node = self.get_server_node(&snode_ip);
+
+        if server_node.is_none() {
+            log::error!("Server node not found: {}", snode_ip);
+            return Err("Server node not found".to_string());
+        }
+
+        let mut server_node = server_node.unwrap();
+
+        let target_gpu = server_node.gpus.iter_mut().find(|gpu| gpu.read().unwrap().gpu_id == gpu_id);
+
+        if target_gpu.is_none() {
+            log::error!("GPU not found: {}", gpu_id);
+            return Err("GPU not found".to_string());
+        }
+
+        let target_gpu = target_gpu.unwrap();
+
+        stream_write!(get_writer!(server_node), format!("{}\n{},{},{}\n{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_RESTORE, gpu_id, compute_units, memory, ckp_path));
+
+        let response = stream_read_response!(get_reader!(server_node), 2);
+
+        if response[0] != "200" {
+            log::error!("RMGR_SNODE_ALLOC_RESTORE, Status: {}\n{}", response[0], response[1]);
+            return Err(format!("RMGR_SNODE_ALLOC_RESTORE, Status: {}\n{}", response[0], response[1]));
+        }
+
+        let rpc_id = match response[1].parse::<u64>() {
+            Ok(rpc_id) => rpc_id,
+            Err(e) => {
+                log::error!("Error parsing rpc_id: {}", e);
+                return Err(format!("Error parsing rpc_id: {}", e));
+            }
+        };
+
+        
+
+        let virt_server = Arc::new(RwLock::new(VirtServer {
+            ipaddr: server_node.ipaddr.clone(),
+            compute_units,
+            memory,
+            rpc_id: rpc_id,
+            gpu: target_gpu.clone(),
+        }));
+
+        server_node.virt_servers.push(virt_server.clone());
+
+        {
+            let mut gpu_write = target_gpu.write().unwrap();
+            gpu_write.allocated_compute_units += compute_units;
+            gpu_write.allocated_memory += memory;
+        }
+
+        self.update_server_node(server_node);
+
+        Ok(rpc_id)
 
     }
 

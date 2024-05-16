@@ -130,7 +130,10 @@ impl VMResourcesGetter {
 
 }
 
-
+pub fn get_ckp_base_path() -> Option<String> {
+    let config: Table = Utils::load_config_file(RMGR_CONFIG_PATH);
+    config.get("migration")?.get("ckp-path")?.as_str().map(|s| s.to_string())
+}
 
 pub fn get_virt_server_deallocate_time() -> Option<u64> {
 

@@ -33,6 +33,14 @@ void free_resource_map(resource_map* map) {
     free(map);
 }
 
+void* resource_map_addr_from_index(uint64_t idx) {
+    return (void*)(idx + OFFSET);
+}
+
+uint64_t resource_map_index_from_addr(void* addr) {
+    return (uint64_t)addr - OFFSET;
+}
+
 resource_map_item* resource_map_get(resource_map* map, void* addr) {
     return &(map->list[(uint64_t)addr - OFFSET]);
 }
@@ -77,10 +85,12 @@ int resource_map_add(resource_map* map, void* mapped_addr, void *args, void **cl
 }
 
 void resource_map_unset(resource_map* map, void* mapped_addr) {
-    map->list[(uint64_t)mapped_addr].mapped_addr = (void*)map->free_ptr_idx;
-    map->list[(uint64_t)mapped_addr].present = 0;
-    free(map->list[(uint64_t)mapped_addr].args);
-    map->free_ptr_idx = (uint64_t)mapped_addr;
+    uint64_t idx = (uint64_t)mapped_addr - OFFSET;
+
+    map->list[idx].mapped_addr = (void*)map->free_ptr_idx;
+    map->list[idx].present = 0;
+    free(map->list[idx].args);
+    map->free_ptr_idx = idx;
 }
 
 resource_map_iter* resource_map_init_iter(resource_map* map) {

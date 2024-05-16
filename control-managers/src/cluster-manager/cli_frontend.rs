@@ -33,6 +33,14 @@ enum Commands {
         #[clap(flatten)]
         new_resources: NewResourcesOption,
     },
+    Migrate {
+        #[arg(short, long, help = "IP address of the VM to migrate")]
+        ip: String,
+        #[arg(short, long, help = "IP address of the server node to migrate to")]
+        dstsnodeip: String,
+        #[arg(short, long, help = "ID of the GPU to migrate to")]
+        dstgpuid: u32,
+    }
 }
 #[derive(Debug, clap::Args, Clone)]
 #[group(required = true)]
@@ -69,8 +77,47 @@ fn main() {
         Commands::ChangeConfig { ip, new_resources } => {
             change_resources(stream, ip, new_resources);
         }
+        Commands::Migrate {
+            ip,
+            dstsnodeip,
+            dstgpuid,
+        } => {
+            migrate_vm(stream, ip, dstsnodeip, dstgpuid);
+        }
     }
 }
+
+fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpuid: u32) {
+    match stream.write_all(
+        format!(
+            "{}\n{},{},{}\n",
+            FrontEndCommand::MIGRATE_VIRT_SERVER,
+            ip,
+            dstsnodeip,
+            dstgpuid
+        )
+        .as_bytes(),
+    ) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+            return;
+        }
+    }
+
+    let mut reader = std::io::BufReader::new(stream);
+
+    let response = match StreamUtils::read_response(&mut reader, 2) {
+        Ok(response) => response,
+        Err(e) => {
+            log::error!("Error reading response: {}", e);
+            return;
+        }
+    };
+
+    println!("{}: {}", response[0], response[1]);
+}
+
 
 fn list_vms(mut stream: UnixStream) {
     match stream.write_all(format!("{}\n", FrontEndCommand::LIST_VMS).as_bytes()) {

@@ -163,6 +163,97 @@ impl ResourceManagerHandler {
                 
                 }
 
+                FlytApiCommand::RMGR_SNODE_CHECKPOINT => {
+                    log::info!("Got checkpoint virt server command");
+
+                    let rpc_id = stream_read_line!(reader).parse::<u64>();
+                    if rpc_id.is_err() {
+                        log::error!("Invalid rpc_id: {:?}", rpc_id);
+                        stream_write!(writer, "400\nInvalid rpc_id\n".to_string());
+                        continue;
+                    }
+
+                    let rpc_id = rpc_id.unwrap();
+                    let ckp_path = stream_read_line!(reader);
+
+                    log::info!("Checkpointing virt server: {} at path {}", rpc_id, ckp_path);
+                    let ret = self.virt_server_manager.checkpoint_virt_server(rpc_id, ckp_path.as_str());
+                    match ret {
+                        Ok(_) => {
+                            log::info!("Virt server checkpointed");
+                            stream_write!(writer, format!("200\n{}\n", ckp_path));
+                        }
+                        Err(e) => {
+                            log::error!("Error checkpointing virt server: {}", e);
+                            stream_write!(writer, format!("500\n{}\n", e));
+                        }
+                    }
+                }
+
+                FlytApiCommand::RMGR_SNODE_ALLOC_RESTORE => {
+                    log::info!("Got allocate and restore virt server command");
+
+                    let args = stream_read_line!(reader);
+                    let parts = args.split(",").collect::<Vec<&str>>();
+
+                    if parts.len() != 3 {
+                        log::error!("Invalid number of arguments: {:?}", parts);
+                        stream_write!(writer, "400\nInvalid number of arguments\n".to_string());
+                        continue;
+                    }
+
+                    let gpu_id = parts[0].parse::<u32>();
+                    let num_cores = parts[1].parse::<u32>();
+                    let memory = parts[2].parse::<u64>();
+                    
+                    let ckp_path = stream_read_line!(reader);
+
+                    if gpu_id.is_err() || num_cores.is_err() || memory.is_err() {
+                        stream_write!(writer, "400\nInvalid arguments\n".to_string());
+                        continue;
+                    }
+
+                    let gpu_id = gpu_id.unwrap();
+                    let num_cores = num_cores.unwrap();
+                    let memory = memory.unwrap();
+
+                    log::info!("Allocating virt server: gpu_id: {}, num_cores: {}, memory: {}", gpu_id, num_cores, memory);
+
+                    if self.gpu_manager.get_gpu(gpu_id).is_none() {
+                        log::error!("GPU not found: {}", gpu_id);
+                        stream_write!(writer, "400\nGPU not found\n".to_string());
+                        continue;
+                    }
+
+
+                    let ret = self.virt_server_manager.create_virt_server(gpu_id, memory, num_cores);
+                    
+
+                    match ret {
+                        Ok(rpc_id) => {
+                            log::info!("Virt server created: {}", rpc_id);
+                            log::info!("Restoring virt server: {}", rpc_id);
+
+                            let ret = self.virt_server_manager.restore_virt_server(rpc_id, ckp_path.as_str());
+                            
+                            match ret {
+                                Ok(_) => {
+                                    log::info!("Virt server restored");
+                                    stream_write!(writer, format!("200\n{}\n", rpc_id));
+                                }
+                                Err(e) => {
+                                    log::error!("Error restoring virt server: {}", e);
+                                    stream_write!(writer, format!("500\n{}\n", e));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::info!("Error creating virt server: {}", e);
+                            stream_write!(writer, format!("500\n{}\n", e));
+                        }
+                    }
+                }
+
                 FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER => {
                     
                     log::info!("Got deallocate virt server command");

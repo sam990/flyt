@@ -51,7 +51,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 device-management.c \
 			 resource-map.c \
 			 cpu-server-client-mgr.c \
-			 cbitset/bitset.c
+			 cbitset/bitset.c \
+			 flyt-cr.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
