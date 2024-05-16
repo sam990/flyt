@@ -117,7 +117,8 @@ impl<'a> FlytClientManager<'a> {
         if self.exists(ipaddr) {
             let client = self.get_client(ipaddr).unwrap();
             if client.stream.read().unwrap().is_some() {
-                match get_writer!(client).write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_PAUSE).as_bytes()) {
+                let writer_resp = { get_writer!(client).write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_PAUSE).as_bytes()) };
+                match writer_resp {
                     Ok(_) => {
                         let response = match StreamUtils::read_response(get_reader!(client), 2) {
                             Ok(response) => {
@@ -156,7 +157,8 @@ impl<'a> FlytClientManager<'a> {
         if self.exists(ipaddr) {
             let client = self.get_client(ipaddr).unwrap();
             if client.stream.read().unwrap().is_some() {
-                match get_writer!(client).write_all(format!("{}\n{},{}\n", FlytApiCommand::RMGR_CLIENTD_CHANGE_VIRT_SERVER, new_snode_ip, new_rpc_id).as_bytes()) {
+                let writer_resp = { get_writer!(client).write_all(format!("{}\n{},{}\n", FlytApiCommand::RMGR_CLIENTD_CHANGE_VIRT_SERVER, new_snode_ip, new_rpc_id).as_bytes()) };
+                match writer_resp {
                     Ok(_) => {
                         let response = match StreamUtils::read_response(get_reader!(client), 2) {
                             Ok(response) => {
@@ -195,7 +197,8 @@ impl<'a> FlytClientManager<'a> {
         if self.exists(ipaddr) {
             let client = self.get_client(ipaddr).unwrap();
             if client.stream.read().unwrap().is_some() {
-                match get_writer!(client).write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_RESUME).as_bytes()) {
+                let writer_resp = { get_writer!(client).write_all(format!("{}\n", FlytApiCommand::RMGR_CLIENTD_RESUME).as_bytes()) };
+                match writer_resp {
                     Ok(_) => {
                         let response = match StreamUtils::read_response(get_reader!(client), 2) {
                             Ok(response) => {

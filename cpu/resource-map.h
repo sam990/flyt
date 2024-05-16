@@ -2,7 +2,6 @@
 #define __FLYT_CPU_RESOURCE_MAP_H__
 
 #include <stdint.h>
-#include "cbitset/bitset.h"
 
 typedef struct __resource_map_item {
     void *mapped_addr;
@@ -19,8 +18,7 @@ typedef struct __resource_map {
 
 typedef struct __resource_map_iter {
     resource_map *map;
-    bitset_t *allocated;
-    size_t current_idx;
+    uint64_t current_idx;
 } resource_map_iter;
 
 resource_map *init_resource_map(uint64_t init_length);

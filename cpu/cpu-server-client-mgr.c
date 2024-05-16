@@ -152,10 +152,11 @@ inline cricket_client* get_client_by_pid(int pid) {
     return get_client(xp_fd);
 }
 
-int remove_client(int xp_fd) {
-    cricket_client* client = get_client(xp_fd);
+
+
+int remove_client_ptr(cricket_client* client) {
     if (client == NULL) {
-        LOGE(LOG_ERROR, "Client with xp_fd %d not found", xp_fd);
+        LOGE(LOG_ERROR, "Client is null");
         return -1;
     }
 
@@ -210,6 +211,23 @@ int remove_client(int xp_fd) {
     resource_mg_free(&client->functions);
 
     free(client);
+    return 0;
+}
+
+int remove_client(int xp_fd) {
+    cricket_client* client = get_client(xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "Client with xp_fd %d not found", xp_fd);
+        return -1;
+    }
+
+    int ret = remove_client_ptr(client);
+
+    if (ret != 0) {
+        LOGE(LOG_ERROR, "Failed to remove client with xp_fd %d", xp_fd);
+        return -1;
+    }
+
     return resource_mg_remove(&xp_fd_to_client, (void *)(long)xp_fd);
 }
 

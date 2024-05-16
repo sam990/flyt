@@ -40,6 +40,10 @@ enum Commands {
         dstsnodeip: String,
         #[arg(short, long, help = "ID of the GPU to migrate to")]
         dstgpuid: u32,
+        #[arg(short, long, help = "Number of SM cores to allocate")]
+        sm_cores: u32,
+        #[arg(short, long, help = "Amount of memory to allocate")]
+        memory: u64,
     }
 }
 #[derive(Debug, clap::Args, Clone)]
@@ -81,20 +85,24 @@ fn main() {
             ip,
             dstsnodeip,
             dstgpuid,
+            sm_cores,
+            memory,
         } => {
-            migrate_vm(stream, ip, dstsnodeip, dstgpuid);
+            migrate_vm(stream, ip, dstsnodeip, dstgpuid, sm_cores, memory);
         }
     }
 }
 
-fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpuid: u32) {
+fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpuid: u32, sm_cores: u32, memory: u64) {
     match stream.write_all(
         format!(
-            "{}\n{},{},{}\n",
+            "{}\n{},{},{},{},{}\n",
             FrontEndCommand::MIGRATE_VIRT_SERVER,
             ip,
             dstsnodeip,
-            dstgpuid
+            dstgpuid,
+            sm_cores,
+            memory
         )
         .as_bytes(),
     ) {

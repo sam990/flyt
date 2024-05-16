@@ -26,7 +26,7 @@ pthread_t handler_thread;
 
 static volatile uint64_t recv_type = 0;
 static volatile uint64_t send_type = 0;
-static volatile int clientd_mqueue_id = -1;
+static volatile int snode_mqueue_id = -1;
 
 
 static void resource_change_handler(const char* data, uint32_t *response) {
@@ -54,45 +54,45 @@ static void resource_change_handler(const char* data, uint32_t *response) {
 }
 
 
-static void *client_msg_handler(void *arg) {
+static void *snode_msg_handler(void *arg) {
 
     struct msgbuf msg;
 
     while (1) {
-        if (msgrcv(clientd_mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0) == -1) {
-            LOGE(LOG_ERROR, "Error receiving message from client manager: %s", strerror(errno));
+        if (msgrcv(snode_mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0) == -1) {
+            LOGE(LOG_ERROR, "Error receiving message from node manager: %s", strerror(errno));
         }
 
         if (strncmp(msg.msg.cmd, SNODE_VIRTS_CHANGE_RESOURCES, strlen(SNODE_VIRTS_CHANGE_RESOURCES)) == 0) {
-            LOGE(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
+            LOGE(LOG_INFO, "Received message from node manager: %s", msg.msg.cmd);
             
             struct msgbuf_uint32 rsp;
             resource_change_handler(msg.msg.data, &rsp.data);
             
             rsp.mtype = send_type;
-            if (msgsnd(clientd_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-                LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));
+            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
+                LOGE(LOG_ERROR, "Error sending response to node manager: %s", strerror(errno));
             }
 
         } 
         
-        if (strncmp(msg.msg.cmd, SNODE_VIRTS_CHECKPOINT, strlen(SNODE_VIRTS_CHECKPOINT)) == 0) {
-            LOGE(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
+        else if (strncmp(msg.msg.cmd, SNODE_VIRTS_CHECKPOINT, strlen(SNODE_VIRTS_CHECKPOINT)) == 0) {
+            LOGE(LOG_INFO, "Received message from node manager: %s", msg.msg.cmd);
             
             struct msgbuf_uint32 rsp;
             
             int ret = flyt_create_checkpoint(msg.msg.data);
 
             rsp.mtype = send_type;
-            rsp.data = htonl(ret);
+            rsp.data = ret == 0 ? htonl(200) : htonl(500);
 
-            if (msgsnd(clientd_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-                LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));
+            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
+                LOGE(LOG_ERROR, "Error sending response to node manager: %s", strerror(errno));
             }
         }
 
-        if (strncmp(msg.msg.cmd, SNODE_VIRTS_RESTORE, strlen(SNODE_VIRTS_RESTORE)) == 0) {
-            LOGE(LOG_INFO, "Received message from client manager: %s", msg.msg.cmd);
+        else if (strncmp(msg.msg.cmd, SNODE_VIRTS_RESTORE, strlen(SNODE_VIRTS_RESTORE)) == 0) {
+            LOGE(LOG_INFO, "Received message from node manager: %s", msg.msg.cmd);
             
             struct msgbuf_uint32 rsp;
             
@@ -101,13 +101,13 @@ static void *client_msg_handler(void *arg) {
             rsp.mtype = send_type;
             rsp.data = htonl(ret);
 
-            if (msgsnd(clientd_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-                LOGE(LOG_ERROR, "Error sending response to client manager: %s", strerror(errno));
+            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
+                LOGE(LOG_ERROR, "Error sending response to node manager: %s", strerror(errno));
             }
         }
         
         else {
-            LOGE(LOG_ERROR, "Unknown message received from client manager: %s", msg.msg.cmd);
+            LOGE(LOG_ERROR, "Unknown message received from node manager: %s", msg.msg.cmd);
         }
     }
     return NULL;
@@ -117,8 +117,8 @@ void send_initialised_msg() {
     struct msgbuf_uint32 msg;
     msg.mtype = send_type;
     msg.data = htonl(200);
-    if (msgsnd(clientd_mqueue_id, &msg, sizeof(uint32_t), 0) == -1) {
-        LOGE(LOG_ERROR, "Error sending initialisation message to client manager: %s", strerror(errno));
+    if (msgsnd(snode_mqueue_id, &msg, sizeof(uint32_t), 0) == -1) {
+        LOGE(LOG_ERROR, "Error sending initialisation message to node manager: %s", strerror(errno));
     }
 }
 
@@ -130,20 +130,20 @@ int init_listener(int rpc_id)
 
     if (access(SNODE_MQUEUE_PATH, F_OK) == -1) {
         if (mkdir(SNODE_MQUEUE_PATH, 0777) == -1) {
-            LOGE(LOG_ERROR, "Error creating directory for client manager message queue: %s", strerror(errno));
+            LOGE(LOG_ERROR, "Error creating directory for node manager message queue: %s", strerror(errno));
             return -1;
         }
     }
 
     if ((key = ftok(SNODE_MQUEUE_PATH, PROJ_ID)) == -1) {
-        LOGE(LOG_ERROR, "Error creating key for client manager message queue: %s", strerror(errno));
+        LOGE(LOG_ERROR, "Error creating key for node manager message queue: %s", strerror(errno));
         return -1;
     }
 
-    if ((clientd_mqueue_id = msgget(key, 0666 | IPC_CREAT)) == -1) {
-        LOGE(LOG_ERROR, "Error creating client manager message queue: %s", strerror(errno));
+    if ((snode_mqueue_id = msgget(key, 0666 | IPC_CREAT)) == -1) {
+        LOGE(LOG_ERROR, "Error creating node manager message queue: %s", strerror(errno));
         return -1;
     }
 
-    pthread_create(&handler_thread, NULL, client_msg_handler, NULL);
+    pthread_create(&handler_thread, NULL, snode_msg_handler, NULL);
 }

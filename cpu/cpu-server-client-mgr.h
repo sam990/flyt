@@ -45,6 +45,8 @@ cricket_client* get_client(int xp_fd);
 
 cricket_client* get_client_by_pid(int pid);
 
+int remove_client_ptr(cricket_client *client);
+
 int remove_client(int xp_fd);
 
 cricket_client_iter get_client_iter();

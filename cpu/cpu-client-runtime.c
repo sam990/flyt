@@ -1914,7 +1914,9 @@ cudaError_t cudaMemset(void* devPtr, int value, size_t count)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval;
+    FUNC_BEGIN
     retval = cuda_memset_1((ptr)devPtr, value, count, &result, clnt);
+    FUNC_END
     if (retval != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
