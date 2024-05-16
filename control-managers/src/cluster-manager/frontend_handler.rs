@@ -163,6 +163,8 @@ impl <'a> FrontendHandler<'a> {
         let ckp_base_path = ckp_base_path.unwrap();
         let ckp_path = format!("{}/{}", ckp_base_path, ipaddr);
 
+        log::debug!("Checkpoint path: {}", ckp_path);
+
         // if path exists, remove it
         if Path::new(&ckp_path).exists() {
             let res = fs::remove_dir_all(&ckp_path);
@@ -191,7 +193,20 @@ impl <'a> FrontendHandler<'a> {
             return;
         }
 
-        let res = self.server_nodes_manager.alloc_and_restore(&snode_ip, new_server_gpu_id, new_server_compute_units,  new_server_memory, &ckp_path);
+        log::debug!("Virt server checkpointed successfully");
+
+        // remove the virt server from the server node
+        let res = self.server_nodes_manager.free_virt_server(snode_ip, rpc_id);
+
+        if res.is_err() {
+            log::error!("Error freeing virt server: {}", res.err().unwrap());
+            let _ = StreamUtils::write_all(&mut stream, "500\nError freeing virt server\n".to_string());
+            return;
+        }
+
+        log::debug!("Virt server freed successfully");
+
+        let res = self.server_nodes_manager.alloc_and_restore(&new_server_ip.to_string(), new_server_gpu_id, new_server_compute_units,  new_server_memory, &ckp_path);
 
         if res.is_err() {
             log::error!("Error restoring virt server: {}", res.err().unwrap());
@@ -201,7 +216,9 @@ impl <'a> FrontendHandler<'a> {
 
         let new_rpc_id = res.unwrap();
 
-        let res = self.client_mgr.change_virt_server(ipaddr, &snode_ip, new_rpc_id);
+        log::debug!("Virt server restored successfully with rpc_id: {}", new_rpc_id);
+
+        let res = self.client_mgr.change_virt_server(ipaddr, &new_server_ip.to_string(), new_rpc_id);
 
         if res.is_err() {
             log::error!("Error changing virt server: {}", res.err().unwrap());

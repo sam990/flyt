@@ -278,6 +278,7 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
     elf_args->arg1.mem_data_len = elf.mem_data_len;
     elf_args->arg1.mem_data_val = malloc(elf.mem_data_len);
     memcpy(elf_args->arg1.mem_data_val, elf.mem_data_val, elf.mem_data_len);
+    elf_args->arg2 = module_key;
 
     addr_data_pair_t *module_info = malloc(sizeof(addr_data_pair_t));
     module_info->addr = module;

@@ -144,14 +144,6 @@ void change_server(char *server_info)
 {
     enum clnt_stat retval_1;
     int result_1;
-    if (initialized == 1) {
-        enum clnt_stat retval_1;
-        int result_1;
-        retval_1 = rpc_deinit_1(&result_1, clnt);
-        if (retval_1 != RPC_SUCCESS) {
-            LOGE(LOG_ERROR, "error calling rpc_deinit");
-        }
-    }
     LOG(LOG_INFO, "changing server to %s", server_info);
     rpc_connect(server_info);
 }
@@ -164,7 +156,7 @@ void resume_connection(void)
     retval_1 = rpc_ckp_restore_1(getpid(), &result_1, clnt);
     FUNC_END
     if (retval_1 != RPC_SUCCESS) {
-        LOGE(LOG_ERROR, "error calling rpc_init");
+        LOGE(LOG_ERROR, "error calling rpc_restore");
     }
 }
 

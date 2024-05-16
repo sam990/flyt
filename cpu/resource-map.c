@@ -99,36 +99,11 @@ resource_map_iter* resource_map_init_iter(resource_map* map) {
         return NULL;
     }
 
-    bitset_t *allocated =  bitset_create_with_capacity(map->tail_idx);
-    if (allocated == NULL) {
-        return NULL;
-    }
-
-    bitset_t* free_ptr = bitset_create_with_capacity(map->tail_idx);
-    if (free_ptr == NULL) {
-        bitset_free(allocated);
-        return NULL;
-    }
-
-    for (uint64_t i = map->free_ptr_idx; i < map->tail_idx; i = (uint64_t)map->list[i].mapped_addr) {
-        bitset_set(free_ptr, i);
-    }
-
-    for (uint64_t i = 1; i < map->tail_idx; i++) {
-        if (bitset_get(free_ptr, i) == false) {
-            bitset_set(allocated, i);
-        }
-    }
-
     resource_map_iter* iter = (resource_map_iter*)malloc(sizeof(resource_map_iter));
     if (iter == NULL) {
-        bitset_free(allocated);
-        bitset_free(free_ptr);
         return NULL;
     }
-
     iter->map = map;
-    iter->allocated = allocated;
     iter->current_idx = 0;
 
     return iter;
@@ -137,9 +112,6 @@ resource_map_iter* resource_map_init_iter(resource_map* map) {
 void resource_map_free_iter(resource_map_iter* iter) {
     if (iter == NULL) {
         return;
-    }
-    if (iter->allocated != NULL) {
-        bitset_free(iter->allocated);
     }
     free(iter);
 }
@@ -154,9 +126,9 @@ uint64_t resource_map_iter_next(resource_map_iter* iter) {
     if (iter->current_idx >= iter->map->tail_idx) {
         return 0;
     }
-    iter->current_idx++;
-    if (nextSetBit(iter->allocated, &(iter->current_idx))) {
-        return iter->current_idx;
+    while (iter->current_idx < iter->map->tail_idx && iter->map->list[iter->current_idx].present == 0) {
+        iter->current_idx++;
     }
-    return 0;
+    
+    return iter->current_idx >= iter->map->tail_idx ? 0 : iter->current_idx++;
 }
