@@ -75,6 +75,8 @@ int dump_modules(char *filename, resource_mg* modules) {
         addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
         rpc_elf_load_1_argument * data = (rpc_elf_load_1_argument *)pair->reg_data;
 
+        LOGE(LOG_DEBUG, "Dumping module %p, len: %u", data->arg2, data->arg1.mem_data_len);
+
         fwrite(data, sizeof(rpc_elf_load_1_argument), 1, fp);
         fwrite(data->arg1.mem_data_val, data->arg1.mem_data_len, 1, fp);
     }
@@ -336,6 +338,8 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
             break;
         }
 
+        LOGE(LOG_DEBUG, "Restoring module %p, len: %u", data.arg2, data.arg1.mem_data_len);
+
         char *mem_data = malloc(data.arg1.mem_data_len);
         if (mem_data == NULL) {
             LOGE(LOG_ERROR, "Failed to allocate memory for mem_data");
@@ -357,7 +361,11 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
         data_ptr->arg1.mem_data_len = data.arg1.mem_data_len;
         data_ptr->arg2 = data.arg2;
 
-        resource_mg_add_sorted(modules, (void *)data_ptr->arg2, (void *)data_ptr);
+        addr_data_pair_t *pair = malloc(sizeof(addr_data_pair_t));
+        pair->addr = NULL;
+        pair->reg_data = data_ptr;
+
+        resource_mg_add_sorted(modules, (void *)data_ptr->arg2, (void *)pair);
     }
 
     fclose(fp);
@@ -407,7 +415,11 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
         data_ptr->arg3 = arg3;
         data_ptr->arg4 = arg4;
 
-        resource_mg_add_sorted(functions, (void *)data_ptr->arg2, (void *)data_ptr);
+        addr_data_pair_t *pair = malloc(sizeof(addr_data_pair_t));
+        pair->addr = NULL;
+        pair->reg_data = data_ptr;
+
+        resource_mg_add_sorted(functions, (void *)data_ptr->arg2, (void *)pair);
     }
 
     fclose(fp);
@@ -452,7 +464,11 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
         memcpy(data_ptr, &data, sizeof(rpc_register_var_1_argument));
         data_ptr->arg4 = arg4;
 
-        resource_mg_add_sorted(vars, (void *)data_ptr->arg2, (void *)data_ptr);
+        addr_data_pair_t *pair = malloc(sizeof(addr_data_pair_t));
+        pair->addr = NULL;
+        pair->reg_data = data_ptr;
+
+        resource_mg_add_sorted(vars, (void *)data_ptr->arg2, (void *)pair);
     }
 
     fclose(fp);
@@ -461,7 +477,7 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
 
 
 int flyt_restore_checkpoint(char *basepath) {
-    sleep(30);
+    // sleep(30);
     if (access(basepath, F_OK) == -1) {
         LOGE(LOG_ERROR, "Checkpoint directory %s does not exist", basepath);
         return -1;
@@ -501,6 +517,8 @@ int flyt_restore_checkpoint(char *basepath) {
                 return -1;
             }
 
+            LOGE(LOG_DEBUG, "Restoring checkpoint for client %d", client_pid_int);
+
             char *filename = malloc(strlen(client_path) + 32);
             if (filename == NULL) {
                 LOGE(LOG_ERROR, "Failed to allocate memory for filename");
@@ -531,6 +549,8 @@ int flyt_restore_checkpoint(char *basepath) {
                 return -1;
             }
 
+            LOGE(LOG_DEBUG, "Restored checkpoint data for client %d", client_pid_int);
+
             free(client_path);
             free(filename);
 
@@ -542,6 +562,7 @@ int flyt_restore_checkpoint(char *basepath) {
 
     closedir(dir);
 
+    // sleep(5);
     int ret = server_driver_ctx_state_restore_ckp();
 
     if (ret != 0) {

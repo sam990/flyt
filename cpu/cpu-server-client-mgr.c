@@ -34,12 +34,21 @@ int init_cpu_server_client_mgr() {
         LOGE(LOG_ERROR, "Failed to initialize xp_fd_to_client resource manager");
         return ret;
     }
+    ret = resource_mg_init(&restored_clients, 0);
+    if (ret != 0) {
+        resource_mg_free(&pid_to_xp_fd);
+        resource_mg_free(&xp_fd_to_client);
+        LOGE(LOG_ERROR, "Failed to initialize restored_clients resource manager");
+        return ret;
+    }
+
     return ret;
 }
 
 void free_cpu_server_client_mgr() {
     resource_mg_free(&pid_to_xp_fd);
     resource_mg_free(&xp_fd_to_client);
+    resource_mg_free(&restored_clients);
 }
 
 cricket_client* create_client(int pid) {
@@ -93,7 +102,7 @@ int add_new_client(int pid, int xp_fd) {
     pthread_mutex_lock(&client_mgr_mutex);
 
     int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)pid, (void *)(long)xp_fd);
-    ret &= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
+    ret |= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
 
     pthread_mutex_unlock(&client_mgr_mutex);
 
@@ -113,7 +122,7 @@ int add_new_client(int pid, int xp_fd) {
 
 int add_restored_client(cricket_client *client) {
     pthread_mutex_lock(&client_mgr_mutex);
-    int ret = resource_mg_add_sorted(&restored_clients, (void *)(long)client->pid, client);
+    int ret = resource_mg_add_sorted(&restored_clients, (void *)(long)client->pid, (void *)client);
     pthread_mutex_unlock(&client_mgr_mutex);
     return ret;
 }

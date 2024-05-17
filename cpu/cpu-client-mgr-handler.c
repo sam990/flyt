@@ -57,6 +57,7 @@ static void* cpu_client_mgr_handler(void* arg) {
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_RESUME, 64) == 0) {
+            resume_connections();
             pthread_rwlock_unlock(&access_sem);
             struct msgbuf_uint32 resp;
             resp.mtype = send_type;

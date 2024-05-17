@@ -152,9 +152,7 @@ void resume_connection(void)
 {
     enum clnt_stat retval_1;
     int result_1;
-    FUNC_BEGIN 
     retval_1 = rpc_ckp_restore_1(getpid(), &result_1, clnt);
-    FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "error calling rpc_restore");
     }
