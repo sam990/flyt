@@ -99,7 +99,7 @@ static void *snode_msg_handler(void *arg) {
             int ret = flyt_restore_checkpoint(msg.msg.data);
 
             rsp.mtype = send_type;
-            rsp.data = htonl(ret);
+            rsp.data = ret == 0 ? htonl(200) : htonl(500);
 
             if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
                 LOGE(LOG_ERROR, "Error sending response to node manager: %s", strerror(errno));

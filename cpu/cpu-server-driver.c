@@ -89,6 +89,8 @@ int server_driver_modules_restore(resource_mg *modules)
             return 1;
         }
 
+        LOGE(LOG_DEBUG, "Restoring module %p, len %u, caddr: %p", elf_args->arg1.mem_data_val, elf_args->arg1.mem_data_len, elf_args->arg2);
+
         CUmodule module = NULL;
         CUresult res;
         LOGE(LOG_DEBUG, "Restoring module %p", elf_args->arg1.mem_data_val);
@@ -177,6 +179,8 @@ int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
         }
         map->addr = (void *)dptr;
     }
+
+    LOGE(LOG_DEBUG, "Restored %zu vars", num_vars);
     return 0;
 }
 
@@ -199,7 +203,6 @@ static int __server_driver_ctx_state_restore(int ckp_restore) {
         int ret = server_driver_modules_restore(&client->modules) || 
         server_driver_function_restore(&client->functions, &client->modules) ||
         server_driver_var_restore(&client->vars, &client->modules);
-
 
         if (ret != 0) {
             LOGE(LOG_ERROR, "restoring client failed");
@@ -237,6 +240,9 @@ static int __server_driver_ctx_state_restore(int ckp_restore) {
 
         resource_map_free_iter(stream_iter);
     }
+
+    LOGE(LOG_DEBUG, "Context state restored");
+
     return 0;
 }
 
