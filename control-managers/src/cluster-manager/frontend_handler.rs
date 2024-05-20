@@ -1,6 +1,6 @@
 use std::{fs, io::BufReader, os::unix::net::{UnixListener, UnixStream}, path::Path};
 
-use crate::{bookkeeping, client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};
+use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};
 
 
 #[derive(PartialEq, Debug)]
@@ -141,101 +141,26 @@ impl <'a> FrontendHandler<'a> {
         };
 
         log::info!("Migrating VM: {} to server: {} with gpu_id: {}", ipaddr, new_server_ip, new_server_gpu_id);
-
-        match self.client_mgr.stop_client(ipaddr) {
-            Ok(_) => {
-                log::info!("Client VM {} stopped successfully", ipaddr);
-            }
-            Err(e) => {
-                log::error!("Error stopping client VM {}: {}", ipaddr, e);
-                let _ = StreamUtils::write_all(&mut stream, "500\nError stopping client VM\n".to_string());
-                return;
-            }
-        }
-
-        let ckp_base_path = bookkeeping::get_ckp_base_path();
-        if ckp_base_path.is_none() {
-            log::error!("Checkpoint base path not found");
-            let _ = StreamUtils::write_all(&mut stream, "500\nCheckpoint base path not configured\n".to_string());
-            return;
-        }
-
-        let ckp_base_path = ckp_base_path.unwrap();
-        let ckp_path = format!("{}/{}", ckp_base_path, ipaddr);
-
-        log::debug!("Checkpoint path: {}", ckp_path);
-
-        // if path exists, remove it
-        if Path::new(&ckp_path).exists() {
-            let res = fs::remove_dir_all(&ckp_path);
-            if res.is_err() {
-                log::error!("Error removing path: {}", res.err().unwrap());
-                let _ = StreamUtils::write_all(&mut stream, "500\nError removing path\n".to_string());
-                return;
-            }
-        }
-
-        // create new path
-        if fs::create_dir_all(&ckp_path).is_err() {
-            log::error!("Error creating path: {}", ckp_path);
-            let _ = StreamUtils::write_all(&mut stream, "500\nError creating path\n".to_string());
-            return;
-        }
-
-        let snode_ip = self.client_mgr.get_client(ipaddr).unwrap().virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
-        let rpc_id = self.client_mgr.get_client(ipaddr).unwrap().virt_server.as_ref().unwrap().read().unwrap().rpc_id;
-
-        let res = self.server_nodes_manager.checkpoint(&snode_ip, rpc_id, &ckp_path);
-
+        let res = self.server_nodes_manager.migrate_virt_server(
+            self.client_mgr, 
+            &ipaddr.to_string(),
+            &new_server_ip.to_string(),
+            new_server_gpu_id,
+            new_server_compute_units,
+            new_server_memory);
+        
         if res.is_err() {
-            log::error!("Error checkpointing virt server: {}", res.err().unwrap());
-            let _ = StreamUtils::write_all(&mut stream, "500\nError checkpointing virt server\n".to_string());
-            return;
+            log::error!("Error migrating VM: {}", res.clone().unwrap_err());
+            
+            // resume the client if stopped
+            let _ = self.client_mgr.resume_client(ipaddr);
+
+            let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", res.unwrap_err()));
         }
-
-        log::debug!("Virt server checkpointed successfully");
-
-        // remove the virt server from the server node
-        let res = self.server_nodes_manager.free_virt_server(snode_ip, rpc_id);
-
-        if res.is_err() {
-            log::error!("Error freeing virt server: {}", res.err().unwrap());
-            let _ = StreamUtils::write_all(&mut stream, "500\nError freeing virt server\n".to_string());
-            return;
+        else {
+            log::info!("VM migrated successfully");
+            let _ = StreamUtils::write_all(&mut stream, "200\nVM migrated successfully\n".to_string());
         }
-
-        log::debug!("Virt server freed successfully");
-
-        let res = self.server_nodes_manager.alloc_and_restore(&new_server_ip.to_string(), new_server_gpu_id, new_server_compute_units,  new_server_memory, &ckp_path);
-
-        if res.is_err() {
-            log::error!("Error restoring virt server: {}", res.err().unwrap());
-            let _ = StreamUtils::write_all(&mut stream, "500\nError restoring virt server\n".to_string());
-            return;
-        }
-
-        let new_rpc_id = res.unwrap();
-
-        log::debug!("Virt server restored successfully with rpc_id: {}", new_rpc_id);
-
-        let res = self.client_mgr.change_virt_server(ipaddr, &new_server_ip.to_string(), new_rpc_id);
-
-        if res.is_err() {
-            log::error!("Error changing virt server: {}", res.err().unwrap());
-            let _ = StreamUtils::write_all(&mut stream, "500\nError changing virt server\n".to_string());
-            return;
-        }
-
-        let res = self.client_mgr.resume_client(ipaddr);
-
-        if res.is_err() {
-            log::error!("Error resuming client VM: {}", res.err().unwrap());
-            let _ = StreamUtils::write_all(&mut stream, "500\nError resuming client VM\n".to_string());
-            return;
-        }
-
-        log::info!("VM migrated successfully");
-        let _ = StreamUtils::write_all(&mut stream, "200\nVM migrated successfully\n".to_string());
     
     }
 

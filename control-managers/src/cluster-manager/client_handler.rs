@@ -153,9 +153,13 @@ impl<'a> FlytClientManager<'a> {
         }
     }
 
-    pub fn change_virt_server(&self, ipaddr: &str, new_snode_ip: &String, new_rpc_id: u64) -> Result<(), String> {
+    pub fn change_virt_server(&self, ipaddr: &str, new_virt_server: &Arc<RwLock<VirtServer>>) -> Result<(), String> {
         if self.exists(ipaddr) {
-            let client = self.get_client(ipaddr).unwrap();
+            let mut client = self.get_client(ipaddr).unwrap();
+
+            let new_snode_ip = new_virt_server.read().unwrap().ipaddr.clone();
+            let new_rpc_id = new_virt_server.read().unwrap().rpc_id;
+
             if client.stream.read().unwrap().is_some() {
                 let writer_resp = { get_writer!(client).write_all(format!("{}\n{},{}\n", FlytApiCommand::RMGR_CLIENTD_CHANGE_VIRT_SERVER, new_snode_ip, new_rpc_id).as_bytes()) };
                 match writer_resp {
@@ -173,7 +177,11 @@ impl<'a> FlytClientManager<'a> {
                         if response[0] != "200" {
                             return Err(format!("Error changing virt server: {}", response[1]));
                         }
-
+                        
+                        // Update client virt server
+                        client.virt_server = Some(new_virt_server.clone());
+                        self.update_client(client);
+    
                         Ok(())
 
                     }
@@ -381,7 +389,7 @@ impl<'a> FlytClientManager<'a> {
         let virt_server_ip = lock_guard.ipaddr.clone();
         let rpc_id = lock_guard.rpc_id;
         drop(lock_guard);
-        self.server_nodes_manager.free_virt_server(virt_server_ip, rpc_id)?;
+        self.server_nodes_manager.free_virt_server(&virt_server_ip, rpc_id)?;
 
         client.virt_server = None;
 

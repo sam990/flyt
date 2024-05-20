@@ -21,7 +21,7 @@ impl FlytApiCommand {
     pub const SNODE_VIRTS_CHECKPOINT: &'static str = "SNODE_VIRTS_CHECKPOINT";
     pub const SNODE_VIRTS_RESTORE: &'static str = "SNODE_VIRTS_RESTORE";
     pub const RMGR_SNODE_CHECKPOINT: &'static str = "RMGR_SNODE_CHECKPOINT";
-    pub const RMGR_SNODE_ALLOC_RESTORE: &'static str = "RMGR_SNODE_ALLOC_RESTORE";
+    pub const RMGR_SNODE_RESTORE: &'static str = "RMGR_SNODE_RESTORE";
 }
 
 pub struct FrontEndCommand;

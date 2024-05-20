@@ -3,13 +3,16 @@
 use log::info;
 
 use crate::bookkeeping::*;
+use crate::client_handler::FlytClientManager;
 use crate::common::api_commands::FlytApiCommand;
 use crate::common::types::StreamEnds;
 use crate::common::utils::StreamUtils;
 
 use std::collections::HashMap;
+use std::{fs, thread};
 use std::io::{ BufReader, Write };
 use std::net::{TcpListener, TcpStream};
+use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
 
@@ -367,7 +370,8 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     }
 
-    pub fn alloc_and_restore(&self, snode_ip: &String, gpu_id: u64, compute_units: u32, memory: u64, ckp_path: &String) -> Result<u64,String> {
+    pub fn restore_state(&self, snode_ip: &String, rpc_id: u64, ckp_path: &String) -> Result<(),String> {
+        
         let server_node = self.get_server_node(&snode_ip);
 
         if server_node.is_none() {
@@ -375,59 +379,176 @@ impl<'a> ServerNodesManager<'a> {
             return Err("Server node not found".to_string());
         }
 
-        let mut server_node = server_node.unwrap();
+        let server_node = server_node.unwrap();
 
-        let target_gpu = server_node.gpus.iter_mut().find(|gpu| gpu.read().unwrap().gpu_id == gpu_id);
-
-        if target_gpu.is_none() {
-            log::error!("GPU not found: {}", gpu_id);
-            return Err("GPU not found".to_string());
-        }
-
-        let target_gpu = target_gpu.unwrap();
-
-        stream_write!(get_writer!(server_node), format!("{}\n{},{},{}\n{}\n", FlytApiCommand::RMGR_SNODE_ALLOC_RESTORE, gpu_id, compute_units, memory, ckp_path));
+        stream_write!(get_writer!(server_node), format!("{}\n{}\n{}\n", FlytApiCommand::RMGR_SNODE_RESTORE, rpc_id, ckp_path));
 
         let response = stream_read_response!(get_reader!(server_node), 2);
 
         if response[0] != "200" {
-            log::error!("RMGR_SNODE_ALLOC_RESTORE, Status: {}\n{}", response[0], response[1]);
-            return Err(format!("RMGR_SNODE_ALLOC_RESTORE, Status: {}\n{}", response[0], response[1]));
+            log::error!("RMGR_SNODE_RESTORE, Status: {}\n{}", response[0], response[1]);
+            return Err(format!("RMGR_SNODE_RESTORE, Status: {}\n{}", response[0], response[1]));
         }
 
-        let rpc_id = match response[1].parse::<u64>() {
-            Ok(rpc_id) => rpc_id,
-            Err(e) => {
-                log::error!("Error parsing rpc_id: {}", e);
-                return Err(format!("Error parsing rpc_id: {}", e));
-            }
-        };
-
-        
-
-        let virt_server = Arc::new(RwLock::new(VirtServer {
-            ipaddr: server_node.ipaddr.clone(),
-            compute_units,
-            memory,
-            rpc_id: rpc_id,
-            gpu: target_gpu.clone(),
-        }));
-
-        server_node.virt_servers.push(virt_server.clone());
-
-        {
-            let mut gpu_write = target_gpu.write().unwrap();
-            gpu_write.allocated_compute_units += compute_units;
-            gpu_write.allocated_memory += memory;
-        }
-
-        self.update_server_node(server_node);
-
-        Ok(rpc_id)
-
+        Ok(())
     }
 
-    pub fn free_virt_server(&self, virt_ip: String, rpc_id: u64) -> Result<(),String> {
+    pub fn migrate_virt_server(&self, client_mgr: &FlytClientManager, client_ip: &String, target_snode_id: &String, target_gpu_id: u64, new_sm_cores: u32, new_mem: u64) -> Result<Arc<RwLock<VirtServer>>,String> {
+        
+        log::info!("Migrating virt server: {} to server node: {}", client_ip, target_snode_id);
+
+        match client_mgr.stop_client(client_ip) {
+            Ok(_) => {
+                log::info!("Client VM {} stopped successfully", client_ip);
+            }
+            Err(e) => {
+                log::error!("Error stopping client VM {}: {}", client_ip, e);
+                return Err(format!("Error stopping client VM {}: {}", client_ip, e));
+            }
+        }
+
+        let ckp_base_path = get_ckp_base_path();
+
+        if ckp_base_path.is_none() {
+            log::error!("Checkpoint base path not found");
+            return Err("Checkpoint base path not found".to_string());
+        }
+
+        let ckp_base_path = ckp_base_path.unwrap();
+        let ckp_path = format!("{}/{}", ckp_base_path, client_ip);
+
+        log::debug!("Checkpoint path: {}", ckp_path);
+
+        // if path exists, remove it
+        if Path::new(&ckp_path).exists() {
+            let res = fs::remove_dir_all(&ckp_path);
+            if res.is_err() {
+                log::error!("Error removing path: {}", res.err().unwrap());
+                return Err("Error clearing checkpoint path".to_string());
+            }
+        }
+
+        // create new path
+        if fs::create_dir_all(&ckp_path).is_err() {
+            log::error!("Error creating path: {}", ckp_path);
+            return Err(format!("Error creating path: {}", ckp_path));
+        }
+
+        let snode_ip = client_mgr.get_client(client_ip).unwrap().virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
+        let rpc_id = client_mgr.get_client(client_ip).unwrap().virt_server.as_ref().unwrap().read().unwrap().rpc_id;
+
+
+        let vserver = thread::scope( |s| {
+            
+            let checkpoint_thread = s.spawn( || {
+                let res = self.checkpoint(&snode_ip, rpc_id, &ckp_path);
+                if res.is_err() {
+                    log::error!("Error checkpointing virt server: {}", res.err().unwrap());
+                    return Err(format!("Error checkpointing virt server"));
+                }
+                Ok(())
+            });
+
+            let create_vserver_thread = s.spawn(|| {
+                let res = self.create_virt_server(target_snode_id, target_gpu_id, new_sm_cores, new_mem, true);
+                if res.is_err() {
+                    log::error!("Error allocating and restoring virt server: {}", res.err().unwrap());
+                    return Err(format!("Error allocating and restoring virt server"));
+                }
+                Ok(res.unwrap())
+            });
+
+            let vserver = match create_vserver_thread.join() {
+                Ok(res) => res,
+                Err(e) => {
+                    log::error!("Error creating virt server: {:?}", e);
+                    return Err(format!("Error creating virt server"));
+                }
+            };
+
+            let vserver = match vserver {
+                Ok(vserver) => vserver,
+                Err(e) => {
+                    log::error!("Error creating virt server: {}", e);
+                    return Err(format!("Error creating virt server: {}", e));
+                }
+            };
+
+            let checkpoint_thread_res = checkpoint_thread.join();
+
+
+            let ckp_err_handler = |e: String| {
+                log::error!("Error checkpointing virt server: {:?}", e);
+
+                // free the allocated resources
+                let res = self.free_virt_server(target_snode_id, vserver.read().unwrap().rpc_id);
+                
+                if res.is_err() {
+                    log::error!("Error freeing virt server: {}", res.err().unwrap());
+                }
+            };
+
+
+            if checkpoint_thread_res.is_err() {
+                ckp_err_handler("thread join error".to_string());
+                return Err("Error checkpointing virt server".to_string());
+            }
+
+            let checkpoint_thread_res = checkpoint_thread_res.unwrap();
+
+            if checkpoint_thread_res.is_err() {
+                ckp_err_handler(checkpoint_thread_res.err().unwrap());
+                return Err("Error checkpointing virt server".to_string());
+            }
+
+            Ok(vserver)
+        });
+
+        if vserver.is_err() {
+            log::error!("Error creating/checkpoint virt server: {}", vserver.err().unwrap());
+            return Err(format!("Error creating/checkpoint virt server"));
+        }
+        
+        let vserver = vserver.unwrap();
+        
+        let new_server_ip = vserver.read().unwrap().ipaddr.clone();
+        let new_rpc_id = vserver.read().unwrap().rpc_id;
+
+        // restore the state
+        let res = self.restore_state(&new_server_ip, new_rpc_id, &ckp_path);
+        if res.is_err() {
+            log::error!("Error restoring virt server: {}", res.err().unwrap());
+            return Err(format!("Error restoring virt server"));
+        }
+
+        
+        let res = client_mgr.change_virt_server(&client_ip, &vserver);
+        
+        if res.is_err() {
+            log::error!("Error changing virt server: {}", res.err().unwrap());
+            return Err(format!("Error changing virt server for client"));
+        }
+
+        let res = client_mgr.resume_client(&client_ip);
+        
+        if res.is_err() {
+            log::error!("Error resuming client VM: {}", res.err().unwrap());
+            return Err(format!("Error resuming client VM"));
+        }
+
+        log::info!("VM migrated successfully");
+
+        let res = self.free_virt_server(&snode_ip, rpc_id);
+
+        if res.is_err() {
+            log::error!("Error freeing virt server: {}", res.err().unwrap());
+        }
+
+        Ok(vserver)
+    
+    }
+
+    pub fn free_virt_server(&self, virt_ip: &String, rpc_id: u64) -> Result<(),String> {
 
         info!("Deallocating virt server: {}/{}", virt_ip, rpc_id);
 
