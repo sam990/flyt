@@ -84,8 +84,8 @@ int resource_map_add(resource_map* map, void* mapped_addr, void *args, void **cl
     return 0;
 }
 
-void resource_map_unset(resource_map* map, void* mapped_addr) {
-    uint64_t idx = (uint64_t)mapped_addr - OFFSET;
+void resource_map_unset(resource_map* map, void* client_addr) {
+    uint64_t idx = (uint64_t)client_addr - OFFSET;
 
     map->list[idx].mapped_addr = (void*)map->free_ptr_idx;
     map->list[idx].present = 0;

@@ -10,6 +10,37 @@
 #define INIT_FUNCTION_SLOTS 128
 #define INIT_VAR_SLOTS 128
 
+
+
+enum MEM_ALLOC_TYPE {
+    MEM_ALLOC_TYPE_DEFAULT = 0,
+};
+
+typedef struct __mem_alloc_args {
+    enum MEM_ALLOC_TYPE type;
+    long long size;
+    long long arg2;
+    long long arg3;
+    long long arg4;
+    long long arg5;
+    long long arg6; 
+} mem_alloc_args_t;
+
+
+enum STREAM_CREATE_TYPE {
+    STREAM_CREATE_TYPE_DEFAULT = 0,
+    STREAM_CREATE_TYPE_FLAGS = 1,
+    STREAM_CREATE_TYPE_PRIORITY = 2,
+};
+
+typedef struct __stream_create_args {
+    enum STREAM_CREATE_TYPE type;
+    int flags;
+    int priority;
+} stream_create_args_t;
+
+
+
 typedef struct __addr_data_pair {
     void* addr;
     void* reg_data;
