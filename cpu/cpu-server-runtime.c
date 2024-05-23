@@ -42,6 +42,7 @@
 #include "cpu-server-client-mgr.h"
 
 
+
 typedef struct host_alloc_info {
     size_t idx;
     size_t size;
@@ -75,23 +76,18 @@ int server_runtime_init(int restore, int gpu_id)
         ret &= 1;
     }
     if (!restore) {
-        ret &= resource_mg_init(&rm_streams, 1);
         ret &= resource_mg_init(&rm_events, 1);
         ret &= resource_mg_init(&rm_arrays, 1);
-        ret &= resource_mg_init(&rm_memory, 1);
-        ret &= cusolver_init(1, &rm_streams, &rm_memory);
-        ret &= cublas_init(1, &rm_memory);
-	    ret &= cublaslt_init(1, &rm_memory);
+        ret &= cusolver_init(1, NULL, NULL);
+        ret &= cublas_init(1, NULL);
+	    ret &= cublaslt_init(1, NULL);
     } else {
-        ret &= resource_mg_init(&rm_streams, 0);
         ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
-        ret &= resource_mg_init(&rm_memory, 0);
         ret &= resource_mg_init(&rm_kernels, 0);
-        ret &= cusolver_init(0, &rm_streams, &rm_memory);
-        ret &= cublas_init(0, &rm_memory);
-        ret &= server_runtime_restore("ckp");
-	    ret &= cublaslt_init(0, &rm_memory);
+        ret &= cusolver_init(0, NULL, NULL);
+        ret &= cublas_init(0, NULL);
+	    ret &= cublaslt_init(0, NULL);
     }
     
     // Make sure runtime API is initialized
@@ -108,10 +104,8 @@ int server_runtime_init(int restore, int gpu_id)
 
 int server_runtime_deinit(void)
 {
-    resource_mg_free(&rm_streams);
     resource_mg_free(&rm_events);
     resource_mg_free(&rm_arrays);
-    resource_mg_free(&rm_memory);
     resource_mg_free(&rm_kernels);
     cusolver_deinit();
     cublas_deinit();
@@ -120,41 +114,41 @@ int server_runtime_deinit(void)
 
 }
 
-int server_runtime_checkpoint(const char *path, int dump_memory, unsigned long prog, unsigned long vers)
-{
-    if (cr_dump_rpc_id(path, prog, vers) != 0) {
-        LOGE(LOG_ERROR, "error dumping api_records");
-        return 1;
-    }
-    if (cr_dump(path) != 0) {
-        LOGE(LOG_ERROR, "error dumping api_records");
-        return 1;
-    }
-    if (dump_memory == 1) {
-        if (cr_dump_memory(path) != 0) {
-            LOGE(LOG_ERROR, "error dumping memory");
-            return 1;
-        }
-    }
-    return 0;
-}
+// int server_runtime_checkpoint(const char *path, int dump_memory, unsigned long prog, unsigned long vers)
+// {
+//     if (cr_dump_rpc_id(path, prog, vers) != 0) {
+//         LOGE(LOG_ERROR, "error dumping api_records");
+//         return 1;
+//     }
+//     if (cr_dump(path) != 0) {
+//         LOGE(LOG_ERROR, "error dumping api_records");
+//         return 1;
+//     }
+//     if (dump_memory == 1) {
+//         if (cr_dump_memory(path) != 0) {
+//             LOGE(LOG_ERROR, "error dumping memory");
+//             return 1;
+//         }
+//     }
+//     return 0;
+// }
 
-int server_runtime_restore(const char *path)
-{
-    struct timeval start, end;
-    double time = 0;
-    gettimeofday(&start, NULL);
-    if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays, cusolver_get_rm(), cublas_get_rm()) != 0) {
-        LOGE(LOG_ERROR, "error restoring api_records");
-        return 1;
-    }
-    gettimeofday(&end, NULL);
-    time = ((double)((end.tv_sec * 1e6 + end.tv_usec) -
-                     (start.tv_sec * 1e6 + start.tv_usec)))/1.e6;
-    LOGE(LOG_INFO, "time: %f", time);
+// int server_runtime_restore(const char *path)
+// {
+//     struct timeval start, end;
+//     double time = 0;
+//     gettimeofday(&start, NULL);
+//     if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays, cusolver_get_rm(), cublas_get_rm()) != 0) {
+//         LOGE(LOG_ERROR, "error restoring api_records");
+//         return 1;
+//     }
+//     gettimeofday(&end, NULL);
+//     time = ((double)((end.tv_sec * 1e6 + end.tv_usec) -
+//                      (start.tv_sec * 1e6 + start.tv_usec)))/1.e6;
+//     LOGE(LOG_INFO, "time: %f", time);
 
-    return 0;
-}
+//     return 0;
+// }
 
 
 /** implementation for CUDA_REGISTER_FUNCTION(ptr, str, str, str, int)
@@ -390,7 +384,7 @@ bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
     uint64_t idx;
     while (iter && (idx = resource_map_iter_next(iter))) {
 
-        cudaStream_t stream_ptr = resource_map_get(client->custom_streams, (void*)idx)->mapped_addr;
+        cudaStream_t stream_ptr = resource_map_get_addr(client->custom_streams, (void*)idx);
         
         *result = cudaStreamSynchronize(stream_ptr);
         if (*result != cudaSuccess) {
@@ -596,18 +590,26 @@ bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct s
     LOGE(LOG_DEBUG, "cudaStreamCopyAttributes");
     void *src_ptr;
     void *dst_ptr;
-    if (resource_mg_get(&rm_streams, (void*)dst, &dst_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting dst stream");
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "error getting client");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
         return 1;
     }
-    if (resource_mg_get(&rm_streams, (void*)src, &src_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting src stream");
+
+    if (!resource_map_contains(client->custom_streams, (void*)dst) ||
+        !resource_map_contains(client->custom_streams, (void*)src)) {
+        LOGE(LOG_ERROR, "stream not found in custom streams");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
         return 1;
     }
+
+    src_ptr = resource_map_get_addr(client->custom_streams, (void*)src);
+    dst_ptr = resource_map_get_addr(client->custom_streams, (void*)dst);
+
     *result = cudaStreamCopyAttributes((cudaStream_t)dst_ptr, (cudaStream_t)src_ptr);
 
     RECORD_RESULT(integer, *result);
@@ -756,7 +758,7 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
         return 1;
     }
 
-    stream_ptr = resource_map_get(client->custom_streams, (void*)stream)->mapped_addr;
+    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
 
     *result = cudaStreamDestroy(stream_ptr);
     if (*result == cudaSuccess) {
@@ -796,7 +798,7 @@ bool_t cuda_stream_get_flags_1_svc(ptr hStream, int_result *result, struct svc_r
         return 1;
     }
 
-    stream_ptr = resource_map_get(client->custom_streams, (void*)hStream)->mapped_addr;
+    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)hStream);
     result->err = cudaStreamGetFlags(stream_ptr,
                                      (unsigned*)&result->int_result_u.data);
     GSCHED_RELEASE;
@@ -825,7 +827,7 @@ bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct sv
         return 1;
     }
 
-    stream_ptr = resource_map_get(client->custom_streams, (void*)hStream)->mapped_addr;
+    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)hStream);
 
     result->err = cudaStreamGetPriority(
        stream_ptr,
@@ -855,7 +857,7 @@ bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc
         return 1;
     }
 
-    stream_ptr = resource_map_get(client->custom_streams, (void*)stream)->mapped_addr;
+    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
     result->err = cudaStreamIsCapturing(
       stream_ptr,
       (enum cudaStreamCaptureStatus*)&result->int_result_u.data);
@@ -884,7 +886,7 @@ bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
         return 1;
     }
 
-    stream_ptr = resource_map_get(client->custom_streams, (void*)hStream)->mapped_addr;
+    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)hStream);
     *result = cudaStreamQuery(stream_ptr);
     GSCHED_RELEASE;
     return 1;
@@ -917,7 +919,7 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rq
         return 1;
 
     }
-    stream_ptr = resource_map_get(client->custom_streams, (void*)stream)->mapped_addr;
+    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
 
 
     *result = cudaStreamSynchronize(stream_ptr);
@@ -952,10 +954,10 @@ bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, int *resul
         return 1;
 
     }
-    stream_ptr = resource_map_get(client->custom_streams, (void*)stream)->mapped_addr;
+    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
 
     cudaEvent_t event_ptr;
-    if (resource_mg_get(&rm_events, (void*)event, &event_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting event");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1023,7 +1025,7 @@ bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
     LOGE(LOG_DEBUG, "cudaEventDestroy");
 
     cudaEvent_t event_ptr;
-    if (resource_mg_get(&rm_events, (void*)event, &event_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting event");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1047,7 +1049,7 @@ bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, s
     LOGE(LOG_DEBUG, "cudaEventElapsedTime");
 
     cudaEvent_t start_ptr;
-    if (resource_mg_get(&rm_events, (void*)start, &start_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)start, (void**)&start_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting start event");
         result->err = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1055,7 +1057,7 @@ bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, s
     }
 
     cudaEvent_t end_ptr;
-    if (resource_mg_get(&rm_events, (void*)end, &end_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)end, (void**)&end_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting end event");
         result->err = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1077,7 +1079,7 @@ bool_t cuda_event_query_1_svc(ptr event, int *result, struct svc_req *rqstp)
     LOGE(LOG_DEBUG, "cudaEventQuery");
 
     cudaEvent_t event_ptr;
-    if (resource_mg_get(&rm_events, (void*)event, &event_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting event");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1098,8 +1100,10 @@ bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_re
     RECORD_ARG(2, stream);
     LOGE(LOG_DEBUG, "cudaEventRecord");
 
+    GET_CLIENT(*result)
+
     cudaEvent_t event_ptr;
-    if (resource_mg_get(&rm_events, (void*)event, &event_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting event");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1107,12 +1111,7 @@ bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_re
     }
 
     cudaStream_t stream_ptr;
-    if (resource_mg_get(&rm_streams, (void*)stream, &stream_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting stream");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_STREAM(stream_ptr, stream, *result)
 
     *result = cudaEventRecord(event_ptr, stream_ptr);
     RECORD_RESULT(integer, *result);
@@ -1130,8 +1129,10 @@ bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int 
     RECORD_ARG(3, flags);
     LOGE(LOG_DEBUG, "cudaEventRecordWithFlags");
 
+    GET_CLIENT(*result)
+
     cudaEvent_t event_ptr;
-    if (resource_mg_get(&rm_events, (void*)event, &event_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting event");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1139,12 +1140,7 @@ bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int 
     }
 
     cudaStream_t stream_ptr;
-    if (resource_mg_get(&rm_streams, (void*)stream, &stream_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting stream");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_STREAM(stream_ptr, stream, *result)
 
     *result = cudaEventRecordWithFlags(
       event_ptr,
@@ -1168,7 +1164,7 @@ bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqst
     LOGE(LOG_DEBUG, "cudaEventSynchronize");
 
     cudaEvent_t event_ptr;
-    if (resource_mg_get(&rm_events, (void*)event, &event_ptr) != 0) {
+    if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting event");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1250,6 +1246,9 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
     //RECORD_ARG(4, args);
     RECORD_ARG(5, sharedMem);
     RECORD_ARG(6, stream);
+
+    GET_CLIENT(*result)
+
     dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     void **cuda_args;
@@ -1273,12 +1272,7 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
     }
 
     cudaStream_t stream_ptr;
-    if (resource_mg_get(&rm_streams, (void*)stream, &stream_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting stream");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_STREAM(stream_ptr, stream, *result)
 
     *result = cudaLaunchCooperativeKernel(
       func_ptr,
@@ -1311,14 +1305,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     RECORD_ARG(5, sharedMem);
     RECORD_ARG(6, stream);
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
+    GET_CLIENT(*result)
 
     dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
@@ -1329,14 +1316,12 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        *(void**)cuda_args[i] = resource_map_contains(client->gpu_mem, *(void**)cuda_args[i]) ?
-            resource_map_get(client->gpu_mem, *(void**)cuda_args[i])->mapped_addr :
-            *(void**)cuda_args[i];
+        *(void**)cuda_args[i] = resource_map_get_addr_default(client->gpu_mem, *(void**)cuda_args[i], *(void**)cuda_args[i]);
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
     addr_data_pair_t *func_ptr;
-    if (resource_mg_get(&client->functions, (void*)func, &func_ptr) != 0) {
+    if (resource_mg_get(&client->functions, (void*)func, (void**)&func_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting function");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1351,7 +1336,8 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
                     sharedMem,
                     (void*)stream);
     
-    cudaStream_t target_stream = stream ? resource_map_get(client->custom_streams, stream)->mapped_addr : client->default_stream;
+    cudaStream_t target_stream;
+    GET_STREAM(target_stream, stream, *result)
 
     LOGE(LOG_DEBUG, "target_stream: %p", target_stream);
 
@@ -1436,7 +1422,7 @@ bool_t cuda_array_get_info_1_svc(ptr array, mem_result *result, struct svc_req *
                       sizeof(struct cudaExtent);
 
     cudaArray_t array_ptr;
-    if (resource_mg_get(&rm_arrays, (void*)array, &array_ptr) != 0) {
+    if (resource_mg_get(&rm_arrays, (void*)array, (void**)&array_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting array");
         result->err = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1463,7 +1449,7 @@ bool_t cuda_array_get_sparse_properties_1_svc(ptr array, mem_result *result, str
     struct cudaArraySparseProperties* sparseProperties = (void*)result->mem_result_u.data.mem_data_val;
 
     cudaArray_t array_ptr;
-    if (resource_mg_get(&rm_arrays, (void*)array, &array_ptr) != 0) {
+    if (resource_mg_get(&rm_arrays, (void*)array, (void**)&array_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting array");
         result->err = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1509,19 +1495,18 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 
     #else
 
-    resource_map_item *mem_ptr;
+    
+    void *mem_ptr = resource_map_get_addr(client->gpu_mem, (void*)devPtr);
 
-    if (!resource_map_contains(client->gpu_mem, (void*)devPtr)) {
-        LOGE(LOG_ERROR, "error getting memory");
+    if (mem_ptr == NULL) {
+        LOGE(LOG_ERROR, "error getting memory pointer");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
         return 1;
     }
 
-    mem_ptr = resource_map_get(client->gpu_mem, (void*)devPtr);
-
     PRIMARY_CTX_RETAIN;
-    *result = cudaFree(mem_ptr->mapped_addr);
+    *result = cudaFree(mem_ptr);
 
     if (*result == cudaSuccess) {
         resource_map_unset(client->gpu_mem, (void*)devPtr);
@@ -1585,7 +1570,7 @@ bool_t cuda_free_array_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
     LOGE(LOG_DEBUG, "cudaFreeArray");
 
     cudaArray_t array_ptr;
-    if (resource_mg_get(&rm_arrays, (void*)devPtr, &array_ptr) != 0) {
+    if (resource_mg_get(&rm_arrays, (void*)devPtr, (void**)&array_ptr) != 0) {
         LOGE(LOG_ERROR, "error getting array");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1669,7 +1654,7 @@ bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result,
     result->err = cudaErrorMemoryAllocation;
 
     if (socktype == UNIX || (shm_enabled && cpu_utils_is_local_connection(rqstp))) { //Use local shared memory
-        if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_cnt) == -1) {
+        if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_cnt) == -1) {
             LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
             goto out;
         }
@@ -1745,7 +1730,7 @@ bool_t cuda_host_alloc_regshm_1_svc(size_t hainfo_idx, ptr client_ptr, int *resu
         LOGE(LOG_ERROR, "cudaHostAllocRegShm is only supported for local connections.");
         goto out;
     }
-    if (asprintf(&shm_name, "/crickethostalloc-%d", hainfo_idx) == -1) {
+    if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_idx) == -1) {
         LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
         goto out;
     }
@@ -1829,7 +1814,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
     args->type = MEM_ALLOC_TYPE_DEFAULT;
     args->size = argp;
-    resource_map_add(client->gpu_mem, dev_mem_ptr, args, &(result->ptr_result_u.ptr));
+    resource_map_add(client->gpu_mem, dev_mem_ptr, args, (void**)&(result->ptr_result_u.ptr));
 #endif
 
     RECORD_RESULT(ptr_result_u, *result);
@@ -1850,6 +1835,8 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
     struct cudaPitchedPtr pptr;
     LOGE(LOG_DEBUG, "cudaMalloc3D");
 
+    GET_CLIENT(result->err)
+
     if (allow_mem_alloc(depth*height*width) == 0) {
         LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
         result->err = cudaErrorMemoryAllocation;
@@ -1862,10 +1849,18 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
     result->err = cudaMalloc3D(&pptr, extent);
     PRIMARY_CTX_RELEASE;
     result->pptr_result_u.ptr.pitch = pptr.pitch;
-    result->pptr_result_u.ptr.ptr = (ptr)pptr.ptr;
     result->pptr_result_u.ptr.xsize = pptr.xsize;
     result->pptr_result_u.ptr.ysize = pptr.ysize;
-    resource_mg_create(&rm_memory, pptr.ptr);
+    
+    if (result->err == cudaSuccess) {
+        mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
+        args->type = MEM_ALLOC_TYPE_3D;
+        args->depth = depth;
+        args->height = height;
+        args->width = width;
+        args->pitch = pptr.pitch;
+        resource_map_add(client->gpu_mem, (void*)pptr.ptr, args, (void**)&(result->pptr_result_u.ptr.ptr));
+    }
 
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;
@@ -1947,6 +1942,9 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
     RECORD_ARG(1, width);
     RECORD_ARG(2, height);
     LOGE(LOG_DEBUG, "cudaMallocPitch");
+
+    GET_CLIENT(result->err)
+
     if (allow_mem_alloc(width*height) == 0) {
         LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
         result->err = cudaErrorMemoryAllocation;
@@ -1959,7 +1957,15 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
                                   &result->ptrsz_result_u.data.s,
                                   width, height);
     PRIMARY_CTX_RELEASE;
-    resource_mg_create(&rm_memory, (void*)result->ptrsz_result_u.data.p);
+    
+    if (result->err == cudaSuccess) {
+        mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
+        args->type = MEM_ALLOC_TYPE_PITCH;
+        args->width = width;
+        args->height = height;
+        args->pitch = result->ptrsz_result_u.data.s;
+        resource_map_add(client->gpu_mem, (void*)result->ptrsz_result_u.data.p, args, (void**)&(result->ptrsz_result_u.data.p));
+    }
 
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;
@@ -1978,12 +1984,9 @@ bool_t cuda_mem_advise_1_svc(ptr devPtr, size_t count, int advice, int device, i
     LOGE(LOG_DEBUG, "cudaMemAdvise");
 
     void *mem_ptr;
-    if (resource_mg_get(&rm_memory, (void*)devPtr, &mem_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting memory");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(*result)
+
+    GET_MEMORY(mem_ptr, devPtr, *result)
 
     *result = cudaMemAdvise(
       mem_ptr,
@@ -2016,12 +2019,8 @@ bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, pt
     LOGE(LOG_DEBUG, "cudaMemPrefetchAsync");
 
     void *mem_ptr;
-    if (resource_mg_get(&rm_memory, (void*)devPtr, &mem_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting memory");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(*result)
+    GET_MEMORY(mem_ptr, devPtr, *result)
 
     *result = cudaMemPrefetchAsync(
       mem_ptr,
@@ -2045,13 +2044,7 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     RECORD_ARG(2, mem);
     RECORD_ARG(3, size);
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client from fd %d", rqstp->rq_xprt->xp_fd);\
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(*result)
 
 
     LOGE(LOG_DEBUG, "cudaMemcpyHtoD(%p, %p, %zu)", (void*)ptr, mem.mem_data_val, size);
@@ -2068,15 +2061,11 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
         return 1;
     }
 #endif
-    resource_map_item *mem_ptr;
-    if (( mem_ptr = resource_map_get(client->gpu_mem, (void*)ptr)) == NULL) {
-        LOGE(LOG_ERROR, "error getting memory");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, ptr, *result)
+
     *result = cudaMemcpy(
-      mem_ptr->mapped_addr,
+      mem_ptr,
       mem.mem_data_val,
       size,
       cudaMemcpyHostToDevice);
@@ -2193,16 +2182,14 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
 
     LOGE(LOG_DEBUG, "cudaMemcpyDtoD(%p, %p, %zu)", (void*)dst, (void*)src, size);
 
+    GET_CLIENT(*result)
+
     void *mem_ptr_dst;
     void *mem_ptr_src;
-    if (resource_mg_get(&rm_memory, (void*)dst, &mem_ptr_dst) != 0 ||
-        resource_mg_get(&rm_memory, (void*)src, &mem_ptr_src) != 0) {
-        LOGE(LOG_ERROR, "error getting memory");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
 
+    GET_MEMORY(mem_ptr_dst, dst, *result)
+    GET_MEMORY(mem_ptr_src, src, *result)
+    
     *result = cudaMemcpy(
       mem_ptr_dst,
       mem_ptr_src,
@@ -2314,12 +2301,8 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
     }
 
     void *mem_ptr;
-    if (resource_mg_get(&rm_memory, (void*)device_ptr, &mem_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting memory");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(*result)
+    GET_MEMORY(mem_ptr, device_ptr, *result)
 
     if (kind == cudaMemcpyHostToDevice) {
         *result = cudaMemcpy(
@@ -2346,12 +2329,7 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     //Does not need to be recorded because doesn't change device state
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)", ptr, size);
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client from fd %d", rqstp->rq_xprt->xp_fd);
-        result->err = cudaErrorInvalidValue;
-        goto out;
-    }
+    GET_CLIENT(result->err)
 
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
@@ -2365,16 +2343,12 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     }
 #endif
 
-    resource_map_item *mem_ptr;
-    if ((mem_ptr = resource_map_get(client->gpu_mem, (void*)ptr)) == NULL) {
-        LOGE(LOG_ERROR, "error getting memory");
-        result->err = cudaErrorInvalidValue;
-        goto out;
-    }
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, ptr, result->err)
 
     result->err = cudaMemcpy(
       result->mem_result_u.data.mem_data_val,
-      mem_ptr->mapped_addr,
+      mem_ptr,
       size,
       cudaMemcpyDeviceToHost);
 #ifdef WITH_MEMCPY_REGISTER
@@ -2417,12 +2391,8 @@ bool_t cuda_memcpy_to_symbol_1_svc(uint64_t symbolptr, mem_data mem, size_t size
 
     void *symbol_addr;
 
-    if (resource_mg_get(&rm_globals, (void*)symbolptr, &symbol_addr) != 0) {
-        LOGE(LOG_ERROR, "error getting symbol");
-        *result = cudaErrorInvalidSymbol;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(*result)
+    GET_VARIABLE(symbol_addr, symbolptr, *result)
 
     bool_t res = cuda_memcpy_htod_1_svc((ptr)(symbol_addr+offset), mem, size, result, rqstp);
     GSCHED_RELEASE;
@@ -2432,16 +2402,12 @@ bool_t cuda_memcpy_to_symbol_1_svc(uint64_t symbolptr, mem_data mem, size_t size
 bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, size_t offset, int kind, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
-    void *symbol_addr = resource_mg_get_default(&rm_globals, (void*)device_ptr, NULL);
-    if (symbol_addr == NULL) {
-        LOGE(LOG_ERROR, "cudaMemcpyToSymbol: symbol not found");
-        *result = cudaErrorInvalidSymbol;
-        GSCHED_RELEASE;
-        return 1;
-    }
-    bool_t res = cuda_memcpy_shm_1_svc(index, (ptr)(symbol_addr+offset), size, kind, result, rqstp);
+    GET_CLIENT(*result)
+    void *symbol_addr;
+    GET_MEMORY(symbol_addr, device_ptr, *result)
+    *result = cuda_memcpy_shm_1_svc(index, (ptr)(symbol_addr+offset), size, kind, result, rqstp);
     GSCHED_RELEASE;
-    return res;
+    return 1;
 }
 
 /* cudaMemcpyToSymbolAsync ( const void* symbol, const void* src, size_t count, size_t offset, cudaMemcpyKind kind, cudaStream_t stream = 0 ) not implemented yet */
@@ -2456,24 +2422,13 @@ bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struc
     RECORD_ARG(3, count);
     LOGE(LOG_DEBUG, "cudaMemset");
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(*result)
 
-    resource_map_item *mem_ptr;
-    if ((mem_ptr = resource_map_get(client->gpu_mem, (void*)devPtr)) == NULL) {
-        LOGE(LOG_ERROR, "error getting memory");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, devPtr, *result)
 
     *result = cudaMemset(
-      mem_ptr->mapped_addr,
+      mem_ptr,
       value,
       count);
     RECORD_RESULT(integer, *result);
@@ -2491,8 +2446,14 @@ bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, s
     RECORD_ARG(4, height);
     RECORD_ARG(5, width);
     LOGE(LOG_DEBUG, "cudaMemset2D");
+
+    GET_CLIENT(*result)
+
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, devPtr, *result)
+
     *result = cudaMemset2D(
-      resource_mg_get_default(&rm_memory, (void*)devPtr, NULL),
+      mem_ptr,
       pitch,
       value,
       width,
@@ -2513,13 +2474,23 @@ bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t wi
     RECORD_ARG(5, width);
     RECORD_ARG(6, stream);
     LOGE(LOG_DEBUG, "cudaMemset2DAsync");
+
+    GET_CLIENT(*result)
+    
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, devPtr, *result)
+
+    void* stream_ptr;
+    GET_STREAM(stream_ptr, stream, *result)
+    
+
     *result = cudaMemset2DAsync(
-      resource_mg_get_default(&rm_memory, (void*)devPtr, NULL),
+      mem_ptr,
       pitch,
       value,
       width,
       height,
-      resource_mg_get_default(&rm_streams, (void*)stream, NULL));
+      (cudaStream_t)stream_ptr);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2538,8 +2509,14 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
     RECORD_ARG(7, height);
     RECORD_ARG(8, width);
     LOGE(LOG_DEBUG, "cudaMemset3D");
+
+    GET_CLIENT(*result)
+
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, devPtr, *result)
+
     struct cudaPitchedPtr pptr = {.pitch = pitch,
-                                  .ptr = resource_mg_get_default(&rm_memory, (void*)devPtr, NULL),
+                                  .ptr = mem_ptr,
                                   .xsize = xsize,
                                   .ysize = ysize};
     struct cudaExtent extent = {.depth = depth,
@@ -2565,15 +2542,23 @@ bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t
     RECORD_ARG(8, width);
     RECORD_ARG(9, stream);
     LOGE(LOG_DEBUG, "cudaMemset3DAsync");
+
+    GET_CLIENT(*result)
+
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, devPtr, *result)
+
+    void* stream_ptr;
+    GET_STREAM(stream_ptr, stream, *result)
+
     struct cudaPitchedPtr pptr = {.pitch = pitch,
-                                  .ptr = resource_mg_get_default(&rm_memory, (void*)devPtr, NULL),
+                                  .ptr = mem_ptr,
                                   .xsize = xsize,
                                   .ysize = ysize};
     struct cudaExtent extent = {.depth = depth,
                                 .height = height,
                                 .width = width};
-    *result = cudaMemset3DAsync(pptr, value, extent,
-                resource_mg_get_default(&rm_streams, (void*)stream, NULL));
+    *result = cudaMemset3DAsync(pptr, value, extent, (cudaStream_t)stream_ptr);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2588,11 +2573,20 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, 
     RECORD_ARG(3, count);
     RECORD_ARG(3, stream);
     LOGE(LOG_DEBUG, "cudaMemsetAsync");
+
+    GET_CLIENT(*result)
+
+    void *mem_ptr;
+    GET_MEMORY(mem_ptr, devPtr, *result)
+
+    void *stream_ptr;
+    GET_STREAM(stream_ptr, stream, *result)
+
     *result = cudaMemsetAsync(
-      resource_mg_get_default(&rm_memory, (void*)devPtr, NULL),
+      mem_ptr,
       value,
       count,
-      resource_mg_get_default(&rm_streams, (void*)stream, NULL));
+      (cudaStream_t)stream_ptr);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;

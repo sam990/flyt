@@ -45,6 +45,20 @@ resource_map_item* resource_map_get(resource_map* map, void* addr) {
     return &(map->list[(uint64_t)addr - OFFSET]);
 }
 
+void* resource_map_get_addr(resource_map* map, void *addr) {
+    if (resource_map_contains(map, addr)) {
+        return resource_map_get(map, addr)->mapped_addr;
+    }
+    return NULL;
+}
+
+void* resource_map_get_addr_default(resource_map* map, void *addr, void* default_addr) {
+    if (resource_map_contains(map, addr)) {
+        return resource_map_get(map, addr)->mapped_addr;
+    }
+    return default_addr;
+}
+
 int resource_map_update_addr_idx(resource_map* map, uint64_t idx, void* new_addr) {
     if (idx >= map->tail_idx || map->list[idx].present == 0) {
         return -1;

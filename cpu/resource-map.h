@@ -31,6 +31,11 @@ uint64_t resource_map_index_from_addr(void *addr);
 
 resource_map_item* resource_map_get(resource_map *map, void *mapped_addr);
 
+void *resource_map_get_addr(resource_map *map, void *addr);
+
+void *resource_map_get_addr_default(resource_map *map, void *addr,
+                                    void *default_addr);
+
 int resource_map_update_addr_idx(resource_map *map, uint64_t idx,
                                  void *new_addr);
 

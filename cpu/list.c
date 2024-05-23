@@ -30,6 +30,55 @@ int list_init(list *l, size_t element_size)
     return 0;
 }
 
+int list_init_capacity(list *l, size_t element_size, size_t capacity)
+{
+    if (l == NULL) {
+        LOGE(LOG_ERROR, "list parameter is NULL");
+        return 1;
+    }
+    if (element_size == 0LL) {
+        LOGE(LOG_ERROR, "element_size of 0 does not make sense");
+        return 1;
+    }
+    size_t capacity_in_power_of_two;
+    for (capacity_in_power_of_two = 1; capacity_in_power_of_two < capacity; capacity_in_power_of_two <<= 1);
+
+    size_t new_capacity = capacity_in_power_of_two > INITIAL_CAPACITY ? capacity_in_power_of_two : INITIAL_CAPACITY;
+
+    memset(l, 0, sizeof(list));
+    if ((l->elements = malloc(new_capacity*element_size)) == NULL) {
+        LOGE(LOG_ERROR, "allocation failed");
+        return 1;
+    }
+    l->element_size = element_size;
+    l->capacity = new_capacity;
+    l->length = 0LL;
+
+    return 0;
+}
+
+int list_resize(list *l, size_t new_capacity)
+{
+    if (l == NULL) {
+        LOGE(LOG_ERROR, "list parameter is NULL");
+        return 1;
+    }
+    if (new_capacity <= l->capacity) {
+        return 0;
+    }
+
+    size_t rounded_capacity;
+    for (rounded_capacity = 1; rounded_capacity < new_capacity; rounded_capacity <<= 1);
+    void *nll;
+    if ((nll = realloc(l->elements, rounded_capacity*l->element_size)) == NULL) {
+        LOGE(LOG_ERROR, "allocation failed");
+        return 1;
+    }
+    l->capacity = new_capacity;
+    l->elements = nll;
+    return 0;
+}
+
 int list_free(list *l)
 {
     if (l == NULL) {
@@ -62,12 +111,13 @@ int list_append(list *l, void **new_element)
         return 1;
     }
     if (l->capacity == l->length) {
-        l->elements = realloc(l->elements, l->capacity*2*l->element_size);
-        if (l->elements == NULL) {
+        void *nlist = realloc(l->elements, l->capacity*2*l->element_size);
+        if (nlist== NULL) {
             LOGE(LOG_ERROR, "realloc failed.");
             /* the old pointer remains valid */
             return 1;
         }
+        l->elements = nlist;
         l->capacity *= 2;
     }
     if (new_element != NULL) {

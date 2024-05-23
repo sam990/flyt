@@ -62,6 +62,8 @@ int dump_memory(char *filename, resource_map *gpu_mem) {
 
 int dump_modules(char *filename, resource_mg* modules) {
     
+    uint64_t len = modules->map_res.length;
+
     FILE *fp = fopen(filename, "wb");
 
     if (fp == NULL) {
@@ -69,16 +71,16 @@ int dump_modules(char *filename, resource_mg* modules) {
         return -1;
     }
 
+    fwrite(&len, sizeof(uint64_t), 1, fp);
+
     for (uint64_t i = 0; i < modules->map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&modules->map_res, i);
-
-        addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-        rpc_elf_load_1_argument * data = (rpc_elf_load_1_argument *)pair->reg_data;
-
-        LOGE(LOG_DEBUG, "Dumping module %p, len: %u", data->arg2, data->arg1.mem_data_len);
-
-        fwrite(data, sizeof(rpc_elf_load_1_argument), 1, fp);
-        fwrite(data->arg1.mem_data_val, data->arg1.mem_data_len, 1, fp);
+        
+        if (dump_module_data(elem, fp) != 0) {
+            LOGE(LOG_ERROR, "Failed to dump module data");
+            fclose(fp);
+            return -1;
+        }
     }
 
     fclose(fp);
@@ -95,21 +97,18 @@ int dump_functions(char *filename, resource_mg* functions) {
         return -1;
     }
 
+    uint64_t len = functions->map_res.length;
+
+    fwrite(&len, sizeof(uint64_t), 1, fp);
+
     for (uint64_t i = 0; i < functions->map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&functions->map_res, i);
 
-        addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-        rpc_register_function_1_argument * data = (rpc_register_function_1_argument *)pair->reg_data;
-
-        char arg3_str[128];
-        char arg4_str[128];
-
-        strncpy(arg3_str, data->arg3, 128);
-        strncpy(arg4_str, data->arg4, 128);
-
-        fwrite(data, sizeof(rpc_register_function_1_argument), 1, fp);
-        fwrite(arg3_str, 128, 1, fp);
-        fwrite(arg4_str, 128, 1, fp);
+        if (dump_function_data(elem, fp) != 0) {
+            LOGE(LOG_ERROR, "Failed to dump function data");
+            fclose(fp);
+            return -1;
+        }
     }
 
     fclose(fp);
@@ -125,27 +124,18 @@ int dump_vars(char *filename, resource_mg *vars) {
         return -1;
     }
 
+    uint64_t len = vars->map_res.length;
+
+    fwrite(&len, sizeof(uint64_t), 1, fp);
+
     for (uint64_t i = 0; i < vars->map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&vars->map_res, i);
-        void* client_addr = elem->client_address;
-
-        addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-        rpc_register_var_1_argument * data = (rpc_register_var_1_argument *)pair->reg_data;
-
-        size_t size = data->arg6;
-        char *var_data = malloc(size);
-
-        cudaMemcpyFromSymbol(var_data, pair->addr, size, 0, cudaMemcpyDeviceToHost);
-
-        char arg4_str[128];
-
-        strncpy(arg4_str, data->arg4, 128);
-
-        fwrite(data, sizeof(rpc_register_var_1_argument), 1, fp);
-        fwrite(arg4_str, 128, 1, fp);
-        fwrite(var_data, size, 1, fp);
-
-        free(var_data);
+        
+        if (dump_variable_data(elem, fp) != 0) {
+            LOGE(LOG_ERROR, "Failed to dump variable data");
+            fclose(fp);
+            return -1;
+        }
     }
 
     fclose(fp);
@@ -329,43 +319,30 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
     }
 
     size_t readsz;
+    uint64_t num_modules;
 
-    while (!feof(fp)) {
-        rpc_elf_load_1_argument data;
-        readsz = fread(&data, sizeof(rpc_elf_load_1_argument), 1, fp);
+    readsz = fread(&num_modules, sizeof(uint64_t), 1, fp);
 
-        if (readsz != 1) {
-            break;
-        }
+    if (readsz != 1) {
+        fclose(fp);
+        LOGE(LOG_ERROR, "Failed to read number of modules from file");
+        return -1;
+    }
 
-        LOGE(LOG_DEBUG, "Restoring module %p, len: %u", data.arg2, data.arg1.mem_data_len);
+    if (list_resize(&modules->map_res, num_modules) != 0) {
+        LOGE(LOG_ERROR, "Failed to resize modules list");
+        fclose(fp);
+        return -1;
+    }
 
-        char *mem_data = malloc(data.arg1.mem_data_len);
-        if (mem_data == NULL) {
-            LOGE(LOG_ERROR, "Failed to allocate memory for mem_data");
+    for (uint64_t i = 0; i < num_modules; i++) {
+        resource_mg_map_elem *elem = list_get(&modules->map_res, i);
+
+        if (load_module_data(elem, fp) != 0) {
+            LOGE(LOG_ERROR, "Failed to load module data");
             fclose(fp);
             return -1;
         }
-
-        readsz = fread(mem_data, data.arg1.mem_data_len, 1, fp);
-
-        if (readsz != 1) {
-            LOGE(LOG_ERROR, "Failed to read module mem_data from file");
-            free(mem_data);
-            fclose(fp);
-            return -1;
-        }
-
-        rpc_elf_load_1_argument *data_ptr = malloc(sizeof(rpc_elf_load_1_argument));
-        data_ptr->arg1.mem_data_val = mem_data;
-        data_ptr->arg1.mem_data_len = data.arg1.mem_data_len;
-        data_ptr->arg2 = data.arg2;
-
-        addr_data_pair_t *pair = malloc(sizeof(addr_data_pair_t));
-        pair->addr = NULL;
-        pair->reg_data = data_ptr;
-
-        resource_mg_add_sorted(modules, (void *)data_ptr->arg2, (void *)pair);
     }
 
     fclose(fp);
@@ -382,46 +359,32 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
 
     size_t readsz;
 
-    while (!feof(fp)) {
-        rpc_register_function_1_argument data;
-        readsz = fread(&data, sizeof(rpc_register_function_1_argument), 1, fp);
+    uint64_t num_functions;
 
-        if (readsz != 1) {
-            break;
-        }
+    readsz = fread(&num_functions, sizeof(uint64_t), 1, fp);
 
-        char *arg3 = malloc(128);
-        char *arg4 = malloc(128);
-
-        if (arg3 == NULL || arg4 == NULL) {
-            LOGE(LOG_ERROR, "Failed to allocate memory for arg3 or arg4");
-            fclose(fp);
-            return -1;
-        }
-
-        readsz = fread(arg3, 128, 1, fp);
-        readsz += fread(arg4, 128, 1, fp);
-
-        if (readsz != 2) {
-            LOGE(LOG_ERROR, "Failed to read function args from file");
-            free(arg3);
-            free(arg4);
-            fclose(fp);
-            return -1;
-        }
-
-        rpc_register_function_1_argument *data_ptr = malloc(sizeof(rpc_register_function_1_argument));
-        memcpy(data_ptr, &data, sizeof(rpc_register_function_1_argument));
-        data_ptr->arg3 = arg3;
-        data_ptr->arg4 = arg4;
-
-        addr_data_pair_t *pair = malloc(sizeof(addr_data_pair_t));
-        pair->addr = NULL;
-        pair->reg_data = data_ptr;
-
-        resource_mg_add_sorted(functions, (void *)data_ptr->arg2, (void *)pair);
+    if (readsz != 1) {
+        fclose(fp);
+        LOGE(LOG_ERROR, "Failed to read number of functions from file");
+        return -1;
     }
 
+    if (list_resize(&functions->map_res, num_functions) != 0) {
+        LOGE(LOG_ERROR, "Failed to resize functions list");
+        fclose(fp);
+        return -1;
+    }
+
+    for (uint64_t i = 0; i < num_functions; i++) {
+        resource_mg_map_elem *elem = list_get(&functions->map_res, i);
+
+        if (load_function_data(elem, fp) != 0) {
+            LOGE(LOG_ERROR, "Failed to load function data");
+            fclose(fp);
+            return -1;
+        }
+    }
+   
     fclose(fp);
     return 0;
 }
@@ -435,40 +398,30 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
     }
 
     size_t readsz;
+    uint64_t num_vars;
 
-    while (!feof(fp)) {
-        rpc_register_var_1_argument data;
-        readsz = fread(&data, sizeof(rpc_register_var_1_argument), 1, fp);
+    readsz = fread(&num_vars, sizeof(uint64_t), 1, fp);
+    if (readsz != 1) {
+        fclose(fp);
+        LOGE(LOG_ERROR, "Failed to read number of vars from file");
+        return -1;
+    }
 
-        if (readsz != 1) {
-            break;
-        }
+    if (list_resize(&vars->map_res, num_vars) != 0) {
+        LOGE(LOG_ERROR, "Failed to resize vars list");
+        fclose(fp);
+        return -1;
+    }
 
-        char *arg4 = malloc(128);
-        if (arg4 == NULL) {
-            LOGE(LOG_ERROR, "Failed to allocate memory for arg4");
+
+    for (uint64_t i = 0; i < num_vars; i++) {
+        resource_mg_map_elem *elem = list_get(&vars->map_res, i);
+
+        if (load_variable_data(elem, fp) != 0) {
+            LOGE(LOG_ERROR, "Failed to load variable data");
             fclose(fp);
             return -1;
         }
-
-        readsz = fread(arg4, 128, 1, fp);
-
-        if (readsz != 1) {
-            LOGE(LOG_ERROR, "Failed to read var arg from file");
-            free(arg4);
-            fclose(fp);
-            return -1;
-        }
-
-        rpc_register_var_1_argument *data_ptr = malloc(sizeof(rpc_register_var_1_argument));
-        memcpy(data_ptr, &data, sizeof(rpc_register_var_1_argument));
-        data_ptr->arg4 = arg4;
-
-        addr_data_pair_t *pair = malloc(sizeof(addr_data_pair_t));
-        pair->addr = NULL;
-        pair->reg_data = data_ptr;
-
-        resource_mg_add_sorted(vars, (void *)data_ptr->arg2, (void *)pair);
     }
 
     fclose(fp);

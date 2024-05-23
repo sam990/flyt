@@ -10,6 +10,8 @@ typedef struct list_t {
 } list;
 
 int list_init(list *l, size_t element_size);
+int list_init_capacity(list *l, size_t element_size, size_t capacity);
+int list_resize(list *l, size_t new_capacity);
 int list_free(list *l);
 int list_free_elements(list *l);
 
