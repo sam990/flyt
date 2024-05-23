@@ -11,6 +11,8 @@
 #include "cpu-server-resource-controller.h"
 #include "cpu_rpc_prot.h"
 
+#define STR_DUMP_SIZE 128
+
 static pthread_mutex_t client_mgr_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -186,33 +188,23 @@ int remove_client_ptr(cricket_client* client) {
 
         addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
 
-        mem_data* data = (mem_data *)pair->reg_data;
-        free(data->mem_data_val);
-        free(pair->reg_data);
-        free(pair);
+        free_module_data(pair);
     }
 
     for (size_t i = 0; i < client->vars.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->vars.map_res, i);
 
         addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-        rpc_register_var_1_argument* data = (rpc_register_var_1_argument *)pair->reg_data;
         
-        free(data->arg4); // it is an string arg
-        free(pair->reg_data);
-        free(pair);
+        free_variable_data(pair);
     }
 
     for (size_t i = 0; i < client->functions.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->functions.map_res, i);
 
         addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-        rpc_register_function_1_argument* data = (rpc_register_function_1_argument *)pair->reg_data;
         
-        free(data->arg3); // it is an string arg
-        free(data->arg4); // it is an string arg
-        free(pair->reg_data);
-        free(pair);
+        free_function_data(pair);
     }
 
     resource_mg_free(&client->modules);
@@ -252,7 +244,7 @@ static int freeResources(cricket_client* client) {
 
     uint64_t mem_idx;
     while ((mem_idx = resource_map_iter_next(mem_iter)) != 0) {
-        cudaFree(resource_map_get(client->gpu_mem, (void *)mem_idx));
+        cudaFree(resource_map_get_addr(client->gpu_mem, (void *)mem_idx));
     }
 
     resource_map_free_iter(mem_iter);
@@ -266,7 +258,7 @@ static int freeResources(cricket_client* client) {
 
     uint64_t stream_idx;
     while ((stream_idx = resource_map_iter_next(stream_iter)) != 0) {
-        cudaStreamDestroy((cudaStream_t)resource_map_get(client->custom_streams, (void *)stream_idx));
+        cudaStreamDestroy((cudaStream_t)resource_map_get_addr(client->custom_streams, (void *)stream_idx));
     }
 
     resource_map_free_iter(stream_iter);
@@ -312,4 +304,346 @@ cricket_client* get_next_restored_client(cricket_client_iter* iter) {
     resource_mg_map_elem *elem = list_get(&restored_clients.map_res, *iter);
     *iter += 1;
     return (cricket_client *)elem->cuda_address;
+}
+
+void free_variable_data(addr_data_pair_t *pair) {
+    switch (pair->reg_data.type) {
+        case MODULE_GET_GLOBAL:
+            var_register_args_t *data = (var_register_args_t *)pair->reg_data.data;
+            free(data->deviceName); // it is an string arg
+            if (data->data) {
+                free(data->data);
+            }
+            free(pair->reg_data.data);
+            break;
+        default:
+            LOGE(LOG_ERROR, "Invalid variable data type: %d", pair->reg_data.type);
+            break;
+    }
+    free(pair);
+}
+
+void free_function_data(addr_data_pair_t *pair) {
+
+    switch (pair->reg_data.type) {
+        case MODULE_GET_FUNCTION:
+            rpc_cumodulegetfunction_1_argument *data = (rpc_cumodulegetfunction_1_argument *)pair->reg_data.data;
+            free(data->arg2); // it is an string arg
+            free(pair->reg_data.data);
+            break;
+        default:
+            LOGE(LOG_ERROR, "Invalid function data type: %d", pair->reg_data.type);
+            break;
+    }
+    free(pair);
+}
+
+
+void free_module_data(addr_data_pair_t *pair) {
+    
+    switch (pair->reg_data.type) {
+        case MODULE_LOAD:
+            free(pair->reg_data.data);
+            break;
+        case MODULE_LOAD_DATA:
+            mem_data* data = (mem_data *)pair->reg_data.data;
+            free(data->mem_data_val);
+            free(pair->reg_data.data);
+            break;
+        default:
+            LOGE(LOG_ERROR, "Invalid module data type: %d", pair->reg_data.type);
+            break;
+    }
+    free(pair);
+}
+
+int fetch_variable_data_to_host(void) {
+
+    cricket_client_iter iter = get_client_iter();
+
+    cricket_client* client;
+
+    while ((client = get_next_client(&iter)) != NULL) {
+
+        for (size_t i = 0; i < client->vars.map_res.length; i++) {
+            resource_mg_map_elem *elem = list_get(&client->vars.map_res, i);
+
+            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+            
+            var_register_args_t *data = (var_register_args_t *)pair->reg_data.data;
+
+            if (data->data == NULL) {
+                data->data = malloc(data->size);
+            }
+
+            if (cudaMemcpyFromSymbol(data->data, pair->addr, data->size, 0, cudaMemcpyDeviceToHost) != cudaSuccess) {
+                LOGE(LOG_ERROR, "Failed to copy variable data to host");
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+int dump_module_data(resource_mg_map_elem *elem, FILE* fp) {
+
+    addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+
+    fwrite(elem, sizeof(resource_mg_map_elem), 1, fp);
+    fwrite(pair, sizeof(addr_data_pair_t), 1, fp);
+
+    switch (pair->reg_data.type) {
+        case MODULE_LOAD:
+            {
+                char* data = (char *)pair->reg_data.data;
+                fwrite(data, sizeof(char), pair->reg_data.size, fp);
+                break;
+            }
+        case MODULE_LOAD_DATA:
+            {
+                mem_data* data = (mem_data *)pair->reg_data.data;
+                fwrite(data, sizeof(mem_data), 1, fp);
+                fwrite(data->mem_data_val, data->mem_data_len, 1, fp);
+                break;
+            }
+        default:
+            LOGE(LOG_ERROR, "Invalid module data type: %d", pair->reg_data.type);
+            return -1;
+    }
+    return 0;
+}
+
+int load_module_data(resource_mg_map_elem *elem, FILE* fp) {
+    size_t readsz;
+    readsz = fread(elem, sizeof(resource_mg_map_elem), 1, fp);
+
+    if (readsz != 1) {
+        return -1;
+    }
+
+    elem->cuda_address = malloc(sizeof(addr_data_pair_t));
+    readsz = fread(elem->cuda_address, sizeof(addr_data_pair_t), 1, fp);
+
+    if (readsz != 1) {
+        free(elem->cuda_address);
+        return -1;
+    }
+
+    addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+
+    switch (pair->reg_data.type) {
+        case MODULE_LOAD:
+            {
+                char* data = (char *)malloc(pair->reg_data.size);
+                readsz = fread(data, sizeof(char), pair->reg_data.size, fp);
+                if (readsz != pair->reg_data.size) {
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+                pair->reg_data.data = data;
+                break;
+            }
+        case MODULE_LOAD_DATA:
+            {
+                mem_data* data = (mem_data *)malloc(sizeof(mem_data));
+                readsz = fread(data, sizeof(mem_data), 1, fp);
+
+                if (readsz != 1) {
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+
+                data->mem_data_val = (char *)malloc(data->mem_data_len);
+                readsz = fread(data->mem_data_val, data->mem_data_len, 1, fp);
+                
+                if (readsz != 1) {
+                    free(data->mem_data_val);
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+
+                pair->reg_data.data = data;
+                break;
+            }
+        default:
+            LOGE(LOG_ERROR, "Invalid module data type: %d", pair->reg_data.type);
+            return -1;
+    }
+    return 0;
+}
+
+int dump_variable_data(resource_mg_map_elem *elem, FILE* fp) {
+
+    addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+
+    fwrite(elem, sizeof(resource_mg_map_elem), 1, fp);
+    fwrite(pair, sizeof(addr_data_pair_t), 1, fp);
+
+    char str_dump[STR_DUMP_SIZE];
+
+    switch (pair->reg_data.type) {
+        case MODULE_GET_GLOBAL:
+            {
+                var_register_args_t *data = (var_register_args_t *)pair->reg_data.data;
+                fwrite(data, sizeof(var_register_args_t), 1, fp);
+                strncpy(str_dump, data->deviceName, STR_DUMP_SIZE);
+                fwrite(str_dump, sizeof(char), STR_DUMP_SIZE, fp);
+
+                size_t var_size = data->size;
+                char *var_data = (char *)malloc(var_size);
+
+                cudaMemcpyFromSymbol(var_data, pair->addr, var_size, 0, cudaMemcpyDeviceToHost);
+
+                fwrite(var_data, var_size, 1, fp);
+
+                free(var_data);
+
+                break;
+            }
+        default:
+            LOGE(LOG_ERROR, "Invalid variable data type: %d", pair->reg_data.type);
+            return -1;
+    }
+    return 0;
+}
+
+int load_variable_data(resource_mg_map_elem *elem, FILE *fp) {
+    size_t readsz;
+    readsz = fread(elem, sizeof(resource_mg_map_elem), 1, fp);
+
+    if (readsz != 1) {
+        return -1;
+    }
+
+    elem->cuda_address = malloc(sizeof(addr_data_pair_t));
+    readsz = fread(elem->cuda_address, sizeof(addr_data_pair_t), 1, fp);
+
+    if (readsz != 1) {
+        free(elem->cuda_address);
+        return -1;
+    }
+
+    addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+
+    switch (pair->reg_data.type) {
+        case MODULE_GET_GLOBAL:
+            {
+                var_register_args_t *data = (var_register_args_t *)malloc(sizeof(var_register_args_t));
+                readsz = fread(data, sizeof(var_register_args_t), 1, fp);
+
+                if (readsz != 1) {
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+
+                data->deviceName = (char *)malloc(STR_DUMP_SIZE);
+                readsz = fread(data->deviceName, sizeof(char), STR_DUMP_SIZE, fp);
+                
+                if (readsz != STR_DUMP_SIZE) {
+                    free(data->deviceName);
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+
+                data->data = malloc(data->size);
+                readsz = fread(data->data, data->size, 1, fp);
+
+                if (readsz != 1) {
+                    free(data->data);
+                    free(data->deviceName);
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+
+                
+
+                pair->reg_data.data = data;
+                break;
+            }
+        default:
+            LOGE(LOG_ERROR, "Invalid variable data type: %d", pair->reg_data.type);
+            return -1;
+    }
+    return 0;
+}
+
+int dump_function_data(resource_mg_map_elem *elem, FILE* fp) {
+
+    addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+
+    fwrite(elem, sizeof(resource_mg_map_elem), 1, fp);
+    fwrite(pair, sizeof(addr_data_pair_t), 1, fp);
+
+    char str_dump[STR_DUMP_SIZE];
+
+    switch (pair->reg_data.type) {
+        case MODULE_GET_FUNCTION:
+            {
+                rpc_cumodulegetfunction_1_argument *data = (rpc_cumodulegetfunction_1_argument *)pair->reg_data.data;
+                fwrite(data, sizeof(rpc_cumodulegetfunction_1_argument), 1, fp);
+                strncpy(str_dump, data->arg2, STR_DUMP_SIZE);
+                fwrite(str_dump, sizeof(char), STR_DUMP_SIZE, fp);
+                break;
+            }
+        default:
+            LOGE(LOG_ERROR, "Invalid function data type: %d", pair->reg_data.type);
+            return -1;
+    }
+    return 0;
+}
+
+int load_function_data(resource_mg_map_elem *elem, FILE *fp) {
+    size_t readsz;
+    readsz = fread(elem, sizeof(resource_mg_map_elem), 1, fp);
+
+    if (readsz != 1) {
+        return -1;
+    }
+
+    elem->cuda_address = malloc(sizeof(addr_data_pair_t));
+    readsz = fread(elem->cuda_address, sizeof(addr_data_pair_t), 1, fp);
+
+    if (readsz != 1) {
+        free(elem->cuda_address);
+        return -1;
+    }
+
+    addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+
+    switch (pair->reg_data.type) {
+        case MODULE_GET_FUNCTION:
+            {
+                rpc_cumodulegetfunction_1_argument *data = (rpc_cumodulegetfunction_1_argument *)malloc(sizeof(rpc_cumodulegetfunction_1_argument));
+                readsz = fread(data, sizeof(rpc_cumodulegetfunction_1_argument), 1, fp);
+
+                if (readsz != 1) {
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+
+                data->arg2 = (char *)malloc(STR_DUMP_SIZE);
+                readsz = fread(data->arg2, sizeof(char), STR_DUMP_SIZE, fp);
+                
+                if (readsz != STR_DUMP_SIZE) {
+                    free(data->arg2);
+                    free(data);
+                    free(pair);
+                    return -1;
+                }
+
+                pair->reg_data.data = data;
+                break;
+            }
+        default:
+            LOGE(LOG_ERROR, "Invalid function data type: %d", pair->reg_data.type);
+            return -1;
+    }
+    return 0;
 }

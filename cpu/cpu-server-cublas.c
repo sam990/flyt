@@ -16,6 +16,7 @@
 #define WITH_RECORDER
 #include "api-recorder.h"
 #include "cpu-server-cublas.h"
+#include "cpu-server-client-mgr.h"
 #include "gsched.h"
 
 
@@ -79,13 +80,21 @@ bool_t rpc_cublasdgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
     LOGE(LOG_DEBUG, "cublasDgemm(%p, %d, %d, %d, %d, %d, %d, %f, %p, %d, %p, %d, %f, %p, %d)",
         handle, transa, transb, m, n, k, lda, alpha, A, lda, B, ldb, beta, C, ldc);
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_B, B, *result);
+    GET_MEMORY(mem_ptr_C, C, *result);
+
     *result = cublasDgemm(resource_mg_get_or_null(&rm_cublas, (void*)handle),
                     (cublasOperation_t) transa,
                     (cublasOperation_t) transb,
                     m, n, k, &alpha,
-                    resource_mg_get_or_null(&rm_memory, (void*)A), lda,
-                    resource_mg_get_or_null(&rm_memory, (void*)B), ldb, &beta,
-                    resource_mg_get_or_null(&rm_memory, (void*)C), ldc
+                    mem_ptr_A, lda,
+                    mem_ptr_B, ldb, &beta,
+                    mem_ptr_C, ldc
     );
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -113,9 +122,15 @@ bool_t rpc_cublassetworkspace_1_svc(ptr handle, ptr workspace, size_t workspaceS
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
 #if CUBLAS_VERSION >= 11000
+
+    GET_CLIENT(*result);
+
+    void *mem_ptr_workspace;
+    GET_MEMORY(mem_ptr_workspace, workspace, *result);
+
     *result = cublasSetWorkspace(
         resource_mg_get_or_null(&rm_cublas, (void*)handle),
-        resource_mg_get_or_null(&rm_memory, (void*)workspace),
+        mem_ptr_workspace,
         workspaceSizeInBytes);
 #else
     LOGE(LOG_ERROR, "cublassetworkspace not supported in this version");
@@ -133,9 +148,15 @@ bool_t rpc_cublassetstream_1_svc(ptr handle, ptr streamId, int *result, struct s
     RECORD_NARG(streamId);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+
+    void *stream_ptr;
+    GET_STREAM(stream_ptr, streamId, *result);
+
     *result = cublasSetStream(
         resource_mg_get_or_null(&rm_cublas, (void*)handle),
-        resource_mg_get_or_null(&rm_streams, (void*)streamId));
+        (cudaStream_t)stream_ptr);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -180,13 +201,21 @@ bool_t rpc_cublassgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
     LOGE(LOG_DEBUG, "cublasSgemm");
     GSCHED_RETAIN;
 #if CUBLAS_VERSION >= 11000
+
+    GET_CLIENT(*result);
+    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_B, B, *result);
+    GET_MEMORY(mem_ptr_C, C, *result);
+
     *result = cublasSgemm(resource_mg_get_or_null(&rm_cublas, (void*)handle),
                     (cublasOperation_t) transa,
                     (cublasOperation_t) transb,
                     m, n, k, &alpha,
-                    resource_mg_get_or_null(&rm_memory, (void*)A), lda,
-                    resource_mg_get_or_null(&rm_memory, (void*)B), ldb, &beta,
-                    resource_mg_get_or_null(&rm_memory, (void*)C), ldc
+                    mem_ptr_A, lda,
+                    mem_ptr_B, ldb, &beta,
+                    mem_ptr_C, ldc
     );
 #else
     LOGE(LOG_ERROR, "cublassetworkspace not supported in this version");
@@ -219,12 +248,20 @@ bool_t rpc_cublassgemv_1_svc(ptr handle, int trans, int m,
     RECORD_ARG(12, incy);
     LOGE(LOG_DEBUG, "cublasSgemv");
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+    void *mem_ptr_A, *mem_ptr_x, *mem_ptr_y;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_x, x, *result);
+    GET_MEMORY(mem_ptr_y, y, *result);
+
     *result = cublasSgemv(resource_mg_get_or_null(&rm_cublas, (void*)handle),
                     (cublasOperation_t) trans,
                     m, n, &alpha,
-                    resource_mg_get_or_null(&rm_memory, (void*)A), lda,
-                    resource_mg_get_or_null(&rm_memory, (void*)x), incx, &beta,
-                    resource_mg_get_or_null(&rm_memory, (void*)y), incy
+                    mem_ptr_A, lda,
+                    mem_ptr_x, incx, &beta,
+                    mem_ptr_y, incy
     );
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -253,12 +290,20 @@ bool_t rpc_cublasdgemv_1_svc(ptr handle, int trans, int m,
     RECORD_ARG(12, incy);
     LOGE(LOG_DEBUG, "cublasDgemv");
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+    void *mem_ptr_A, *mem_ptr_x, *mem_ptr_y;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_x, x, *result);
+    GET_MEMORY(mem_ptr_y, y, *result);
+
     *result = cublasDgemv(resource_mg_get_or_null(&rm_cublas, (void*)handle),
                     (cublasOperation_t) trans,
                     m, n, &alpha,
-                    resource_mg_get_or_null(&rm_memory, (void*)A), lda,
-                    resource_mg_get_or_null(&rm_memory, (void*)x), incx, &beta,
-                    resource_mg_get_or_null(&rm_memory, (void*)y), incy
+                    mem_ptr_A, lda,
+                    mem_ptr_x, incx, &beta,
+                    mem_ptr_y, incy
     );
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -291,13 +336,21 @@ bool_t rpc_cublassgemmex_1_svc(ptr handle, int transa, int transb, int m, int n,
     RECORD_ARG(17, ldc);
     LOGE(LOG_DEBUG, "cublasSgemmEx");
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_B, B, *result);
+    GET_MEMORY(mem_ptr_C, C, *result);
+
     *result = cublasSgemmEx(resource_mg_get_or_null(&rm_cublas, (void*)handle),
                     (cublasOperation_t) transa,
                     (cublasOperation_t) transb,
                     m, n, k, &alpha,
-                    resource_mg_get_or_null(&rm_memory, (void*)A), (cudaDataType_t)Atype, lda,
-                    resource_mg_get_or_null(&rm_memory, (void*)B), (cudaDataType_t)Btype, ldb, &beta,
-                    resource_mg_get_or_null(&rm_memory, (void*)C), (cudaDataType_t)Ctype, ldc
+                    mem_ptr_A, (cudaDataType_t)Atype, lda,
+                    mem_ptr_B, (cudaDataType_t)Btype, ldb, &beta,
+                    mem_ptr_C, (cudaDataType_t)Ctype, ldc
     );
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -344,15 +397,23 @@ bool_t rpc_cublasgemmstridedbatchedex_1_svc(
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_B, B, *result);
+    GET_MEMORY(mem_ptr_C, C, *result);
+
     *result = cublasGemmStridedBatchedEx(
         (cublasHandle_t)resource_mg_get_or_null(&rm_cublas, (void*)handle),
         (cublasOperation_t) transa,
         (cublasOperation_t) transb,
         m, n, k, &alpha,
-        resource_mg_get_or_null(&rm_memory, (void*)A), (cudaDataType_t)Atype, lda, (long long int)strideA,
-        resource_mg_get_or_null(&rm_memory, (void*)B), (cudaDataType_t)Btype, ldb, (long long int)strideB,
+        mem_ptr_A, (cudaDataType_t)Atype, lda, (long long int)strideA,
+        mem_ptr_B, (cudaDataType_t)Btype, ldb, (long long int)strideB,
         &beta,
-        resource_mg_get_or_null(&rm_memory, (void*)C), (cudaDataType_t)Ctype, ldc, (long long int)strideC,
+        mem_ptr_C, (cudaDataType_t)Ctype, ldc, (long long int)strideC,
         batchCount,
         (cublasComputeType_t)computeType,
         (cublasGemmAlgo_t)algo
@@ -370,13 +431,22 @@ bool_t rpc_cublasgemmex_1_svc(ptr handle, int transa, int transb, int m, int n, 
 {
     LOGE(LOG_DEBUG, "cublasGemmEx");
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+
+    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_B, B, *result);
+    GET_MEMORY(mem_ptr_C, C, *result);
+
     *result = cublasGemmEx(resource_mg_get_or_null(&rm_cublas, (void*)handle),
                     (cublasOperation_t) transa,
                     (cublasOperation_t) transb,
                     m, n, k, &alpha,
-                    resource_mg_get_or_null(&rm_memory, (void*)A), (cudaDataType_t)Atype, lda,
-                    resource_mg_get_or_null(&rm_memory, (void*)B), (cudaDataType_t)Btype, ldb, &beta,
-                    resource_mg_get_or_null(&rm_memory, (void*)C), (cudaDataType_t)Ctype, ldc,
+                    mem_ptr_A, (cudaDataType_t)Atype, lda,
+                    mem_ptr_B, (cudaDataType_t)Btype, ldb, &beta,
+                    mem_ptr_C, (cudaDataType_t)Ctype, ldc,
         (cublasComputeType_t)computeType,
         (cublasGemmAlgo_t)algo
     );
@@ -407,15 +477,24 @@ bool_t rpc_cublasgemmstridedbatched_1_svc(
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
+
+    GET_CLIENT(*result);
+
+    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_B, B, *result);
+    GET_MEMORY(mem_ptr_C, C, *result);
+
     *result = cublasSgemmStridedBatched(
         (cublasHandle_t)resource_mg_get_or_null(&rm_cublas, (void*)handle),
         (cublasOperation_t) transa,
         (cublasOperation_t) transb,
         m, n, k, &alpha,
-        resource_mg_get_or_null(&rm_memory, (void*)A), lda, (long long int)strideA,
-        resource_mg_get_or_null(&rm_memory, (void*)B), ldb, (long long int)strideB,
+        mem_ptr_A, lda, (long long int)strideA,
+        mem_ptr_B, ldb, (long long int)strideB,
         &beta,
-        resource_mg_get_or_null(&rm_memory, (void*)C), ldc, (long long int)strideC,
+        mem_ptr_C, ldc, (long long int)strideC,
         batchCount
     );
     GSCHED_RELEASE;

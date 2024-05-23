@@ -24,17 +24,9 @@ typedef struct resource_mg_t {
 
 
 //Runtime API RMs
-resource_mg rm_streams;
 resource_mg rm_events;
 resource_mg rm_arrays;
-resource_mg rm_memory;
 resource_mg rm_kernels;
-
-//Driver API RMs
-resource_mg rm_modules;
-resource_mg rm_functions;
-resource_mg rm_globals;
-resource_mg rm_elfs;
 
 //Other RMs
 resource_mg rm_cusolver;
@@ -63,6 +55,7 @@ resource_mg rm_cudnn_backendds;
  * @return 0 on success
  **/
 int resource_mg_init(resource_mg *mg, int bypass);
+int resource_mg_init_capacity(resource_mg *mg, int bypass, size_t capacity);
 void resource_mg_free(resource_mg *mg);
 
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address);

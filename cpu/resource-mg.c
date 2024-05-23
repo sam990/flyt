@@ -21,6 +21,24 @@ int resource_mg_init(resource_mg *mg, int bypass)
     return ret;
 }
 
+int resource_mg_init_capacity(resource_mg *mg, int bypass, size_t capacity)
+{
+    int ret = 0;
+    if ((ret = list_init_capacity(&mg->new_res, sizeof(void*), capacity)) != 0) {
+        LOGE(LOG_ERROR, "error initializing new_res list");
+        goto out;
+    }
+    if (bypass == 0) {
+        if ((ret = list_init_capacity(&mg->map_res, sizeof(resource_mg_map_elem), capacity)) != 0) {
+            LOGE(LOG_ERROR, "error initializing map_res list");
+            goto out;
+        }
+    }
+    mg->bypass = bypass;
+ out:
+    return ret;
+}
+
 void resource_mg_free(resource_mg *mg)
 {
     list_free(&mg->new_res);

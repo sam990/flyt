@@ -17,6 +17,7 @@
 #include "api-recorder.h"
 #include "cpu-server-cublas.h"
 #include "gsched.h"
+#include "cpu-server-client-mgr.h"
 
 
 int cublaslt_init(int bypass, resource_mg *memory)
@@ -186,24 +187,35 @@ bool_t rpc_cublasltmatmul_1_svc(ptr lightHandle,
     LOGE(LOG_DEBUG, "cublasLtMatmul");
     GSCHED_RETAIN;
 
+    GET_CLIENT(*result);
+    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C, *mem_ptr_D, *mem_ptr_workspace, *stream_ptr;
+
+    GET_MEMORY(mem_ptr_A, A, *result);
+    GET_MEMORY(mem_ptr_B, B, *result);
+    GET_MEMORY(mem_ptr_C, C, *result);
+    GET_MEMORY(mem_ptr_D, D, *result);
+    GET_MEMORY(mem_ptr_workspace, workspace, *result);
+    
+    GET_STREAM(stream_ptr, stream, *result);
+
     *result = cublasLtMatmul(
         (cublasLtHandle_t)resource_mg_get_or_null(&rm_cublaslt, (void*)lightHandle),
         (cublasLtMatmulDesc_t)resource_mg_get_or_null(&rm_cublaslt, (void*)computeDesc),
         &alpha,
-        resource_mg_get_or_null(&rm_memory, (void*)A),
+        mem_ptr_A,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Adesc),
-        resource_mg_get_or_null(&rm_memory, (void*)B),
+        mem_ptr_B,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Bdesc),
         &beta,
-        resource_mg_get_or_null(&rm_memory, (void*)C),
+        mem_ptr_C,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Cdesc),
-        resource_mg_get_or_null(&rm_memory, (void*)D),
+        mem_ptr_D,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Ddesc),
         // (const cublasLtMatmulAlgo_t *)algo,
 	NULL,
-        resource_mg_get_or_null(&rm_memory, (void*)workspace),
+        mem_ptr_workspace,
         workspaceSizeInBytes,
-       (cudaStream_t)resource_mg_get_or_null(&rm_streams, (void*)stream)
+       (cudaStream_t)stream_ptr
     );
 
     GSCHED_RELEASE;
