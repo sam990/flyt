@@ -66,9 +66,6 @@ int change_sm_cores(uint32_t nm_sm_cores) {
         return -1;
     }
 
-    // delete resources on the current context
-    delete_context_resources();
-
     CUcontext newContext;
     CUresult res2;
 
@@ -85,7 +82,7 @@ int change_sm_cores(uint32_t nm_sm_cores) {
         return -1;
     }
     
-    int ret = server_driver_ctx_state_restore();
+    int ret = server_driver_ctx_state_restore(currentContext);
 
     if (ret != 0) {
         LOGE(LOG_DEBUG, "Unable to restore ctx state");
@@ -94,6 +91,7 @@ int change_sm_cores(uint32_t nm_sm_cores) {
 
     LOGE(LOG_INFO, "Changed SM cores to %u", nm_sm_cores);
 
+    
     cuCtxDestroy(currentContext);
     
     return 0;

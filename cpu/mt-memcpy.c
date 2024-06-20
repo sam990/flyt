@@ -9,6 +9,7 @@
 #include "mt-memcpy.h"
 #include "log.h"
 #include "resource-mg.h"
+#include "cpu-server-client-mgr.h"
 
 struct copy_thread_args {
     mt_memcpy_server_t *server;
@@ -20,6 +21,13 @@ struct copy_thread_args {
 static void* mt_memcpy_copy_thread(void* targs)
 {
     struct copy_thread_args* args = (struct copy_thread_args*)targs;
+
+    cricket_client *client = get_client(args->server->client_fd);
+
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "oob: failed to get client.");
+        return (void*)1;
+    }
 
     int iret;
     size_t ret = 1;
@@ -43,8 +51,15 @@ static void* mt_memcpy_copy_thread(void* targs)
             return (void*)ret;
         }
 
+        void *dev_ptr = resource_map_get_addr(client->gpu_mem, args->server->dev_ptr);
+        if (dev_ptr == NULL) {
+            LOGE(LOG_ERROR, "oob: failed to get device pointer.");
+            return (void*)ret;
+        }
+
+
         cudaError_t res = cudaMemcpy(
-          resource_mg_get_or_null(&rm_memory, args->server->dev_ptr)+mem_offset,
+          dev_ptr + mem_offset,
           args->server->mem_ptr+mem_offset,
           mem_this_thread,
           cudaMemcpyHostToDevice);
@@ -52,9 +67,16 @@ static void* mt_memcpy_copy_thread(void* targs)
             LOGE(LOG_ERROR, "oob: failed to copy memory: %s", cudaGetErrorString(res));
         }
     } else if (args->server->dir == MT_MEMCPY_DTOH) {
+
+        void *dev_ptr = resource_map_get_addr(client->gpu_mem, args->server->dev_ptr);
+        if (dev_ptr == NULL) {
+            LOGE(LOG_ERROR, "oob: failed to get device pointer.");
+            return (void*)ret;
+        }
+
         cudaError_t res = cudaMemcpy(
             args->server->mem_ptr+mem_offset,
-            resource_mg_get_or_null(&rm_memory, args->server->dev_ptr)+mem_offset,
+            dev_ptr+mem_offset,
             mem_this_thread,
             cudaMemcpyDeviceToHost);
         if (res != cudaSuccess) {
@@ -134,7 +156,7 @@ static void* mt_memcpy_listener_thread(void* targs)
     return (void*)ret;
 }
 
-int mt_memcpy_init_server(mt_memcpy_server_t *server, void* dev_ptr, size_t size, enum mt_memcpy_direction dir, int thread_num)
+int mt_memcpy_init_server(mt_memcpy_server_t *server, void* dev_ptr, size_t size, enum mt_memcpy_direction dir, int thread_num, int client_fd)
 {
     cudaError_t cudaRes;
     int ret = 1;
@@ -146,6 +168,7 @@ int mt_memcpy_init_server(mt_memcpy_server_t *server, void* dev_ptr, size_t size
     server->mem_size = size;
     server->dir = dir;
     server->thread_num = thread_num;
+    server->client_fd = client_fd;
     if (pthread_barrier_init(&server->barrier, NULL, 2) != 0) {
         LOGE(LOG_ERROR, "oob: failed to initialize barrier.");
         return ret;

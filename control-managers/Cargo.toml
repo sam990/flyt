@@ -34,5 +34,9 @@ path = "src/servernode-daemon/main.rs"
 name = "flytctl"
 path = "src/cluster-manager/cli_frontend.rs"
 
+[[bin]]
+name = "flytctlnet"
+path = "src/cluster-manager/tcp_frontend.rs"
+
 [build-dependencies]
 cc = "1.0.94"

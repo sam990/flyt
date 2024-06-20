@@ -1,5 +1,5 @@
 
-CMGR_BINARIES = flyt-client-manager flyt-node-manager flyt-cluster-manager flytctl
+CMGR_BINARIES = flyt-client-manager flyt-node-manager flyt-cluster-manager flytctl flytctlnet
 
 .PHONY: all cargo-build install clean
 

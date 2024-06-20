@@ -2179,3 +2179,44 @@ cudaError_t cudaProfilerStop(void)
     }
     return result;
 }
+
+
+cudaError_t cudaMallocAsync ( void** devPtr, size_t size, cudaStream_t hStream ) {
+    LOGE(LOG_ERROR, "cudaMallocAsync Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaFreeAsync ( void* devPtr, cudaStream_t hStream ) {
+    LOGE(LOG_ERROR, "cudaFreeAsync Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolTrimTo ( cudaMemPool_t memPool, size_t minBytesToKeep ) {
+    LOGE(LOG_ERROR, "cudaMemPoolTrimTo Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolGetAttribute ( cudaMemPool_t memPool, enum cudaMemPoolAttr attr, void* value ) {
+    LOGE(LOG_ERROR, "cudaMemPoolGetAttribute Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolSetAttribute ( cudaMemPool_t memPool, enum cudaMemPoolAttr attr, void* value ) {
+    LOGE(LOG_ERROR, "cudaMemPoolSetAttribute Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaDeviceGetDefaultMemPool ( cudaMemPool_t* memPool, int  device ) {
+    LOGE(LOG_ERROR, "cudaDeviceGetDefaultMemPool Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolSetAccess ( cudaMemPool_t memPool, const struct cudaMemAccessDesc* descList, size_t count ) {
+    LOGE(LOG_ERROR, "cudaMemPoolSetAccess Not implemented");
+    return cudaErrorUnknown;
+}
+
+DEF_FN(CUresult, __cudaInitModule, long, ptr)
+DEF_FN(CUresult, __cudaPopCallConfiguration, long, arg1, long, arg2, long, arg3, long, arg4)
+DEF_FN(CUresult, __cudaPushCallConfiguration, long, arg1, int, arg2, long, arg3, int, arg4, long, arg5, long, arg6)
+DEF_FN(CUresult, __cudaRegisterFatBinaryEnd, long, arg1)

@@ -60,10 +60,11 @@ void* resource_map_get_addr_default(resource_map* map, void *addr, void* default
 }
 
 int resource_map_update_addr_idx(resource_map* map, uint64_t idx, void* new_addr) {
-    if (idx >= map->tail_idx || map->list[idx].present == 0) {
+    if (!resource_map_contains(map, resource_map_addr_from_index(idx))) {
         return -1;
     }
     map->list[idx].mapped_addr = new_addr;
+    return 0;
 }
 
 uint8_t resource_map_contains(resource_map* map, void* addr) {

@@ -219,6 +219,32 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     }
 
+    fn get_free_gpu(&self, required_resources: &VMResources) -> Option<(String, u64)> {
+        let host_server_node = self.get_server_node(&required_resources.host_ip);
+        
+        if host_server_node.is_some() {
+            let host_server_node = host_server_node.unwrap();
+            let gpu_id = check_resource_availability(&host_server_node, required_resources);
+            if gpu_id.is_some() {
+                return Some((host_server_node.ipaddr.clone(), gpu_id.unwrap()));
+            }
+        }
+
+        // If not, then checking all other servers
+
+        let server_nodes = self.get_all_server_nodes();
+        
+        for server_node in server_nodes {
+            let gpu_id = check_resource_availability(&server_node, required_resources);
+            if gpu_id.is_some() {
+                return Some((server_node.ipaddr.clone(), gpu_id.unwrap()));
+            }
+        }
+
+        None
+    
+    }
+
     pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<Arc<RwLock<VirtServer>>,String> {
         let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
         
@@ -232,41 +258,16 @@ impl<'a> ServerNodesManager<'a> {
 
         let vm_required_resources = vm_required_resources.unwrap();
 
-        // First checking if the server on which client is running has enough resources
-        let host_server_node = self.get_server_node(&vm_required_resources.host_ip);
-        let mut target_server_ip : Option<String> = None;
-        let mut target_gpu_id : Option<u64> = None;
+        let target_gpu = self.get_free_gpu(&vm_required_resources);
+
+        if target_gpu.is_none() {
+            log::error!("No free GPU found for client: {}", client_ip);
+            return Err("No free GPU found".to_string());
+        }
+
+        let (target_server_ip, target_gpu_id) = target_gpu.unwrap();
         
-        if host_server_node.is_some() {
-            let host_server_node = host_server_node.unwrap();
-            let gpu_id = check_resource_availability(&host_server_node, &vm_required_resources);
-            if gpu_id.is_some() {
-                target_server_ip = Some(host_server_node.ipaddr);
-                target_gpu_id = gpu_id;
-            }
-        }
-
-        // If not, then checking all other servers
-        if target_server_ip.is_none() {
-            let server_nodes = self.get_all_server_nodes();
-            for server_node in server_nodes {
-                let gpu_id = check_resource_availability(&server_node, &vm_required_resources);
-                if gpu_id.is_some() {
-                    target_server_ip = Some(server_node.ipaddr);
-                    target_gpu_id = gpu_id;
-                    break;
-                }
-            }
-        }
-
-        if target_server_ip.is_none() {
-            log::error!("No server found with enough resources for client: {}", client_ip);
-            return Err("No server found with enough resources".to_string());
-        }
-
-        let target_server_ip = target_server_ip.unwrap();
-
-        let virt_server = self.create_virt_server(&target_server_ip, target_gpu_id.unwrap(), vm_required_resources.compute_units, vm_required_resources.memory, false);
+        let virt_server = self.create_virt_server(&target_server_ip, target_gpu_id, vm_required_resources.compute_units, vm_required_resources.memory, false);
 
         if virt_server.is_err() {
             log::error!("Error creating virt server for client: {}", client_ip);
@@ -546,6 +547,32 @@ impl<'a> ServerNodesManager<'a> {
 
         Ok(vserver)
     
+    }
+
+    pub fn migrate_virt_server_auto(&self, client_mgr: &FlytClientManager, client_ip: &String, new_sm_cores: u32, new_mem: u64) -> Result<Arc<RwLock<VirtServer>>,String> {
+        let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
+        
+        if vm_required_resources.is_none() {
+            log::error!("VM resources not found for client: {}", client_ip);
+            return Err("VM resources not found".to_string());
+        }
+
+        let mut vm_required_resources = vm_required_resources.unwrap();
+        
+        vm_required_resources.compute_units = new_sm_cores;
+        vm_required_resources.memory = new_mem;
+
+        let target_gpu = self.get_free_gpu(&vm_required_resources);
+
+        if target_gpu.is_none() {
+            log::error!("No free GPU found for client: {}", client_ip);
+            return Err("No free GPU found".to_string());
+        }
+
+        let (target_server_ip, target_gpu_id) = target_gpu.unwrap();
+
+        self.migrate_virt_server(client_mgr, client_ip, &target_server_ip, target_gpu_id, new_sm_cores, new_mem)
+        
     }
 
     pub fn free_virt_server(&self, virt_ip: &String, rpc_id: u64) -> Result<(),String> {

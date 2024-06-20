@@ -4,6 +4,7 @@ SERVER_LIB = cricket-server.so
 #RPC client library
 CLIENT = cricket-client.so
 CLIENT_TARGET_LIB = libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS)
+CLIENT_STATIC = cricket-client-static.a
 
 CUDA_SRC = /usr/local/cuda
 LIBTIRPC_PREFIX = ../submodules/libtirpc/install
@@ -128,6 +129,9 @@ CLIENT_LD_FLAGS = -Wl,-soname,$(CLIENT_TARGET_LIB) $(LD_FLAGS) -lrt
 .PHONY: all clean
 
 all : $(SERVER) $(CLIENT)
+
+$(CLIENT_STATIC): $(OBJ_CLIENT)
+	ar rcs $@ $^
 
 $(CLIENT) : $(OBJ_CLIENT)
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)

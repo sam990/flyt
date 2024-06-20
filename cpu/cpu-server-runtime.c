@@ -399,20 +399,28 @@ bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
     return 1;
 }
 
+/**
+ * Always returns device id 0
+ */
 bool_t cuda_get_device_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetDevice");
-    result->err = cudaGetDevice(&result->int_result_u.data);
+    result->int_result_u.data = 0;
+    result->err = cudaSuccess;
     GSCHED_RELEASE;
     return 1;
 }
 
+/**
+ * Always return device count 1
+ */
 bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetDeviceCount");
-    result->err = cudaGetDeviceCount(&result->int_result_u.data);
+    result->int_result_u.data = 1;
+    result->err = cudaSuccess;
     GSCHED_RELEASE;
     return 1;
 }
@@ -446,13 +454,16 @@ bool_t cuda_get_device_properties_1_svc(int device, cuda_device_prop_result *res
 //        /*ptr_result CUDA_IPC_OPEN_EVENT_HANDLE(ptr)                    = 124;*/
 //        /*ptr_result CUDA_IPC_OPEN_MEM_HANDLE(ptr, int)                 = 125;*/
 
+/**
+ * This call should be ignored
+ */
 bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(device);
     LOGE(LOG_DEBUG, "cudaSetDevice(%d)", device);
-    *result = cudaSetDevice(device);
+    *result = cudaSuccess;
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -591,24 +602,10 @@ bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct s
     void *src_ptr;
     void *dst_ptr;
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(*result)
 
-    if (!resource_map_contains(client->custom_streams, (void*)dst) ||
-        !resource_map_contains(client->custom_streams, (void*)src)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    src_ptr = resource_map_get_addr(client->custom_streams, (void*)src);
-    dst_ptr = resource_map_get_addr(client->custom_streams, (void*)dst);
+    GET_STREAM(src_ptr, src, *result)
+    GET_STREAM(dst_ptr, dst, *result)
 
     *result = cudaStreamCopyAttributes((cudaStream_t)dst_ptr, (cudaStream_t)src_ptr);
 
@@ -628,28 +625,25 @@ bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaStreamCreate");
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
-
-    if (client == NULL || args == NULL) {
-        LOGE(LOG_ERROR, "error getting client/allocating memory");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(result->err)
 
     cudaStream_t newStream;
 
     result->err = cudaStreamCreate(&newStream);
     
     if (result->err == cudaSuccess) {
+        stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
         args->type = STREAM_CREATE_TYPE_DEFAULT;
+
+        LOGE(LOG_DEBUG, "stream %p created", newStream);
 
         if (resource_map_add(client->custom_streams, (void*)newStream, args, (void**)&result->ptr_result_u.ptr) != 0) {
             LOGE(LOG_ERROR, "error adding stream to resource manager");
             result->err = cudaErrorInvalidValue;
             cudaStreamDestroy(newStream);
         }
+
+        server_driver_reload_modules_data(client);
     }
 
 
@@ -665,29 +659,29 @@ bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct
     RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "cudaStreamCreateWithFlags");
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
-
-    if (client == NULL || args == NULL) {
-        LOGE(LOG_ERROR, "error getting client/allocating memory");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(result->err)
 
     cudaStream_t newStream;
 
     result->err = cudaStreamCreateWithFlags(&newStream, flags);
     
     if (result->err == cudaSuccess) {
+
+        stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
+
         args->type = STREAM_CREATE_TYPE_FLAGS;
         args->flags = flags;
 
+        LOGE(LOG_DEBUG, "stream %p created with flags %d", newStream, flags);
+
         if (resource_map_add(client->custom_streams, (void*)newStream, args, (void**)&result->ptr_result_u.ptr) != 0) {
             LOGE(LOG_ERROR, "error adding stream to resource manager");
+            free(args);
             result->err = cudaErrorInvalidValue;
             cudaStreamDestroy(newStream);
         }
+
+        server_driver_reload_modules_data(client);
     }
 
     RECORD_RESULT(ptr_result_u, *result);
@@ -704,30 +698,28 @@ bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_resul
 
     LOGE(LOG_DEBUG, "cudaStreamCreateWithPriority");
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-    stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
-
-    if (client == NULL || args == NULL) {
-        LOGE(LOG_ERROR, "error getting client/allocating memory");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(result->err)
 
     cudaStream_t newStream;
 
     result->err = cudaStreamCreateWithPriority(&newStream, flags, priority);
 
     if (result->err == cudaSuccess) {
+        stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
         args->type = STREAM_CREATE_TYPE_PRIORITY;
         args->flags = flags;
         args->priority = priority;
 
+        LOGE(LOG_DEBUG, "stream %p created with flags %d and priority %d", newStream, flags, priority);
+
         if (resource_map_add(client->custom_streams, (void*)newStream, args, (void**)&result->ptr_result_u.ptr) != 0) {
             LOGE(LOG_ERROR, "error adding stream to resource manager");
             result->err = cudaErrorInvalidValue;
+            free(args);
             cudaStreamDestroy(newStream);
         }
+
+        server_driver_reload_modules_data(client);
     }
     
     RECORD_RESULT(ptr_result_u, *result);
@@ -742,23 +734,10 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
     RECORD_SINGLE_ARG(stream);
     LOGE(LOG_DEBUG, "cudaStreamDestroy");
     cudaStream_t stream_ptr;
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    
+    GET_CLIENT(*result)
 
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    if (!resource_map_contains(client->custom_streams, (void*)stream)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
+    GET_STREAM(stream_ptr, stream, *result)
 
     *result = cudaStreamDestroy(stream_ptr);
     if (*result == cudaSuccess) {
@@ -782,23 +761,11 @@ bool_t cuda_stream_get_flags_1_svc(ptr hStream, int_result *result, struct svc_r
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaStreamGetFlags");
     cudaStream_t stream_ptr;
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
 
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_CLIENT(result->err)
 
-    if (!resource_map_contains(client->custom_streams, (void*)hStream)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+    GET_STREAM(stream_ptr, hStream, result->err)
 
-    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)hStream);
     result->err = cudaStreamGetFlags(stream_ptr,
                                      (unsigned*)&result->int_result_u.data);
     GSCHED_RELEASE;
@@ -811,23 +778,9 @@ bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct sv
     LOGE(LOG_DEBUG, "cudaStreamGetPriority");
 
     cudaStream_t stream_ptr;
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    if (!resource_map_contains(client->custom_streams, (void*)hStream)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)hStream);
+    
+    GET_CLIENT(result->err)
+    GET_STREAM(stream_ptr, hStream, result->err)
 
     result->err = cudaStreamGetPriority(
        stream_ptr,
@@ -841,23 +794,10 @@ bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaStreamIsCapturing");
     cudaStream_t stream_ptr;
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    
+    GET_CLIENT(result->err)
+    GET_STREAM(stream_ptr, stream, result->err)
 
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    if (!resource_map_contains(client->custom_streams, (void*)stream)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        result->err = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
     result->err = cudaStreamIsCapturing(
       stream_ptr,
       (enum cudaStreamCaptureStatus*)&result->int_result_u.data);
@@ -870,23 +810,10 @@ bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaStreamQuery");
     cudaStream_t stream_ptr;
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    
+    GET_CLIENT(*result)
+    GET_STREAM(stream_ptr, hStream, *result)
 
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    if (!resource_map_contains(client->custom_streams, (void*)hStream)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)hStream);
     *result = cudaStreamQuery(stream_ptr);
     GSCHED_RELEASE;
     return 1;
@@ -903,23 +830,9 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rq
     LOGE(LOG_DEBUG, "cudaStreamSynchronize");
 
     cudaStream_t stream_ptr;
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
-
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    if (!resource_map_contains(client->custom_streams, (void*)stream)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-
-    }
-    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
+    
+    GET_CLIENT(*result)
+    GET_STREAM(stream_ptr, stream, *result)
 
 
     *result = cudaStreamSynchronize(stream_ptr);
@@ -938,23 +851,10 @@ bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, int *resul
     LOGE(LOG_DEBUG, "cudaStreamWaitEvent");
 
     cudaStream_t stream_ptr;
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    
+    GET_CLIENT(*result)
+    GET_STREAM(stream_ptr, stream, *result)
 
-    if (client == NULL) {
-        LOGE(LOG_ERROR, "error getting client");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
-
-    if (!resource_map_contains(client->custom_streams, (void*)stream)) {
-        LOGE(LOG_ERROR, "stream not found in custom streams");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-
-    }
-    stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream);
 
     cudaEvent_t event_ptr;
     if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
@@ -1338,8 +1238,8 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     
     cudaStream_t target_stream;
     GET_STREAM(target_stream, stream, *result)
-
-    LOGE(LOG_DEBUG, "target_stream: %p", target_stream);
+    // cudaStreamCreateWithFlags(&target_stream, cudaStreamNonBlocking);
+    // target_stream = (cudaStream_t)client->default_stream;
 
     *result = cuLaunchKernel((CUfunction)func_ptr->addr,
                             gridDim.x, gridDim.y, gridDim.z,
@@ -2096,7 +1996,7 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, din
         GSCHED_RELEASE;
         return 1;
     }
-    if (mt_memcpy_init_server(server, (void*)dest, size, MT_MEMCPY_HTOD, thread_num) != 0) {
+    if (mt_memcpy_init_server(server, (void*)dest, size, MT_MEMCPY_HTOD, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
         GSCHED_RELEASE;
@@ -2127,7 +2027,7 @@ bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint
         GSCHED_RELEASE;
         return 1;
     }
-    if (mt_memcpy_init_server(server, (void*)src, size, MT_MEMCPY_DTOH, thread_num) != 0) {
+    if (mt_memcpy_init_server(server, (void*)src, size, MT_MEMCPY_DTOH, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
         GSCHED_RELEASE;
