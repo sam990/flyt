@@ -124,7 +124,10 @@ impl VMResourcesGetter {
         // let mut lock = self.mongo_client.try_lock().ok()?;
         let collection = self.mongo_collection.as_ref()?;
         let filter = doc! { "vm_ip": vm_ip };
-        collection.find_one(filter, None).ok()?
+        collection.find_one(filter, None).ok()?.and_then(|mut rsc| {
+            rsc.memory = rsc.memory * 1024 * 1024;
+            Some(rsc)
+        })
     }
 
 

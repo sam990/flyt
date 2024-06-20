@@ -121,10 +121,10 @@ int cricket_server_checkpoint(int dump_memory)
         goto error;
     }
     
-    if ((ret = server_runtime_checkpoint(ckp_path, dump_memory, prog, vers)) != 0) {
-        LOGE(LOG_ERROR, "server_runtime_checkpoint returned %d", ret);
-        goto error;
-    }
+    // if ((ret = server_runtime_checkpoint(ckp_path, dump_memory, prog, vers)) != 0) {
+    //     LOGE(LOG_ERROR, "server_runtime_checkpoint returned %d", ret);
+    //     goto error;
+    // }
 
     LOG(LOG_INFO, "checkpoint successfully created.");
     return 0;
@@ -349,10 +349,10 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
 #endif // WITH_IB
 
 
-    if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
-        LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
-        goto cleanup00;
-    }
+    // if (signal(SIGUSR1, signal_checkpoint) == SIG_ERR) {
+    //     LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
+    //     goto cleanup00;
+    // }
 
 
     init_listener(vers);

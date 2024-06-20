@@ -22,10 +22,6 @@
 //DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
 //DEF_FN(CUresult, cuProfilerStart)
 //DEF_FN(CUresult, cuProfilerStop)
-DEF_FN(CUresult, __cudaInitModule, long, ptr)
-DEF_FN(CUresult, __cudaPopCallConfiguration, long, arg1, long, arg2, long, arg3, long, arg4)
-DEF_FN(CUresult, __cudaPushCallConfiguration, long, arg1, int, arg2, long, arg3, int, arg4, long, arg5, long, arg6)
-DEF_FN(CUresult, __cudaRegisterFatBinaryEnd, long, arg1)
 DEF_FN(CUresult, cuVDPAUGetDevice, CUdevice*, pDevice, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
 #undef cuVDPAUCtxCreate
 DEF_FN(CUresult, cuVDPAUCtxCreate, CUcontext*, pCtx, unsigned int, flags, CUdevice, device, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
@@ -894,9 +890,43 @@ DEF_FN(CUresult, cuStreamGetCaptureInfo_ptsz, CUstream, hStream, CUstreamCapture
 #undef cuGraphExecKernelNodeSetParams
 DEF_FN(CUresult, cuGraphExecKernelNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_KERNEL_NODE_PARAMS*, nodeParams)
 
+// #if CUDA_VERSION >= 12000
+// #undef cuGetProcAddress
+CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags, CUdriverProcAddressQueryResult* symbolStatus) 
+{
+	enum clnt_stat retval;
+    ptr_result result;
+    LOGE(LOG_DEBUG, "%s(%s, %d, %llx)", __FUNCTION__, symbol, cudaVersion, flags);
+
+    if (strcmp("cuGetProcAddress", symbol) == 0 && cudaVersion >= 12000) {
+        *pfn = elf2_symbol_address("cuGetProcAddress_v2");
+        if (symbolStatus != NULL) {
+            *symbolStatus = CU_GET_PROC_ADDRESS_SUCCESS;
+        }
+        return CUDA_SUCCESS;
+    }
+
+    *pfn = elf2_symbol_address(symbol);
+    if (*pfn == NULL) {
+        LOGE(LOG_WARNING, "symbol %s not found.", symbol);
+        if (symbolStatus != NULL) {
+            *symbolStatus = CU_GET_PROC_ADDRESS_SYMBOL_NOT_FOUND;
+        }
+        return CUDA_SUCCESS;
+    }
+    // Pytorch uses the 11.3 API of this function which does not have the symbolStatus parameter
+    // Because we do not support API versioning yet and to avoid segfaults, we ignore this parameter for now.
+    //*symbolStatus = CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT;
+    if (symbolStatus != NULL) {
+        *symbolStatus = CU_GET_PROC_ADDRESS_SUCCESS;
+    }
+    return CUDA_SUCCESS;
+}
+// #endif
+
 #if CUDA_VERSION >= 12000
 #undef cuGetProcAddress
-CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags, CUdriverProcAddressQueryResult* symbolStatus) 
+CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags) 
 {
 	enum clnt_stat retval;
     ptr_result result;
@@ -910,8 +940,125 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
     // Pytorch uses the 11.3 API of this function which does not have the symbolStatus parameter
     // Because we do not support API versioning yet and to avoid segfaults, we ignore this parameter for now.
     //*symbolStatus = CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT;
-    return cudaSuccess;
+    return CUDA_SUCCESS;
 }
 #endif
 
-
+DEF_FN(CUresult, cuDeviceGetTexture1DLinearMaxWidth, size_t*, maxWidthInElements, CUarray_format, format, unsigned, numChannels, CUdevice, dev)
+DEF_FN(CUresult, cuDeviceGetDefaultMemPool, CUmemoryPool*, pool_out, CUdevice, dev)
+DEF_FN(CUresult, cuDeviceSetMemPool, CUdevice, dev, CUmemoryPool, pool)
+DEF_FN(CUresult, cuDeviceGetMemPool, CUmemoryPool*, pool, CUdevice, dev)
+DEF_FN(CUresult, cuFlushGPUDirectRDMAWrites, CUflushGPUDirectRDMAWritesTarget, target, CUflushGPUDirectRDMAWritesScope, scope)
+DEF_FN(CUresult, cuCtxGetApiVersion, CUcontext, ctx, unsigned int*, version)
+DEF_FN(CUresult, cuCtxResetPersistingL2Cache)
+#undef cuCtxPopCurrent
+DEF_FN(CUresult, cuCtxPopCurrent, CUcontext*, pctx)
+#undef cuCtxPushCurrent
+DEF_FN(CUresult, cuCtxPushCurrent, CUcontext, ctx)
+// DEF_FN(CUresult, cuModuleGetLoadingMode, CUmoduleLoadingMode*, mode)
+CUresult cuModuleGetLoadingMode(CUmoduleLoadingMode* mode)
+{
+    *mode = CU_MODULE_LAZY_LOADING;
+    return CUDA_SUCCESS;
+}
+DEF_FN(CUresult, cuLibraryLoadData, CUlibrary*, library, const void*, code, CUjit_option*, jitOptions, void**, jitOptionsValues, unsigned int, numJitOptions, CUlibraryOption*, libraryOptions, void**, libraryOptionValues, unsigned int, numLibraryOptions)
+DEF_FN(CUresult, cuLibraryLoadFromFile, CUlibrary*, library, const char*, fileName, CUjit_option*, jitOptions, void**, jitOptionsValues, unsigned int, numJitOptions, CUlibraryOption*, libraryOptions, void**, libraryOptionValues, unsigned int, numLibraryOptions)
+DEF_FN(CUresult, cuLibraryUnload, CUlibrary, library)
+DEF_FN(CUresult, cuLibraryGetKernel, CUkernel*, pKernel, CUlibrary, library, const char*, name)
+DEF_FN(CUresult, cuLibraryGetModule, CUmodule*, pMod, CUlibrary, library)
+DEF_FN(CUresult, cuLibraryGetGlobal, CUdeviceptr*, dptr, size_t*, bytes, CUlibrary, library, const char*, name)
+DEF_FN(CUresult, cuKernelGetFunction, CUfunction*, pFunc, CUkernel, kernel)
+DEF_FN(CUresult, cuLibraryGetTexRef, CUtexref*, pTexRef, CUlibrary, library, const char*, name)
+DEF_FN(CUresult, cuLibraryGetManaged, CUdeviceptr*, dptr, size_t*, bytes, CUlibrary, library, const char*, name)
+DEF_FN(CUresult, cuKernelGetAttribute, int*, pi, CUfunction_attribute, attrib, CUkernel, kernel, CUdevice, dev)
+DEF_FN(CUresult, cuKernelSetAttribute, CUfunction_attribute, attrib, int, val, CUkernel, kernel, CUdevice, dev)
+DEF_FN(CUresult, cuKernelSetCacheConfig, CUkernel, kernel, CUfunc_cache, config, CUdevice, dev)
+DEF_FN(CUresult, cuKernelGetName, const char**, name, CUkernel, hfunc)
+DEF_FN(CUresult, cuMemAllocAsync, CUdeviceptr*, dptr, size_t, bytesize, CUstream, stream)
+DEF_FN(CUresult, cuMemAllocFromPoolAsync, CUdeviceptr*, dptr, size_t, bytesize, CUmemoryPool, pool, CUstream, stream)
+DEF_FN(CUresult, cuMemFreeAsync, CUdeviceptr, dptr, CUstream, stream)
+DEF_FN(CUresult, cuMemPoolTrimTo, CUmemoryPool, pool, size_t, size)
+DEF_FN(CUresult, cuMemPoolSetAttribute, CUmemoryPool, pool, CUmemPool_attribute, attr, void*, value)
+DEF_FN(CUresult, cuMemPoolGetAttribute, CUmemoryPool, pool, CUmemPool_attribute, attr, void*, value)
+DEF_FN(CUresult, cuMemPoolSetAccess, CUmemoryPool, pool,  const CUmemAccessDesc*, map, size_t, count)
+DEF_FN(CUresult, cuMemPoolGetAccess, CUmemAccess_flags*, flags, CUmemoryPool, memPool, CUmemLocation*, location)
+DEF_FN(CUresult, cuMemPoolCreate, CUmemoryPool*, pool, const CUmemPoolProps*, poolProps)
+DEF_FN(CUresult, cuMemPoolDestroy, CUmemoryPool, pool)
+DEF_FN(CUresult, cuMemPoolExportToShareableHandle, void*, handle_out, CUmemoryPool, pool, CUmemAllocationHandleType, handleType, unsigned long long, flags)
+DEF_FN(CUresult, cuMemPoolImportFromShareableHandle, CUmemoryPool*, pool_out, void*, handle, CUmemAllocationHandleType, handleType, unsigned long long, flags)
+DEF_FN(CUresult, cuMemPoolExportPointer, CUmemPoolPtrExportData*, shareData_out, CUdeviceptr, ptr)
+DEF_FN(CUresult, cuMemPoolImportPointer, CUdeviceptr*, ptr_out, CUmemoryPool, pool, CUmemPoolPtrExportData*, shareData)
+DEF_FN(CUresult, cuArrayGetSparseProperties, CUDA_ARRAY_SPARSE_PROPERTIES*, sparseProperties, CUarray, array)
+DEF_FN(CUresult, cuArrayGetPlane, CUarray*, pPlaneArray, CUarray, hArray, unsigned int, planeIdx)
+DEF_FN(CUresult, cuMipmappedArrayGetSparseProperties, CUDA_ARRAY_SPARSE_PROPERTIES*, sparseProperties, CUmipmappedArray, mipmap)
+DEF_FN(CUresult, cuArrayGetMemoryRequirements, CUDA_ARRAY_MEMORY_REQUIREMENTS*, memoryRequirements, CUarray, array, CUdevice, device)
+DEF_FN(CUresult, cuMipmappedArrayGetMemoryRequirements, CUDA_ARRAY_MEMORY_REQUIREMENTS*, memoryRequirements, CUmipmappedArray, mipmap, CUdevice, device)
+DEF_FN(CUresult, cuDeviceGetNvSciSyncAttributes, void*, nvSciSyncAttrList, CUdevice, dev, int, flags)
+DEF_FN(CUresult, cuLaunchKernelEx, const CUlaunchConfig*, config, CUfunction, f, void**, kernelParams, void**, extra)
+DEF_FN(CUresult, cuEventRecordWithFlags, CUevent, hEvent, CUstream, hStream, unsigned int, flags)
+DEF_FN(CUresult, cuStreamGetId, CUstream, hStream, unsigned long long*, streamId)
+DEF_FN(CUresult, cuStreamCopyAttributes, CUstream, dst, CUstream, src)
+DEF_FN(CUresult, cuStreamGetAttribute, CUstream, hStream, CUstreamAttrID, attr, CUstreamAttrValue*, value_out)
+DEF_FN(CUresult, cuStreamSetAttribute, CUstream, hStream, CUstreamAttrID, attr, const CUstreamAttrValue*, value)
+// DEF_FN(CUresult, cuGetExportTable, const void **, ppExportTable, const CUuuid*, pExportTableId)
+CUresult cuGetExportTable(const void** ppExportTable, const CUuuid* pExportTableId)
+{
+   *ppExportTable = NULL;
+   return CUDA_SUCCESS;
+}
+DEF_FN(CUresult, cuOccupancyAvailableDynamicSMemPerBlock, size_t*, dynamicSmemSize, CUfunction, func, int, numBlocks, int, blockSize)
+DEF_FN(CUresult, cuOccupancyMaxPotentialClusterSize, int*, clusterSize, CUfunction, func, const CUlaunchConfig*, config)
+DEF_FN(CUresult, cuOccupancyMaxActiveClusters, int*, numClusters, CUfunction, func, const CUlaunchConfig*, config)
+DEF_FN(CUresult, cuGraphAddEventRecordNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, CUevent, event)
+DEF_FN(CUresult, cuGraphEventRecordNodeGetEvent, CUgraphNode, hNode, CUevent*, event_out)
+DEF_FN(CUresult, cuGraphEventRecordNodeSetEvent, CUgraphNode, hNode, CUevent, event)
+DEF_FN(CUresult, cuGraphAddEventWaitNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, CUevent, event)
+DEF_FN(CUresult, cuGraphEventWaitNodeGetEvent, CUgraphNode, hNode, CUevent*, event_out)
+DEF_FN(CUresult, cuGraphEventWaitNodeSetEvent, CUgraphNode, hNode, CUevent, event)
+DEF_FN(CUresult, cuGraphAddExternalSemaphoresSignalNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, const CUDA_EXT_SEM_SIGNAL_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphExternalSemaphoresSignalNodeGetParams, CUgraphNode, hNode, CUDA_EXT_SEM_SIGNAL_NODE_PARAMS*, params_out)
+DEF_FN(CUresult, cuGraphExternalSemaphoresSignalNodeSetParams, CUgraphNode, hNode, const CUDA_EXT_SEM_SIGNAL_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphAddExternalSemaphoresWaitNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, const CUDA_EXT_SEM_WAIT_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphExternalSemaphoresWaitNodeGetParams, CUgraphNode, hNode, CUDA_EXT_SEM_WAIT_NODE_PARAMS*, params_out)
+DEF_FN(CUresult, cuGraphExternalSemaphoresWaitNodeSetParams, CUgraphNode, hNode, const CUDA_EXT_SEM_WAIT_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphExecExternalSemaphoresSignalNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_EXT_SEM_SIGNAL_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphExecExternalSemaphoresWaitNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_EXT_SEM_WAIT_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphAddMemAllocNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, CUDA_MEM_ALLOC_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphMemAllocNodeGetParams, CUgraphNode, hNode, CUDA_MEM_ALLOC_NODE_PARAMS*, params_out)
+DEF_FN(CUresult, cuGraphAddMemFreeNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, CUdeviceptr, dptr)
+DEF_FN(CUresult, cuGraphMemFreeNodeGetParams, CUgraphNode, hNode, CUdeviceptr*, dptr_out)
+DEF_FN(CUresult, cuDeviceGraphMemTrim, CUdevice, device)
+DEF_FN(CUresult, cuDeviceGetGraphMemAttribute, CUdevice, device, CUgraphMem_attribute, attr, void*, value)
+DEF_FN(CUresult, cuDeviceSetGraphMemAttribute, CUdevice, device, CUgraphMem_attribute, attr, void*, value)
+DEF_FN(CUresult, cuGraphInstantiateWithFlags, CUgraphExec*, phGraphExec, CUgraph, hGraph, unsigned long long, flags)
+DEF_FN(CUresult, cuGraphUpload, CUgraphExec, hGraphExec, CUstream, hStream)
+DEF_FN(CUresult, cuStreamBeginCaptureToGraph, CUstream, hStream, CUgraph, hGraph, const CUgraphNode*, dependencies, const CUgraphEdgeData*, dependencyData, size_t, numDependencies, CUstreamCaptureMode, mode)
+DEF_FN(CUresult, cuStreamGetCaptureInfo, CUstream, hStream, CUstreamCaptureStatus*, captureStatus_out, cuuint64_t*, id_out, CUgraph*, graph_out, const CUgraphNode**, dependencies_out, size_t*, numDependencies_out)
+DEF_FN(CUresult, cuStreamUpdateCaptureDependencies, CUstream, hStream, CUgraphNode*, dependencies, size_t, numDependencies, unsigned int, flags)
+DEF_FN(CUresult, cuGraphExecMemcpyNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_MEMCPY3D*, copyParams, CUcontext, ctx)
+DEF_FN(CUresult, cuGraphExecMemsetNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_MEMSET_NODE_PARAMS*, memsetParams, CUcontext, ctx)
+DEF_FN(CUresult, cuGraphExecHostNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, const CUDA_HOST_NODE_PARAMS*, nodeParams)
+DEF_FN(CUresult, cuGraphExecChildGraphNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, CUgraph, childGraph)
+DEF_FN(CUresult, cuGraphExecEventRecordNodeSetEvent, CUgraphExec, hGraphExec, CUgraphNode, hNode, CUevent, event)
+DEF_FN(CUresult, cuGraphExecEventWaitNodeSetEvent, CUgraphExec, hGraphExec, CUgraphNode, hNode, CUevent, event)
+DEF_FN(CUresult, cuGraphExecUpdate, CUgraphExec, hGraphExec, CUgraph, hGraph, CUgraphExecUpdateResultInfo*, resultInfo)
+#undef cuGraphExecUpdate
+DEF_FN(CUresult, cuGraphExecUpdate, CUgraphExec, hGraphExec, CUgraph, hGraph, CUgraphExecUpdateResultInfo*, resultInfo)
+DEF_FN(CUresult, cuGraphKernelNodeCopyAttributes, CUgraphNode, dst, CUgraphNode, src)
+DEF_FN(CUresult, cuGraphKernelNodeGetAttribute, CUgraphNode, hNode, CUkernelNodeAttrID, attr, CUkernelNodeAttrValue*, value_out)
+DEF_FN(CUresult, cuGraphKernelNodeSetAttribute, CUgraphNode, hNode, CUkernelNodeAttrID, attr, const CUkernelNodeAttrValue*, value)
+DEF_FN(CUresult, cuGraphDebugDotPrint, CUgraph, hGraph, const char*, path, unsigned int, flags)
+DEF_FN(CUresult, cuUserObjectCreate, CUuserObject*, object_out, void*, ptr, CUhostFn, destroy, unsigned int, initialRefcount, unsigned int, flags)
+DEF_FN(CUresult, cuUserObjectRetain, CUuserObject, object, unsigned int, count)
+DEF_FN(CUresult, cuUserObjectRelease, CUuserObject, object, unsigned int, count)
+DEF_FN(CUresult, cuGraphRetainUserObject, CUgraph, graph, CUuserObject, object, unsigned int, count, unsigned int, flags)
+DEF_FN(CUresult, cuGraphReleaseUserObject, CUgraph, graph, CUuserObject, object, unsigned int, count)
+DEF_FN(CUresult, cuGraphNodeSetEnabled, CUgraphExec, hGraphExec, CUgraphNode, hNode, unsigned int, isEnabled)
+DEF_FN(CUresult, cuGraphNodeGetEnabled, CUgraphExec, hGraphExec, CUgraphNode, hNode, unsigned int*, isEnabled)
+DEF_FN(CUresult, cuGraphInstantiateWithParams, CUgraphExec*, phGraphExec, CUgraph, hGraph, CUDA_GRAPH_INSTANTIATE_PARAMS*, instantiateParams)
+DEF_FN(CUresult, cuGraphExecGetFlags, CUgraphExec, hGraphExec, cuuint64_t*, flags)
+DEF_FN(CUresult, cuGraphAddNode, CUgraphNode*, phGraphNode, CUgraph, hGraph, const CUgraphNode*, dependencies, size_t, numDependencies, CUgraphNodeParams*, nodeParams)
+DEF_FN(CUresult, cuGraphNodeSetParams, CUgraphNode, hNode, CUgraphNodeParams*, nodeParams)
+DEF_FN(CUresult, cuGraphExecNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, CUgraphNodeParams*, nodeParams)
+DEF_FN(CUresult, cuGraphConditionalHandleCreate, CUgraphConditionalHandle*, pHandle_out, CUgraph, hGraph, CUcontext, ctx, unsigned int, defaultLaunchValue, unsigned int, flags)
+DEF_FN(CUresult, cuFuncGetName, const char**, name, CUfunction, hfunc)

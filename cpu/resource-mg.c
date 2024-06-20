@@ -121,7 +121,7 @@ int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address)
 {
     if (mg->bypass) {
         *cuda_address = client_address;
-        return 1;
+        return 0;
     }
     return resource_mg_search_map(mg, client_address, cuda_address);
 }

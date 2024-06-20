@@ -42,17 +42,25 @@ enum Commands {
         dstgpuid: u32,
         #[arg(short, long, help = "Number of SM cores to allocate")]
         sm_cores: u32,
-        #[arg(short, long, help = "Amount of memory to allocate")]
+        #[arg(short, long, help = "Amount of memory to allocate (MB)")]
         memory: u64,
-    }
+    },
+    MigrateAuto {
+        #[arg(short, long, help = "IP address of the VM to migrate")]
+        ip: String,
+        #[arg(short, long, help = "Number of SM cores to allocate")]
+        sm_cores: u32,
+        #[arg(short, long, help = "Amount of memory to allocate (MB)")]
+        memory: u64,
+    },
 }
 #[derive(Debug, clap::Args, Clone)]
 #[group(required = true)]
-struct NewResourcesOption {
+pub struct NewResourcesOption {
     #[arg(short, long, help = "Number of SM cores to allocate")]
-    sm_cores: Option<u32>,
-    #[arg(short, long, help = "Amount of memory to allocate")]
-    memory: Option<u64>,
+    pub sm_cores: Option<u32>,
+    #[arg(short, long, help = "Amount of memory to allocate (MB)")]
+    pub memory: Option<u64>,
 }
 
 pub fn get_stream_path() -> String {
@@ -78,7 +86,8 @@ fn main() {
             list_servernodes(stream);
         }
         Commands::ListVirtServers => list_virt_servers(stream),
-        Commands::ChangeConfig { ip, new_resources } => {
+        Commands::ChangeConfig { ip, mut new_resources } => {
+            new_resources.memory = new_resources.memory.map(|x| x * 1024 * 1024);
             change_resources(stream, ip, new_resources);
         }
         Commands::Migrate {
@@ -88,12 +97,24 @@ fn main() {
             sm_cores,
             memory,
         } => {
-            migrate_vm(stream, ip, dstsnodeip, dstgpuid, sm_cores, memory);
+            let mem_bytes = memory * 1024 * 1024;
+            migrate_vm(stream, ip, dstsnodeip, dstgpuid, sm_cores, mem_bytes);
+        },
+        Commands::MigrateAuto {
+            ip,
+            sm_cores,
+            memory,
+        } => {
+            let mem_bytes = memory * 1024 * 1024;
+            migrate_vm_auto(stream, ip, sm_cores, mem_bytes);
         }
     }
 }
 
-fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpuid: u32, sm_cores: u32, memory: u64) {
+pub fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpuid: u32, sm_cores: u32, memory: u64) {
+
+    let time_begin = std::time::Instant::now();
+
     match stream.write_all(
         format!(
             "{}\n{},{},{},{},{}\n",
@@ -123,7 +144,49 @@ fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpuid: 
         }
     };
 
+    let time_end = std::time::Instant::now();
+
     println!("{}: {}", response[0], response[1]);
+    println!("Time taken: {:?}", time_end - time_begin);
+
+}
+
+pub fn migrate_vm_auto(mut stream: UnixStream, ip: String, sm_cores: u32, memory: u64) {
+
+    let time_begin = std::time::Instant::now();
+
+    match stream.write_all(
+        format!(
+            "{}\n{},{},{}\n",
+            FrontEndCommand::MIGRATE_VIRT_SERVER_AUTO,
+            ip,
+            sm_cores,
+            memory
+        )
+        .as_bytes(),
+    ) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+            return;
+        }
+    }
+
+    let mut reader = std::io::BufReader::new(stream);
+
+    let response = match StreamUtils::read_response(&mut reader, 2) {
+        Ok(response) => response,
+        Err(e) => {
+            log::error!("Error reading response: {}", e);
+            return;
+        }
+    };
+
+    let time_end = std::time::Instant::now();
+
+    println!("{}: {}", response[0], response[1]);
+    println!("Time taken: {:?}", time_end - time_begin);
+
 }
 
 
@@ -347,7 +410,7 @@ fn list_virt_servers(mut stream: UnixStream) {
     println!("{}", table);
 }
 
-fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: NewResourcesOption) {
+pub fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: NewResourcesOption) {
     let command = if new_resources.sm_cores.is_some() && new_resources.memory.is_some() {
         format!(
             "{}\n{},{},{}\n",
@@ -374,6 +437,8 @@ fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: NewRes
         return;
     }
 
+    let time_begin = std::time::Instant::now();
+
     match stream.write_all(command.as_bytes()) {
         Ok(_) => {}
         Err(e) => {
@@ -392,5 +457,8 @@ fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: NewRes
         }
     };
 
+    let time_end = std::time::Instant::now();
+
     println!("{}: {}", response[0], response[1]);
+    println!("Time taken: {:?}", time_end - time_begin);
 }

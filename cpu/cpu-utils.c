@@ -447,6 +447,7 @@ splitted_str* split_string(const char *str, const char *delim)
         splitted->size++;
         token = strtok_r(NULL, delim, &saveptr);
     }
+    free(str_copy);
     return splitted;
  cleanup:
     free(str_copy);

@@ -216,7 +216,10 @@ impl VCudaClientManager {
                 log::error!("Error getting virt server details");
                 
                 let bytes = MqueueClientControlCommand::new("500", "").as_bytes();
-                message_queue.send(&bytes, client_msg_id.send_id).unwrap();
+                let send_result = message_queue.send(&bytes, client_msg_id.send_id);
+                if send_result.is_err() {
+                    log::error!("Error sending error message to client: {}", client_pid);
+                }
                 continue;
             }
 

@@ -86,6 +86,9 @@ impl <'a> FrontendHandler<'a> {
             FrontEndCommand::MIGRATE_VIRT_SERVER => {
                 self.migrate_vm(stream, reader);
             }
+            FrontEndCommand::MIGRATE_VIRT_SERVER_AUTO => {
+                self.migrate_vm_auto(stream, reader);
+            }
             _ => {
                 log::error!("Invalid command");
             }
@@ -159,6 +162,67 @@ impl <'a> FrontendHandler<'a> {
         }
         else {
             log::info!("VM migrated successfully");
+            let _ = StreamUtils::write_all(&mut stream, "200\nVM migrated successfully\n".to_string());
+        }
+    
+    }
+
+    fn migrate_vm_auto(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>) {
+
+        log::info!("Received migrate auto request");
+
+        let request_params = match StreamUtils::read_response(&mut reader, 1) {
+            Ok(params) => params,
+            Err(e) => {
+                log::error!("Error reading request params: {}", e);
+                return;
+            }
+        };
+        
+        let parts: Vec<&str> = request_params[0].split(',').collect();
+        if parts.len() != 3 {
+            log::error!("Invalid arguments for migrate command: {:?}", parts);
+            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+            return;
+        }
+
+        let ipaddr = parts[0];
+
+        let new_server_compute_units = match parts[1].parse::<u32>() {
+            Ok(sm_cores) => sm_cores,
+            Err(e) => {
+                log::error!("Error parsing sm_cores: {}", e);
+                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+                return;
+            }
+        };
+
+        let new_server_memory = match parts[2].parse::<u64>() {
+            Ok(memory) => memory,
+            Err(e) => {
+                log::error!("Error parsing memory: {}", e);
+                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+                return;
+            }
+        };
+
+        log::info!("Migrating VM: {}", ipaddr);
+        let res = self.server_nodes_manager.migrate_virt_server_auto(
+            self.client_mgr, 
+            &ipaddr.to_string(),
+            new_server_compute_units,
+            new_server_memory);
+        
+        if res.is_err() {
+            log::error!("Error migrating VM: {}", res.clone().unwrap_err());
+            
+            // resume the client if stopped
+            let _ = self.client_mgr.resume_client(ipaddr);
+
+            let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", res.unwrap_err()));
+        }
+        else {
+            log::info!("VM migrated successfully to server: {}", res.unwrap().read().unwrap().ipaddr );
             let _ = StreamUtils::write_all(&mut stream, "200\nVM migrated successfully\n".to_string());
         }
     

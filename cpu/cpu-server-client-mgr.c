@@ -69,7 +69,7 @@ cricket_client* create_client(int pid) {
     }
     client->default_stream = NULL; // create a default stream
 
-    cudaError_t err = cudaStreamCreate((cudaStream_t *)&client->default_stream);
+    cudaError_t err = cudaStreamCreateWithFlags((cudaStream_t *)&client->default_stream, cudaStreamNonBlocking);
     if (err != cudaSuccess) {
         LOGE(LOG_ERROR, "Failed to create default stream for new client: %s", cudaGetErrorString(err));
         free_resource_map(client->gpu_mem);

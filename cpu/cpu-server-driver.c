@@ -250,7 +250,7 @@ static int __server_driver_ctx_state_restore(int ckp_restore) {
                 return 1;
             }
             if (resource_map_update_addr_idx(client->custom_streams, stream_idx, newStream) != 0) {
-                LOGE(LOG_ERROR, "resource_map_add failed");
+                LOGE(LOG_ERROR, "resource_map_update failed, stream_idx: %lu", stream_idx);
                 resource_map_free_iter(stream_iter);
                 return 1;
             }
@@ -262,6 +262,25 @@ static int __server_driver_ctx_state_restore(int ckp_restore) {
     LOGE(LOG_DEBUG, "Context state restored");
 
     return 0;
+}
+
+int server_driver_reload_modules_data(cricket_client *client) {
+    
+    if (server_driver_modules_restore(&client->modules) != 0) {
+        LOGE(LOG_ERROR, "server_driver_modules_restore failed");
+        return 1;
+    }
+
+    if (server_driver_function_restore(&client->functions, &client->modules) != 0) {
+        LOGE(LOG_ERROR, "server_driver_function_restore failed");
+        return 1;
+    }
+
+    if (server_driver_var_restore(&client->vars, &client->modules) != 0) {
+        LOGE(LOG_ERROR, "server_driver_var_restore failed");
+        return 1;
+    }
+    
 }
 
 int server_driver_ctx_state_restore(CUcontext ctx) {
