@@ -253,6 +253,8 @@ int flyt_restore_memory(char *memory_file, resource_map *gpu_mem) {
         return -1;
     }
 
+    PRIMARY_CTX_RETAIN;
+
     for (uint64_t i = 1; i < gpu_mem->tail_idx; i++) {
         if (gpu_mem->list[i].present) {
             gpu_mem->list[i].args = malloc(sizeof(mem_alloc_args_t));
@@ -304,6 +306,8 @@ int flyt_restore_memory(char *memory_file, resource_map *gpu_mem) {
             free(data);
         }
     }
+
+    PRIMARY_CTX_RELEASE;
 
     fclose(fp);
     return 0;
@@ -436,6 +440,9 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
 
 
 int flyt_restore_checkpoint(char *basepath) {
+
+    SET_EXEC_CTX;
+
     // sleep(30);
     if (access(basepath, F_OK) == -1) {
         LOGE(LOG_ERROR, "Checkpoint directory %s does not exist", basepath);

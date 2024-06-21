@@ -29,7 +29,11 @@ void set_primary_context();
 
 void unset_primary_context();
 
+void set_exec_context();
+
 #define PRIMARY_CTX_RETAIN set_primary_context()
 #define PRIMARY_CTX_RELEASE unset_primary_context()
+
+#define SET_EXEC_CTX set_exec_context()
 
 #endif // _CPU_SERVER_RESOURCE_CONTROLLER_H_

@@ -90,7 +90,7 @@ impl <'a> FrontendHandler<'a> {
                 self.migrate_vm_auto(stream, reader);
             }
             _ => {
-                log::error!("Invalid command");
+                log::error!("Invalid command: {}", command);
             }
         }
     }

@@ -23,6 +23,7 @@ static volatile uint64_t new_mem = 0;
 static volatile int change_resource_flag = 0;
 
 static CUcontext primaryCtx = NULL;
+static CUcontext execCtx = NULL;
 
 static int delete_context_resources() {
     // iterate over all client
@@ -88,6 +89,8 @@ int change_sm_cores(uint32_t nm_sm_cores) {
         LOGE(LOG_DEBUG, "Unable to restore ctx state");
         return -1;
     }
+
+    execCtx = newContext;
 
     LOGE(LOG_INFO, "Changed SM cores to %u", nm_sm_cores);
 
@@ -219,4 +222,9 @@ void set_primary_context() {
 
 void unset_primary_context() {
     cuCtxPopCurrent(&primaryCtx);
+}
+
+void set_exec_context() {
+    cudaDeviceSynchronize();
+    cuCtxSetCurrent(execCtx);
 }

@@ -136,7 +136,7 @@ impl VirtServerManager {
 
         self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
 
-        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(5)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
 
         let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
 
