@@ -303,7 +303,9 @@ impl<'a> ServerNodesManager<'a> {
         {
             let gpu_read = target_gpu.read().unwrap();
 
-            if !allow_overprovision && (compute_units > gpu_read.compute_units || memory > gpu_read.memory) {
+            if !allow_overprovision && (compute_units > (gpu_read.compute_units - gpu_read.allocated_compute_units) 
+                                        || memory > (gpu_read.memory - gpu_read.allocated_memory)) 
+            {
                 log::error!("Not enough resources to allocate compute_units: {}, memory: {}", compute_units, memory);
                 log::error!("Available compute_units: {}, memory: {}", gpu_read.compute_units - gpu_read.allocated_compute_units, gpu_read.memory - gpu_read.allocated_memory);
                 return Err("Not enough resources to allocate".to_string());
