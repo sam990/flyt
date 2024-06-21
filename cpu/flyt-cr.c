@@ -144,6 +144,9 @@ int dump_vars(char *filename, resource_mg *vars) {
 
 
 int flyt_create_checkpoint(char *basepath) {
+
+    SET_EXEC_CTX;
+
     cudaDeviceSynchronize();
 
     if (access(basepath, F_OK) != 0 && mkdir(basepath, 0777) == -1) {
