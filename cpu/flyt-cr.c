@@ -345,6 +345,8 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
         }
     }
 
+    modules->map_res.length = num_modules;
+
     fclose(fp);
     return 0;
 }
@@ -384,6 +386,8 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
             return -1;
         }
     }
+
+    functions->map_res.length = num_functions;
    
     fclose(fp);
     return 0;
@@ -423,6 +427,8 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
             return -1;
         }
     }
+
+    vars->map_res.length = num_vars;
 
     fclose(fp);
     return 0;
