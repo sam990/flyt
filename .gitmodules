@@ -1,6 +1,6 @@
 [submodule "submodules/libtirpc"]
 	path = submodules/libtirpc
-	url = git://git.linux-nfs.org/projects/steved/libtirpc.git
+	url = https://github.com/m-santh/libtirpc.git
     ignore = dirty
 [submodule "submodules/patchelf"]
 	path = submodules/patchelf
