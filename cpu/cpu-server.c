@@ -196,7 +196,7 @@ bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
     return 1;
 }
 
-void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t num_sm_cores, size_t memory)
+void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t num_sm_cores, size_t memory, uint32_t thread_mode)
 {
     int ret = 1;
     register SVCXPRT *transp;
@@ -292,6 +292,16 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         exit(1);
     }
 
+    // Set the maximum size of incoming requests
+    /*
+    if (thread_mode == 1) {
+        if (!svc_control(transp, RPC_SVC_MTMODE_SET, (void *)RPC_SVC_MT_AUTO)) {
+            LOGE(LOG_ERROR, "unable to set multi threaded mode .\n");
+            exit(1);
+        }
+    }
+    */
+
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8
      */
@@ -372,6 +382,15 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     fflush(stdout);
     
     send_initialised_msg();
+
+    if(thread_mode == 1) {
+	    int mt_mode = RPC_SVC_MT_AUTO;
+	    rpc_control(RPC_SVC_MTMODE_SET, &mt_mode);
+    }
+    else {
+	    int mt_mode = RPC_SVC_MT_NONE;
+	    rpc_control(RPC_SVC_MTMODE_SET, &mt_mode);
+    }
 
     svc_run();
 

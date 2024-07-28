@@ -117,7 +117,8 @@ void send_initialised_msg() {
     struct msgbuf_uint32 msg;
     msg.mtype = send_type;
     msg.data = htonl(200);
-    if (msgsnd(snode_mqueue_id, &msg, sizeof(uint32_t), 0) == -1) {
+    printf("mqueue_id = %d type %d data %d\n", snode_mqueue_id, msg.mtype, msg.data);
+    if (msgsnd(snode_mqueue_id, &msg, sizeof(msg.data), 0) == -1) {
         LOGE(LOG_ERROR, "Error sending initialisation message to node manager: %s", strerror(errno));
     }
 }
@@ -128,6 +129,7 @@ int init_listener(int rpc_id)
     send_type = ((uint64_t)rpc_id) << 32;
     key_t key;
 
+    printf("send_type -= %d\n", send_type);
     if (access(SNODE_MQUEUE_PATH, F_OK) == -1) {
         if (mkdir(SNODE_MQUEUE_PATH, 0777) == -1) {
             LOGE(LOG_ERROR, "Error creating directory for node manager message queue: %s", strerror(errno));

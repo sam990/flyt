@@ -1,0 +1,4 @@
+#!/bin/bash
+eval "$(conda shell.bash hook)"
+conda activate tf
+python3 resnet50_pytorch.py --batch-size 14
