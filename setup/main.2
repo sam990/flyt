@@ -1,0 +1,127 @@
+use anyhow::Result; // Add this line at the top with other use statements
+use mongodb::{
+    options::{ClientOptions, ServerAddress, Credential},
+    Client, Collection, bson::{doc, Document}, 
+};
+use serde::{Deserialize, Serialize};
+
+struct Config {
+    host: String,
+    port: u16,
+    user: String,
+    password: String,
+    dbname: String,
+}
+
+impl Config {
+    fn new() -> Self {
+        // Replace these with actual configuration values
+        Self {
+            host: "localhost".to_string(),
+            port: 27017,
+            user: "your_username".to_string(),
+            password: "your_password".to_string(),
+            dbname: "your_database_name".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VMResources {
+    pub vm_ip: String,
+    pub host_ip: String,
+    pub compute_units: u32,
+    pub memory: u64,
+}
+
+pub struct VMResourcesGetter {
+    mongo_collection: Option<Collection<Document>>, // Note: Collection type changed to Document
+}
+
+impl VMResourcesGetter {
+    pub fn new() -> Self {
+        let config = Config::new();
+
+        let get_collection = || -> Option<Collection<Document>> {
+            let db_host = &config.host;
+            let db_port = config.port;
+            let db_user = &config.user;
+            let db_password = &config.password;
+            let db_dbname = &config.dbname;
+
+            let client_options = ClientOptions::builder()
+                .hosts(vec![ServerAddress::Tcp {
+                    host: db_host.clone(),
+                    port: Some(db_port),
+                }])
+                .credential(Credential::builder()
+                    .username(db_user.clone())
+                    .password(db_password.clone())
+                    .build())
+                .build();
+
+            let client = Client::with_options(client_options).ok()?;
+            let collection_name = "vm_required_resources";
+            Some(client.database(db_dbname).collection(collection_name))
+        };
+
+        Self {
+            mongo_collection: get_collection(),
+        }
+    }
+
+    pub async fn get_vm_required_resources(&self, vm_ip: &String) -> Option<VMResources> {
+        let collection = self.mongo_collection.as_ref()?;
+        let filter = doc! { "vm_ip": vm_ip };
+
+        if let Some(document) = collection.find_one(filter, None).await.ok()? {
+            mongodb::bson::from_document(document).ok() // Deserialize into VMResources
+        } else {
+            None
+        }
+    }
+
+    pub async fn insert_vm_required_resources(&self, vm_ip: &String, host_ip: &String, compute_units: u32, memory: u64) -> Result<()> {
+        let collection = self.mongo_collection.as_ref().ok_or_else(|| anyhow::anyhow!("Mongo collection not available"))?;
+
+        // Example document to insert
+        let document = VMResources {
+            vm_ip: vm_ip.clone(),
+            host_ip: host_ip.clone(),
+            compute_units: compute_units,
+            memory: memory,
+        };
+
+        // Insert document into MongoDB
+        let result = collection.insert_one(mongodb::bson::to_document(&document)?, None).await?;
+        println!("Inserted document: {:?}", result.inserted_id);
+
+        Ok(())
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let vm_getter = VMResourcesGetter::new();
+    let vm_ip_to_find = "10.129.26.124".to_string();
+    let vm_ip_to_insert = "10.129.26.124".to_string();
+    let host_ip_to_insert = "10.129.27.234".to_string();
+
+    if let Some(vm_resources) = vm_getter.get_vm_required_resources(&vm_ip_to_find).await {
+        println!("Retrieved VM resources: {:?}", vm_resources);
+    } else {
+        println!("No VM resources found for IP: {}", vm_ip_to_find);
+    }
+
+
+    vm_getter.insert_vm_required_resources(&vm_ip_to_insert, &host_ip_to_insert, 10, 8149).await?;
+
+    if let Some(vm_resources) = vm_getter.get_vm_required_resources(&vm_ip_to_find).await {
+        println!("Retrieved VM resources: {:?}", vm_resources);
+    } else {
+        println!("No VM resources found for IP: {}", vm_ip_to_find);
+    }
+
+    Ok(())
+}
+

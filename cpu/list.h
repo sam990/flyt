@@ -1,12 +1,14 @@
 #ifndef _LIST_H_
 #define _LIST_H_
 #include <unistd.h>
+#include <pthread.h>
 
 typedef struct list_t {
     void *elements;
     size_t length;
     size_t capacity;
     size_t element_size;
+    pthread_mutex_t mutex;
 } list;
 
 int list_init(list *l, size_t element_size);

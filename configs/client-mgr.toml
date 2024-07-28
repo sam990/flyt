@@ -1,0 +1,9 @@
+[resource-manager]
+address = "10.129.131.167"
+port = 12402
+
+[vcuda-client]
+process-monitor-period = 60
+
+[ipc]
+mqueue-path = "/tmp/flyt-client-mgr"

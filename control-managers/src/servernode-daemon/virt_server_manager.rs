@@ -20,13 +20,14 @@ pub struct VirtServerManager {
     virts_servers: Mutex<HashMap<u64,VirtServer>>,
     message_queue: MessageQueue,
     virt_server_program_path: String,
+    automode: u16,
 }
 
 
 
 impl VirtServerManager {
 
-    pub fn new(mqueue_path: &str, virt_server_program_path: String) -> VirtServerManager {
+    pub fn new(mqueue_path: &str, virt_server_program_path: String, mode: u16) -> VirtServerManager {
 
         if Path::new(mqueue_path).exists() == false {
             File::create(mqueue_path).unwrap();
@@ -40,7 +41,8 @@ impl VirtServerManager {
             counter: Mutex::new(0),
             virts_servers: Mutex::new(HashMap::new()),
             message_queue: message_queue,
-            virt_server_program_path
+            virt_server_program_path,
+            automode: mode
         }
     }
 
@@ -67,8 +69,31 @@ impl VirtServerManager {
         let send_id = rpc_id as i64;
         let recv_id = send_id << 32;
 
-        log::info!("Starting virt server with rpc_id: {}", rpc_id);
+        log::info!("Starting virt server with rpc_id: {}", rpc_id.to_string());
 
+        // Construct the command and log all parts for debugging
+        // // Store the path in a local variable
+    let program_path = self.virt_server_program_path.as_str();
+    let mem_path = "valgrind --leak-check=full";
+
+    //let mut cmd = Command::new(mem_path);
+        //.arg(program_path)
+    let mut cmd = Command::new(program_path);
+        cmd.env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
+        .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
+        .arg(rpc_id.to_string())
+        .arg(gpu_id.to_string())
+        .arg(num_sm_cores.to_string())
+        .arg(gpu_memory.to_string())
+        .arg(self.automode.to_string());
+
+    // Logging the full command details
+    log::info!("Executing command: {:?}", cmd);
+
+    // Execute the command
+    let mut virt_server_process = cmd.spawn().map_err(|e| format!("Error starting virt server: {}", e))?;
+
+    /*
         let mut virt_server_process = Command::new(self.virt_server_program_path.as_str())
             .env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
             .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
@@ -76,8 +101,10 @@ impl VirtServerManager {
             .arg(gpu_id.to_string())
             .arg(num_sm_cores.to_string())
             .arg(gpu_memory.to_string())
+            .arg(self.automode.to_string())
             .spawn()
             .map_err(|e| format!("Error starting virt server: {}", e))?;
+            */
 
         let response = self.message_queue.recv_type_timed(recv_id, Duration::from_secs(5));
         

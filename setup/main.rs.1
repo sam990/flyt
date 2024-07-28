@@ -1,0 +1,104 @@
+use mongodb::{options::{ClientOptions, ServerAddress, Credential}, Client, Collection, bson::{doc, Document}, };
+use serde::{Deserialize, Serialize};
+
+struct Config {
+    host: String,
+    port: u16,
+    user: String,
+    password: String,
+    dbname: String,
+}
+
+impl Config {
+    fn new() -> Self {
+        // Replace these with actual configuration values
+        Self {
+            host: "localhost".to_string(),
+            port: 27017,
+            user: "your_username".to_string(),
+            password: "your_password".to_string(),
+            dbname: "your_database_name".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VMResources {
+    pub vm_ip: String,
+    pub host_ip: String,
+    pub compute_units: u32,
+    pub memory: u64,
+}
+
+pub struct VMResourcesGetter {
+    mongo_collection: Option<Collection<VMResources>>,
+}
+
+
+
+impl VMResourcesGetter {
+
+    pub fn new() -> Self {
+        let config  = Config::new();
+
+        let get_collection = || -> Option<Collection<VMResources>> {
+
+            let db_host = &config.host; //.get("host")?.as_str()?;
+            let db_port = config.port; //.get("port")?.as_integer()?;
+            let db_user = &config.user; //.get("user")?.as_str()?;
+            let db_password = &config.password; //.get("password")?.as_str()?;
+            let db_dbname = &config.dbname; //.get("dbname")?.as_str()?;
+
+            let client_options = ClientOptions::builder()
+            .hosts(vec![ServerAddress::Tcp {
+                host: db_host.clone(),
+                port: Some(db_port as u16),
+            }])
+            .credential(Credential::builder()
+                .username(db_user.clone())
+                .password(db_password.clone())
+                .build())
+            .build();
+            let client = Client::with_options(client_options).ok()?;
+
+            let collection_name = "vm_required_resources";
+            Some(client.database(db_dbname).collection(collection_name))
+        };
+
+        Self {
+            mongo_collection: get_collection(),
+        }
+
+    }
+
+    pub async fn get_vm_required_resources(&self, vm_ip: &String) -> Option<VMResources> {
+        // let mut lock = self.mongo_client.try_lock().ok()?;
+        let collection = self.mongo_collection.as_ref()?;
+        let filter = doc! { "vm_ip": vm_ip };
+        if let Some(document) = collection.find_one(filter, None).await.ok()? {
+            let mut vm_resources: VMResources = mongodb::bson::from_document(document).ok()?;
+            vm_resources.memory *= 1024; // Convert memory from MB to bytes
+            Some(vm_resources)
+        } else {
+            None
+        }
+        //collection.find_one(filter, None).await?.ok()?.and_then(|mut rsc| {
+        //    rsc.memory = rsc.memory * 1024 * 1024;
+         //   Some(rsc)
+        //})
+
+    }
+
+}
+
+#[tokio::main]
+async fn main() {
+    let vm_getter = VMResourcesGetter::new(); //example().await.unwrap();
+    let vm_ip_to_find = "10..129.26.124".to_string();
+    if let Some(vm_resources) = vm_getter.get_vm_required_resources(&vm_ip_to_find).await {
+        println!("Retrieved VM resources: {:?}", vm_resources);
+    } else {
+        println!("No VM resources found for IP: {}", vm_ip_to_find);
+    }
+}
+

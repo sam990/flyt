@@ -66,7 +66,7 @@ static int resource_mg_search_map(resource_mg *mg, void *client_address, void **
         LOGE(LOG_ERROR, "resource manager mg is NULL");
         return -1;
     }
-    if (mg->map_res.length == -1) {
+    if (mg->map_res.length <= 0) {
         LOGE(LOG_DEBUG, "no resources in map_res");
         return -1;
     }
@@ -178,6 +178,9 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
 
         if (mid_elem->client_address > client_address) {
             end = mid-1;
+            if (mid == 0) {
+                break;
+            }
         } else if (mid_elem->client_address < client_address) {
             start = mid+1;
         } else /*if (mid_elem->client_address == client_address)*/ {
