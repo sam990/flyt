@@ -84,6 +84,8 @@ impl <'b> ResourceManagerHandler <'b> {
             }
         };
 
+        log::debug!("Cluster manager response for connect: {:?}", response);
+
         if response[0] == "200" {
             let server_details = response[1].split(",").collect::<Vec<&str>>();
             if server_details.len() != 2 {
@@ -171,7 +173,16 @@ impl <'b> ResourceManagerHandler <'b> {
                     FlytApiCommand::RMGR_CLIENTD_PAUSE => {
                         let total_clients = self.client_mgr.num_active_clients();
                         let num_paused = self.client_mgr.pause_clients();
-                        let _ = StreamUtils::write_all(&mut writer, format!("200\nPaused {} out of {} clients\n", num_paused, total_clients));
+                        let ret = StreamUtils::write_all(&mut writer, format!("200\nPaused {} out of {} clients\n", num_paused, total_clients));
+                        match ret {
+                            Ok(_) => {
+                                log::info!("Successfully wrote to stream");
+                            }
+                            Err(e) => {
+                                log::error!("Error writing to stream: {}", e);
+                            }
+                            
+                        }
                     }
 
                     FlytApiCommand::RMGR_CLIENTD_RESUME => {
