@@ -226,6 +226,7 @@ impl VCudaClientManager {
             let virt_server = virt_server.unwrap();
             let address_str = format!("{},{}", virt_server.address, virt_server.rpc_id);
             let bytes = MqueueClientControlCommand::new("200", &address_str).as_bytes();
+            log::debug!("Sending server details to client");
             match message_queue.send(&bytes, client_msg_id.send_id) {
                 Ok(_) => {
                     log::info!("Sent virt server details to client: {}", client_pid);

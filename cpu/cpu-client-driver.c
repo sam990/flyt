@@ -347,7 +347,7 @@ CUresult cuDevicePrimaryCtxGetState(CUdevice dev, unsigned int* flags, int* acti
         return CUDA_ERROR_INVALID_VALUE;
     }
     retval = rpc_cudeviceprimaryctxgetstate_1(dev, &result, clnt);
-    LOGE(LOG_DEBUG, "%s = %d, result %d %d", __FUNCTION__, result.err,
+    LOGE(LOG_DEBUG, "%s = %d, results %d %d", __FUNCTION__, result.err,
                                         result.dint_result_u.data.i1,
                                         result.dint_result_u.data.i2);
 	if (retval != RPC_SUCCESS) {
