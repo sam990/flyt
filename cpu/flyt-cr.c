@@ -76,7 +76,7 @@ int dump_modules(char *filename, resource_mg* modules) {
     for (uint64_t i = 0; i < modules->map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&modules->map_res, i);
         
-        if (dump_module_data(elem, fp) != 0) {
+        if ((elem == NULL) || (dump_module_data(elem, fp) != 0)) {
             LOGE(LOG_ERROR, "Failed to dump module data");
             fclose(fp);
             return -1;
@@ -104,7 +104,7 @@ int dump_functions(char *filename, resource_mg* functions) {
     for (uint64_t i = 0; i < functions->map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&functions->map_res, i);
 
-        if (dump_function_data(elem, fp) != 0) {
+        if ((elem == NULL) || (dump_function_data(elem, fp) != 0)) {
             LOGE(LOG_ERROR, "Failed to dump function data");
             fclose(fp);
             return -1;
@@ -131,7 +131,7 @@ int dump_vars(char *filename, resource_mg *vars) {
     for (uint64_t i = 0; i < vars->map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&vars->map_res, i);
         
-        if (dump_variable_data(elem, fp) != 0) {
+        if ((elem == NULL) || (dump_variable_data(elem, fp) != 0)) {
             LOGE(LOG_ERROR, "Failed to dump variable data");
             fclose(fp);
             return -1;
@@ -345,7 +345,7 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
     for (uint64_t i = 0; i < num_modules; i++) {
         resource_mg_map_elem *elem = list_get(&modules->map_res, i);
 
-        if (load_module_data(elem, fp) != 0) {
+        if ((elem == NULL) || (load_module_data(elem, fp) != 0)) {
             LOGE(LOG_ERROR, "Failed to load module data");
             fclose(fp);
             return -1;
@@ -387,7 +387,7 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
     for (uint64_t i = 0; i < num_functions; i++) {
         resource_mg_map_elem *elem = list_get(&functions->map_res, i);
 
-        if (load_function_data(elem, fp) != 0) {
+        if ((elem == NULL) || (load_function_data(elem, fp) != 0)) {
             LOGE(LOG_ERROR, "Failed to load function data");
             fclose(fp);
             return -1;
@@ -428,7 +428,7 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
     for (uint64_t i = 0; i < num_vars; i++) {
         resource_mg_map_elem *elem = list_get(&vars->map_res, i);
 
-        if (load_variable_data(elem, fp) != 0) {
+        if ((elem == NULL) || (load_variable_data(elem, fp) != 0)) {
             LOGE(LOG_ERROR, "Failed to load variable data");
             fclose(fp);
             return -1;

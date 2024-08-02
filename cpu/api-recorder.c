@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #include "api-recorder.h"
 #include "log.h"
@@ -13,6 +14,7 @@ list api_records;
 static void api_records_free_args(void)
 {
     api_record_t *record;
+    pthread_mutex_lock(&api_records.mutex);
     for (size_t i = 0; i < api_records.length; i++) {
         if (list_at(&api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
@@ -21,12 +23,14 @@ static void api_records_free_args(void)
         free(record->arguments);
         record->arguments = NULL;
     }
+    pthread_mutex_unlock(&api_records.mutex);
 
 }
 
 static void api_records_free_data(void)
 {
     api_record_t *record;
+    pthread_mutex_lock(&api_records.mutex);
     for (size_t i = 0; i < api_records.length; i++) {
         if (list_at(&api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
@@ -35,10 +39,12 @@ static void api_records_free_data(void)
         free(record->data);
         record->data = NULL;
     }
+    pthread_mutex_unlock(&api_records.mutex);
 }
 
 static void api_records_free_str(void) {
     api_record_t *record;
+    pthread_mutex_lock(&api_records.mutex);
     for (size_t i = 0; i < api_records.length; i++) {
         if (list_at(&api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
@@ -51,6 +57,7 @@ static void api_records_free_str(void) {
         free(record->str_args);
         record->str_args = NULL;
     }
+    pthread_mutex_unlock(&api_records.mutex);
 }
 
 
@@ -65,6 +72,7 @@ void api_records_free(void)
 size_t api_records_malloc_get_size(void *ptr)
 {
     api_record_t *record;
+    pthread_mutex_lock(&api_records.mutex);
     for (size_t i = 0; i < api_records.length; i++) {
         if (list_at(&api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at returned an error.");
@@ -73,9 +81,12 @@ size_t api_records_malloc_get_size(void *ptr)
             continue;
         }
         if (ptr == (void*)record->result.ptr_result_u.ptr_result_u.ptr) {
-            return *(size_t*)record->arguments;
+	    size_t val = *(size_t*)record->arguments;
+            pthread_mutex_unlock(&api_records.mutex);
+	    return val;
         }
     }
+    pthread_mutex_unlock(&api_records.mutex);
     return 0;
 }
 

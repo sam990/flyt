@@ -47,6 +47,7 @@ int server_driver_modules_restore(resource_mg *modules)
         return 1;
     }
 
+    pthread_mutex_lock(&modules->mutex);
     size_t num_elfs = modules->map_res.length;
 
     LOGE(LOG_DEBUG, "Restoring %zu modules", num_elfs);
@@ -55,6 +56,7 @@ int server_driver_modules_restore(resource_mg *modules)
         resource_mg_map_elem *elem = ((resource_mg_map_elem*)list_get(&modules->map_res, i));
         if (elem == NULL) {
             LOGE(LOG_ERROR, "elem is NULL");
+    	    pthread_mutex_unlock(&modules->mutex);
             return 1;
         }
 
@@ -64,6 +66,7 @@ int server_driver_modules_restore(resource_mg *modules)
 
         if (map == NULL) {
             LOGE(LOG_ERROR, "map is NULL");
+    	    pthread_mutex_unlock(&modules->mutex);
             return 1;
         }
 
@@ -75,6 +78,7 @@ int server_driver_modules_restore(resource_mg *modules)
                 mem_data *elf_args = map->reg_data.data;
                 if (elf_args == NULL || elf_args->mem_data_val == NULL) {
                     LOGE(LOG_ERROR, "elf_args is NULL");
+		    pthread_mutex_unlock(&modules->mutex);
                     return 1;
                 }
 
@@ -82,6 +86,7 @@ int server_driver_modules_restore(resource_mg *modules)
 
                 if ((res = cuModuleLoadData(&module, elf_args->mem_data_val)) != CUDA_SUCCESS) {
                     LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
+		    pthread_mutex_unlock(&modules->mutex);
                     return 1;
                 }
                 break;
@@ -89,6 +94,7 @@ int server_driver_modules_restore(resource_mg *modules)
                 char *path = map->reg_data.data;
                 if (path == NULL) {
                     LOGE(LOG_ERROR, "path is NULL");
+		    pthread_mutex_unlock(&modules->mutex);
                     return 1;
                 }
 
@@ -96,17 +102,19 @@ int server_driver_modules_restore(resource_mg *modules)
 
                 if ((res = cuModuleLoad(&module, path)) != CUDA_SUCCESS) {
                     LOGE(LOG_ERROR, "cuModuleLoad failed: %d", res);
+		    pthread_mutex_unlock(&modules->mutex);
                     return 1;
                 }
                 break;
             default:
                 LOGE(LOG_ERROR, "Unknown module type: %d", map->reg_data.type);
+		pthread_mutex_unlock(&modules->mutex);
                 return 1;
 
-        }
-
+        }    
         map->addr = module;
     }
+    pthread_mutex_unlock(&modules->mutex);
 
     LOGE(LOG_DEBUG, "Restored %zu modules", num_elfs);
     
@@ -117,11 +125,17 @@ int server_driver_modules_restore(resource_mg *modules)
 int server_driver_function_restore(resource_mg *func, resource_mg *modules) 
 {
     LOGE(LOG_DEBUG, "Restoring functions");
+    pthread_mutex_lock(&func->mutex);
     size_t num_funcs = func->map_res.length;
     for (size_t i = 0; i < num_funcs; i++) {
         addr_data_pair_t *map = ((resource_mg_map_elem*)list_get(&func->map_res, i))->cuda_address;
 
         CUfunction func_d_ptr;
+
+	if(map == NULL) {
+                LOGE(LOG_DEBUG, "map is null");
+		continue;
+	}
 
         switch (map->reg_data.type) {
             case MODULE_GET_FUNCTION:
@@ -136,6 +150,7 @@ int server_driver_function_restore(resource_mg *func, resource_mg *modules)
 
                 if (resource_mg_get(modules, (void*)fatCubinHandle, (void *)&module) != 0) {
                     LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
+    		    pthread_mutex_unlock(&func->mutex);
                     return 1;
                 }
                 
@@ -143,16 +158,19 @@ int server_driver_function_restore(resource_mg *func, resource_mg *modules)
                                 module->addr,
                                 deviceName)) != CUDA_SUCCESS) {
                     LOGE(LOG_ERROR, "cuModuleGetFunction failed: %d", res);
+    		    pthread_mutex_unlock(&func->mutex);
                     return 1;
                 }     
                 break;
             default:
                 LOGE(LOG_ERROR, "Unknown function type: %d", map->reg_data.type);
+    		pthread_mutex_unlock(&func->mutex);
                 return 1;
         }
 
         map->addr = func_d_ptr;
     }
+    pthread_mutex_unlock(&func->mutex);
 
     LOGE(LOG_DEBUG, "Restored %zu functions", num_funcs);
 
@@ -166,6 +184,10 @@ int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
 
     for (size_t i = 0; i < num_vars; ++i) {
         addr_data_pair_t *map = ((resource_mg_map_elem*)list_get(&vars->map_res, i))->cuda_address;
+	if(map == NULL) {
+                LOGE(LOG_DEBUG, "map is null");
+		continue;
+	}
         CUdeviceptr dptr;
         size_t dsize; 
         switch (map->reg_data.type) {

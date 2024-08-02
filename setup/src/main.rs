@@ -16,6 +16,7 @@ impl Config {
             host: "localhost".to_string(),
             port: 27017,
             user: "adminUser".to_string(),
+            //password: "flyt".to_string(),
             password: "securePassword".to_string(),
             dbname: "flyt".to_string(),
         }
@@ -107,7 +108,7 @@ async fn main() -> AnyResult<()> {
         println!("No VM resources found for IP: {}", vm_ip_to_find);
     }
 
-    vm_getter.insert_vm_required_resources(&vm_ip_to_insert, &host_ip_to_insert, 10, 8149).await?;
+    vm_getter.insert_vm_required_resources(&vm_ip_to_insert, &host_ip_to_insert, 64, 8149).await?;
 
     if let Some(vm_resources) = vm_getter.get_vm_required_resources(&vm_ip_to_insert).await {
         println!("Retrieved VM resources: {:?}", vm_resources);

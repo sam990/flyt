@@ -122,6 +122,7 @@ int list_free(list *l)
     l->capacity = 0;
     l->length = 0;
     free(l->elements);
+    l->elements = NULL;
     pthread_mutex_destroy(&l->mutex);
     //printf("This is line number %d\n", __LINE__);
 
@@ -199,6 +200,10 @@ int list_at(list *l, size_t at, void **element)
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
     }
+    if (at < 0) {
+        LOGE(LOG_ERROR, "index parameter cannot be NULL");
+        return 1;
+    }
     pthread_mutex_lock(&l->mutex);
     if (at >= l->length) {
         LOGE(LOG_ERROR, "accessing list out of bounds");
@@ -241,19 +246,19 @@ int list_insert(list *l, size_t at, void *new_element)
 	if (val != 0)
 	    goto out;
     }
+    else {
 
-    if (list_append(l, NULL) != 0) {
-        LOGE(LOG_ERROR, "error while lengthening list");
-        val = 1;
-	goto out;
-    }
-    memmove(list_get(l, at+1), list_get(l, at), (l->length-at -1)*l->element_size);
+        if (list_append(l, NULL) != 0) {
+            LOGE(LOG_ERROR, "error while lengthening list");
+            val = 1;
+	    goto out;
+        }
+        memmove(list_get(l, at+1), list_get(l, at), (l->length-at)*l->element_size);
 
-    if (new_element != NULL) {
         memcpy(list_get(l, at), new_element, l->element_size);
-    }
 
-    l->length += 1; //appending a NULL element does not increase list length
+        l->length += 1; //appending a NULL element does not increase list length
+    }
     val = 0;
 out:
     //printf("This is line number %d\n", __LINE__);
@@ -274,7 +279,7 @@ int list_rm(list *l, size_t at)
         pthread_mutex_unlock(&l->mutex);
         return 1;
     }
-    if (at < l->length-1) {
+    if ((l->length > 1) && (at < l->length-1)) {
         memmove(list_get(l, at), list_get(l, at+1), (l->length-1-at)*l->element_size);
     }
     l->length -= 1;

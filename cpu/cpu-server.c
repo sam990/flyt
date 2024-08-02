@@ -293,14 +293,14 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     }
 
     // Set the maximum size of incoming requests
-    /*
     if (thread_mode == 1) {
-        if (!svc_control(transp, RPC_SVC_MTMODE_SET, (void *)RPC_SVC_MT_AUTO)) {
+	    int mode = RPC_SVC_MT_AUTO;
+	    printf("thread mode = %d\n", RPC_SVC_MTMODE_SET);
+        if (rpc_control(RPC_SVC_MTMODE_SET, (void *)&mode) != TRUE) {
             LOGE(LOG_ERROR, "unable to set multi threaded mode .\n");
             exit(1);
         }
     }
-    */
 
     /* Call CUDA initialization function (usually called by __libc_init_main())
      * Address of "_ZL24__sti____cudaRegisterAllv" in static symbol table is e.g. 0x4016c8

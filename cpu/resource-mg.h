@@ -1,6 +1,7 @@
 #ifndef _RESOURCE_MG_H_
 #define _RESOURCE_MG_H_
 
+#include "rpc/types.h"
 #include "list.h"
 
 typedef struct resource_mg_map_elem_t {
@@ -20,6 +21,7 @@ typedef struct resource_mg_t {
      */
     list new_res;
     int bypass;
+    pthread_mutex_t mutex;
 } resource_mg;
 
 
@@ -62,6 +64,8 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
 int resource_mg_create(resource_mg *mg, void* cuda_address);
 
 int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address);
+
+int resource_mg_get_element_at(resource_mg *mg, bool_t new_res, size_t at, void** element);
 
 void *resource_mg_get_default(resource_mg *mg, void *client_address,
                               void *default_val);

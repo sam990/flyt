@@ -2,6 +2,7 @@
 #define __FLYT_CPU_RESOURCE_MAP_H__
 
 #include <stdint.h>
+#include <pthread.h>
 
 typedef struct __resource_map_item {
     void *mapped_addr;
@@ -14,6 +15,7 @@ typedef struct __resource_map {
     uint64_t length;
     uint64_t free_ptr_idx;
     uint64_t tail_idx;
+    pthread_mutex_t mutex;
 } resource_map;
 
 typedef struct __resource_map_iter {

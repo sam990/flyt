@@ -4,7 +4,7 @@ const config = {
     host: "localhost",
     port: 27017,
     user: "adminUser",
-    password: "securePassword",
+    password: "flyt",
     dbname: "flyt"
 };
 
@@ -19,14 +19,26 @@ async function main() {
         const database = client.db(config.dbname);
         const collection = database.collection("vm_required_resources");
 
-        // Find a document
-        const vm_ip = "10.129.26.124";
-        const document = await collection.findOne({ vm_ip: vm_ip });
-        if (document) {
-            document.memory *= 1024 * 1024; // Convert memory from GB to MB if needed
-            console.log("Retrieved document:", document);
+	// Define the filter and the update operation
+        const filter = { vm_ip: "10.129.26.124" }; // Criteria to find the document
+	var doc = {
+	    vm_ip: "10.129.26.124",
+	    host_ip: "10.129.27.234",
+	    compute_units: 64,
+	    memory: 8196
+	};
+        const update = {
+            $set: doc
+        };
+
+        // Perform the upsert operation
+        const result = await collection.updateOne(filter, update, { upsert: true });
+        console.log(`Matched ${result.matchedCount} document(s) and modified ${result.modifiedCount} document(s).`);
+
+        if (result.upsertedCount > 0) {
+            console.log("Inserted a new document with _id:", result.upsertedId._id);
         } else {
-            console.log("Document not found");
+            console.log("Updated existing document.");
         }
     } catch (err) {
         console.error("Error connecting to the database or performing operations:", err);

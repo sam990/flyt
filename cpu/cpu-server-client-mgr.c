@@ -16,7 +16,7 @@
 static pthread_mutex_t client_mgr_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-static resource_mg pid_to_xp_fd;
+//static resource_mg pid_to_xp_fd;
 static resource_mg xp_fd_to_client;
 static resource_mg restored_clients;
 
@@ -25,20 +25,22 @@ static int freeResources(cricket_client* client);
 
 int init_cpu_server_client_mgr() {
     int ret = 0;
+    /*
     ret = resource_mg_init(&pid_to_xp_fd, 0);
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to initialize pid_to_xp_fd resource manager");
         return ret;
     }
+    */
     ret = resource_mg_init(&xp_fd_to_client, 0);
     if (ret != 0) {
-        resource_mg_free(&pid_to_xp_fd);
+        //resource_mg_free(&pid_to_xp_fd);
         LOGE(LOG_ERROR, "Failed to initialize xp_fd_to_client resource manager");
         return ret;
     }
     ret = resource_mg_init(&restored_clients, 0);
     if (ret != 0) {
-        resource_mg_free(&pid_to_xp_fd);
+        //resource_mg_free(&pid_to_xp_fd);
         resource_mg_free(&xp_fd_to_client);
         LOGE(LOG_ERROR, "Failed to initialize restored_clients resource manager");
         return ret;
@@ -48,7 +50,7 @@ int init_cpu_server_client_mgr() {
 }
 
 void free_cpu_server_client_mgr() {
-    resource_mg_free(&pid_to_xp_fd);
+    //resource_mg_free(&pid_to_xp_fd);
     resource_mg_free(&xp_fd_to_client);
     resource_mg_free(&restored_clients);
 }
@@ -88,6 +90,7 @@ cricket_client* create_client(int pid) {
     resource_mg_init(&client->modules, 0);
     resource_mg_init(&client->functions, 0);
     resource_mg_init(&client->vars, 0);
+    LOGE(LOG_INFO, "added client for pid %d\n", pid);
 
     return client;
 
@@ -103,10 +106,10 @@ int add_new_client(int pid, int xp_fd) {
 
     pthread_mutex_lock(&client_mgr_mutex);
 
-    int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)pid, (void *)(long)xp_fd);
-    ret |= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
+    //int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)pid, (void *)(long)xp_fd);
+    //ret |= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
+    int ret = resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
 
-    pthread_mutex_unlock(&client_mgr_mutex);
 
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to add new client to resource managers");
@@ -118,8 +121,9 @@ int add_new_client(int pid, int xp_fd) {
         free(client);
         return -1;
     }
+    pthread_mutex_unlock(&client_mgr_mutex);
 
-    return 0;
+    return (ret != 0)? -1:0;
 }
 
 int add_restored_client(cricket_client *client) {
@@ -138,8 +142,9 @@ int move_restored_client(int pid, int xp_fd) {
     }
 
     pthread_mutex_lock(&client_mgr_mutex);
-    int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)client->pid, (void *)(long)xp_fd);
-    ret &= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
+    //int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)client->pid, (void *)(long)xp_fd);
+    //ret &= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
+    int ret = resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
     pthread_mutex_unlock(&client_mgr_mutex);
 
     if (ret != 0) {
@@ -152,9 +157,15 @@ int move_restored_client(int pid, int xp_fd) {
 
 
 inline cricket_client* get_client(int xp_fd) {
-    return (cricket_client*)resource_mg_get_default(&xp_fd_to_client, (void *)(long)xp_fd, NULL);
+	cricket_client *ret = (cricket_client*)resource_mg_get_default(&xp_fd_to_client, (void *)(long)xp_fd, NULL);
+	if(ret == NULL) {
+	    LOGE(LOG_ERROR, "get client for %d\n", xp_fd);
+	    resource_mg_print(&xp_fd_to_client);
+	}
+	return ret;
 }
 
+/*
 inline cricket_client* get_client_by_pid(int pid) {
     int xp_fd = (int)(long)resource_mg_get_default(&pid_to_xp_fd, (void *)(long)pid, (void*)-1ll);
     if (xp_fd == -1) {
@@ -162,6 +173,7 @@ inline cricket_client* get_client_by_pid(int pid) {
     }
     return get_client(xp_fd);
 }
+*/
 
 
 
@@ -172,8 +184,8 @@ int remove_client_ptr(cricket_client* client) {
     }
 
     pthread_mutex_lock(&client_mgr_mutex);
-    resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid);
-    pthread_mutex_unlock(&client_mgr_mutex);
+    LOGE(LOG_INFO, "removing client ptr from %d \n", client->pid);
+    //resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid);
     
     // need to free gpu resources and custom streams
     freeResources(client);
@@ -183,34 +195,53 @@ int remove_client_ptr(cricket_client* client) {
     free_resource_map(client->gpu_mem);
     free_resource_map(client->custom_streams);
 
+    pthread_mutex_lock(&client->modules.mutex);
+    pthread_mutex_lock(&client->modules.map_res.mutex);
     for (size_t i = 0; i < client->modules.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->modules.map_res, i);
+	if(elem != NULL) {
 
-        addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
 
-        free_module_data(pair);
+            free_module_data(pair);
+	}
     }
+    pthread_mutex_unlock(&client->modules.map_res.mutex);
+    pthread_mutex_unlock(&client->modules.mutex);
 
+    pthread_mutex_lock(&client->vars.mutex);
+    pthread_mutex_lock(&client->vars.map_res.mutex);
     for (size_t i = 0; i < client->vars.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->vars.map_res, i);
+	if(elem != NULL) {
 
-        addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
         
-        free_variable_data(pair);
+            free_variable_data(pair);
+	}
     }
+    pthread_mutex_unlock(&client->vars.map_res.mutex);
+    pthread_mutex_unlock(&client->vars.mutex);
 
+    pthread_mutex_lock(&client->functions.mutex);
+    pthread_mutex_lock(&client->functions.map_res.mutex);
     for (size_t i = 0; i < client->functions.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->functions.map_res, i);
+	if(elem != NULL) {
 
-        addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
         
-        free_function_data(pair);
+            free_function_data(pair);
+	}
     }
+    pthread_mutex_unlock(&client->functions.map_res.mutex);
+    pthread_mutex_unlock(&client->functions.mutex);
 
     resource_mg_free(&client->modules);
     resource_mg_free(&client->vars);
     resource_mg_free(&client->functions);
 
+    pthread_mutex_unlock(&client_mgr_mutex);
     free(client);
     return 0;
 }
@@ -222,6 +253,7 @@ int remove_client(int xp_fd) {
         return -1;
     }
 
+    LOGE(LOG_INFO, "Client with xp_fd %d being removed", xp_fd);
     int ret = remove_client_ptr(client);
 
     if (ret != 0) {
@@ -281,11 +313,10 @@ cricket_client* get_next_client(cricket_client_iter* iter) {
         return NULL;
     }
 
-    if (*iter >= xp_fd_to_client.map_res.length) {
-        return NULL;
+    resource_mg_map_elem *elem;
+    if(resource_mg_get_element_at(&xp_fd_to_client, TRUE, *iter, (void **)&elem) != 0) {
+	    return NULL;
     }
-
-    resource_mg_map_elem *elem = list_get(&xp_fd_to_client.map_res, *iter);
     *iter += 1;
     return (cricket_client *)elem->cuda_address;
 }
@@ -297,11 +328,10 @@ cricket_client* get_next_restored_client(cricket_client_iter* iter) {
         return NULL;
     }
 
-    if (*iter >= restored_clients.map_res.length) {
-        return NULL;
+    resource_mg_map_elem *elem;
+    if(resource_mg_get_element_at(&restored_clients, TRUE, *iter, (void **)&elem) != 0) {
+	    return NULL;
     }
-
-    resource_mg_map_elem *elem = list_get(&restored_clients.map_res, *iter);
     *iter += 1;
     return (cricket_client *)elem->cuda_address;
 }
@@ -365,22 +395,30 @@ int fetch_variable_data_to_host(void) {
 
     while ((client = get_next_client(&iter)) != NULL) {
 
+        pthread_mutex_lock(&client->vars.mutex);
+        pthread_mutex_lock(&client->vars.map_res.mutex);
         for (size_t i = 0; i < client->vars.map_res.length; i++) {
             resource_mg_map_elem *elem = list_get(&client->vars.map_res, i);
+	    if(elem != NULL) {
 
-            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+                addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
             
-            var_register_args_t *data = (var_register_args_t *)pair->reg_data.data;
+                var_register_args_t *data = (var_register_args_t *)pair->reg_data.data;
 
-            if (data->data == NULL) {
-                data->data = malloc(data->size);
-            }
+                if (data->data == NULL) {
+                    data->data = malloc(data->size);
+                }
 
-            if (cudaMemcpyFromSymbol(data->data, pair->addr, data->size, 0, cudaMemcpyDeviceToHost) != cudaSuccess) {
-                LOGE(LOG_ERROR, "Failed to copy variable data to host");
-                return -1;
-            }
+                if (cudaMemcpyFromSymbol(data->data, pair->addr, data->size, 0, cudaMemcpyDeviceToHost) != cudaSuccess) {
+                    LOGE(LOG_ERROR, "Failed to copy variable data to host");
+                    pthread_mutex_unlock(&client->vars.map_res.mutex);
+                    pthread_mutex_unlock(&client->vars.mutex);
+                    return -1;
+                }
+	    }
         }
+        pthread_mutex_unlock(&client->vars.map_res.mutex);
+        pthread_mutex_unlock(&client->vars.mutex);
     }
     return 0;
 }
