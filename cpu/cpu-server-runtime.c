@@ -1996,15 +1996,18 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, din
         GSCHED_RELEASE;
         return 1;
     }
+    pthread_mutex_lock(&mt_memcpy_list.mutex);
     if (mt_memcpy_init_server(server, (void*)dest, size, MT_MEMCPY_HTOD, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
+        pthread_mutex_unlock(&mt_memcpy_list.mutex);
         GSCHED_RELEASE;
         return 1;
     }
     result->dint_result_u.data.i1 = server->port;
     result->dint_result_u.data.i2 = mt_memcpy_list.length - 1;
     result->err = 0;
+    pthread_mutex_unlock(&mt_memcpy_list.mutex);
 
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;
@@ -2027,15 +2030,18 @@ bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint
         GSCHED_RELEASE;
         return 1;
     }
+    pthread_mutex_lock(&mt_memcpy_list.mutex);
     if (mt_memcpy_init_server(server, (void*)src, size, MT_MEMCPY_DTOH, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
+        pthread_mutex_unlock(&mt_memcpy_list.mutex);
         GSCHED_RELEASE;
         return 1;
     }
     result->dint_result_u.data.i1 = server->port;
     result->dint_result_u.data.i2 = mt_memcpy_list.length - 1;
     result->err = 0;
+    pthread_mutex_unlock(&mt_memcpy_list.mutex);
 
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;
@@ -2058,6 +2064,7 @@ bool_t cuda_memcpy_mt_sync_1_svc(int id, int *result, struct svc_req *rqstp)
 
     *result = mt_memcpy_sync_server(server);
 
+    pthread_mutex_lock(&mt_memcpy_list.mutex);
     if (id == mt_memcpy_list.length - 1) {
         list_rm(&mt_memcpy_list, id);
         while (mt_memcpy_list.length > 0 &&
@@ -2065,6 +2072,7 @@ bool_t cuda_memcpy_mt_sync_1_svc(int id, int *result, struct svc_req *rqstp)
             list_rm(&mt_memcpy_list, mt_memcpy_list.length);
         }
     }
+    pthread_mutex_unlock(&mt_memcpy_list.mutex);
 
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;

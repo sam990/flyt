@@ -16,6 +16,17 @@ int resource_mg_init(resource_mg *mg, int bypass)
             goto out;
         }
     }
+    // Define and set mutex attribute directly
+    pthread_mutexattr_t attr;
+
+    // Initialize the attribute variable
+    pthread_mutexattr_init(&attr);
+
+    // Set the attribute to make the mutex recursive
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+    pthread_mutex_init(&mg->mutex, &attr);
+
     mg->bypass = bypass;
  out:
     return ret;
@@ -34,6 +45,16 @@ int resource_mg_init_capacity(resource_mg *mg, int bypass, size_t capacity)
             goto out;
         }
     }
+    // Define and set mutex attribute directly
+    pthread_mutexattr_t attr;
+
+    // Initialize the attribute variable
+    pthread_mutexattr_init(&attr);
+
+    // Set the attribute to make the mutex recursive
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+    pthread_mutex_init(&mg->mutex, &attr);
     mg->bypass = bypass;
  out:
     return ret;
@@ -41,18 +62,23 @@ int resource_mg_init_capacity(resource_mg *mg, int bypass, size_t capacity)
 
 void resource_mg_free(resource_mg *mg)
 {
+    pthread_mutex_lock(&mg->mutex);
     list_free(&mg->new_res);
     if (mg->bypass == 0) {
         list_free(&mg->map_res);
     }
+    pthread_mutex_unlock(&mg->mutex);
 }
 
 int resource_mg_create(resource_mg *mg, void *cuda_address)
 {
+    pthread_mutex_lock(&mg->mutex);
     if (list_append_copy(&mg->new_res, &cuda_address) != 0) {
         LOGE(LOG_ERROR, "failed to append to new_res");
+        pthread_mutex_unlock(&mg->mutex);
         return 1;
     }
+    pthread_mutex_unlock(&mg->mutex);
     return 0;
 }
 
@@ -66,8 +92,12 @@ static int resource_mg_search_map(resource_mg *mg, void *client_address, void **
         LOGE(LOG_ERROR, "resource manager mg is NULL");
         return -1;
     }
+    pthread_mutex_lock(&mg->mutex);
+    pthread_mutex_lock(&mg->map_res.mutex);
     if (mg->map_res.length <= 0) {
         LOGE(LOG_DEBUG, "no resources in map_res");
+        pthread_mutex_unlock(&mg->map_res.mutex);
+        pthread_mutex_unlock(&mg->mutex);
         return -1;
     }
     end = mg->map_res.length-1;
@@ -77,6 +107,8 @@ static int resource_mg_search_map(resource_mg *mg, void *client_address, void **
         mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
             LOG(LOG_ERROR, "list state of map_res is inconsistent");
+            pthread_mutex_unlock(&mg->map_res.mutex);
+            pthread_mutex_unlock(&mg->mutex);
             return -1;
         }
 
@@ -89,9 +121,13 @@ static int resource_mg_search_map(resource_mg *mg, void *client_address, void **
             start = mid+1;
         } else /*if (mid_elem->client_address == client_address)*/ {
             *cuda_address = mid_elem->cuda_address;
+            pthread_mutex_unlock(&mg->map_res.mutex);
+            pthread_mutex_unlock(&mg->mutex);
             return 0;
         }
     }
+    pthread_mutex_unlock(&mg->map_res.mutex);
+    pthread_mutex_unlock(&mg->mutex);
     LOGE(LOG_DEBUG, "no find: %p", client_address);
     return -1;
 }
@@ -126,6 +162,26 @@ int resource_mg_get(resource_mg *mg, void* client_address, void** cuda_address)
     return resource_mg_search_map(mg, client_address, cuda_address);
 }
 
+int resource_mg_get_element_at(resource_mg *mg, bool_t new_res, size_t at, void** element)
+{
+    int val = 1;
+    if (mg == NULL)
+	    return val;
+
+    if(element == NULL)
+	    return val;
+
+    pthread_mutex_lock(&mg->mutex);
+    if(new_res == TRUE) {
+	    val = list_at(&mg->new_res, at, element);
+    }
+    else {
+	    val = list_at(&mg->map_res, at, element);
+    }
+    pthread_mutex_unlock(&mg->mutex);
+
+    return val;
+}
 
 void* resource_mg_get_default(resource_mg *mg, void* client_address, void* default_val)
 {
@@ -149,6 +205,7 @@ void *resource_mg_get_or_null(resource_mg *mg, void *client_address) {
 #include <stdio.h>
 int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_address)
 {
+    int ret;
     ssize_t start = 0;
     ssize_t end = mg->map_res.length-1;
     ssize_t mid;
@@ -159,12 +216,18 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
         LOGE(LOG_ERROR, "resource manager mg is NULL");
         return 1;
     }
+    pthread_mutex_lock(&mg->mutex);
     if (mg->bypass) {
         LOGE(LOG_ERROR, "cannot add to bypassed resource manager");
+        pthread_mutex_unlock(&mg->mutex);
         return 1;
     }
+    pthread_mutex_lock(&mg->map_res.mutex);
     if (mg->map_res.length == 0) {
-        return list_append_copy(&mg->map_res, &new_elem);
+        ret = list_append_copy(&mg->map_res, &new_elem);
+        pthread_mutex_unlock(&mg->map_res.mutex);
+        pthread_mutex_unlock(&mg->mutex);
+	return ret;
     }
     end = mg->map_res.length-1;
     
@@ -173,6 +236,8 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
         mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
             LOG(LOG_ERROR, "list state of map_res is inconsistent");
+            pthread_mutex_unlock(&mg->map_res.mutex);
+            pthread_mutex_unlock(&mg->mutex);
             return 1;
         }
 
@@ -186,6 +251,8 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
         } else /*if (mid_elem->client_address == client_address)*/ {
             LOGE(LOG_WARNING, "duplicate resource! The first resource will be overwritten");
             mid_elem->cuda_address = cuda_address;
+            pthread_mutex_unlock(&mg->map_res.mutex);
+            pthread_mutex_unlock(&mg->mutex);
             return 0;
         }
     }
@@ -193,10 +260,14 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
         end = 0;
     }
     resource_mg_map_elem *end_elem = list_get(&mg->map_res, end);
-    if (end_elem->client_address < client_address) {
+    if ((end_elem != NULL) && (end_elem->client_address < client_address)) {
         end++;
     }
-    return list_insert(&mg->map_res, end, &new_elem);
+    pthread_mutex_unlock(&mg->map_res.mutex);
+
+    ret =  list_insert(&mg->map_res, end, &new_elem);
+    pthread_mutex_unlock(&mg->mutex);
+    return ret;
 }
 
 
@@ -210,11 +281,16 @@ int resource_mg_remove(resource_mg *mg, void* client_address)
         LOGE(LOG_ERROR, "resource manager mg is NULL");
         return 1;
     }
+    pthread_mutex_lock(&mg->mutex);
     if (mg->bypass) {
         LOGE(LOG_ERROR, "cannot remove from bypassed resource manager");
+        pthread_mutex_unlock(&mg->mutex);
         return 1;
     }
+    pthread_mutex_lock(&mg->map_res.mutex);
     if (mg->map_res.length == 0) {
+        pthread_mutex_unlock(&mg->map_res.mutex);
+        pthread_mutex_unlock(&mg->mutex);
         return 0;
     }
     end = mg->map_res.length-1;
@@ -224,6 +300,8 @@ int resource_mg_remove(resource_mg *mg, void* client_address)
         mid_elem = list_get(&mg->map_res, mid);
         if (mid_elem == NULL) {
             LOG(LOG_ERROR, "list state of map_res is inconsistent");
+            pthread_mutex_unlock(&mg->map_res.mutex);
+            pthread_mutex_unlock(&mg->mutex);
             return 1;
         }
 
@@ -235,8 +313,13 @@ int resource_mg_remove(resource_mg *mg, void* client_address)
         } else if (mid_elem->client_address < client_address) {
             start = mid+1;
         } else /*if (mid_elem->client_address == client_address)*/ {
-            return list_rm(&mg->map_res, mid);
+	    int ret = list_rm(&mg->map_res, mid);
+            pthread_mutex_unlock(&mg->map_res.mutex);
+            pthread_mutex_unlock(&mg->mutex);
+	    return ret;
         }
     }
+    pthread_mutex_unlock(&mg->map_res.mutex);
+    pthread_mutex_unlock(&mg->mutex);
     return 0;
 }

@@ -25,7 +25,7 @@ impl Config {
             host: "localhost".to_string(),
             port: 27017,
             user: "adminUser".to_string(),
-            password: "securePassword".to_string(),
+            password: "flyt".to_string(),
             dbname: "flyt".to_string(),
         }
     }

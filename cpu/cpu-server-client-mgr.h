@@ -103,7 +103,7 @@ int move_restored_client(int pid, int xp_fd);
 
 cricket_client* get_client(int xp_fd);
 
-cricket_client* get_client_by_pid(int pid);
+//cricket_client* get_client_by_pid(int pid);
 
 int remove_client_ptr(cricket_client *client);
 

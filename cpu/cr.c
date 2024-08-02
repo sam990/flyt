@@ -488,6 +488,7 @@ int cr_dump_memory(const char *path)
     int res = 1;
     api_record_t *record;
     LOG(LOG_DEBUG, "dumping memory records to %s", path);
+    pthread_mutex_lock(&api_records.mutex);
     for (size_t i = 0; i < api_records.length; i++) {
         if (list_at(&api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
@@ -503,6 +504,7 @@ int cr_dump_memory(const char *path)
     }
     res = 0;
 cleanup:
+    pthread_mutex_unlock(&api_records.mutex);
     return res;
 }
 
@@ -614,6 +616,7 @@ int cr_dump(const char *path)
         goto cleanup;
     }
     LOG(LOG_DEBUG, "dumping api records to %s", file_name);
+    pthread_mutex_lock(&api_records.mutex);
     for (size_t i = 0; i < api_records.length; i++) {
         if (list_at(&api_records, i, (void**)&record) != 0) {
             LOGE(LOG_ERROR, "list_at %zu returned an error.", i);
@@ -627,6 +630,7 @@ int cr_dump(const char *path)
     }
     res = 0;
 cleanup:
+    pthread_mutex_unlock(&api_records.mutex);
     free(file_name);
     fclose(fp);
 out:
@@ -786,9 +790,13 @@ int cr_launch_kernel(void)
     static uint64_t zero = 0LL;
     int ret = 1;
 
+    pthread_mutex_lock(&api_records.mutex);
     for (size_t i = api_records.length-1; i > 0; --i) {
         record = list_get(&api_records, i);
-        if (record->function == CUDA_LAUNCH_KERNEL) {
+	if(record == NULL) {
+                LOGE(LOG_DEBUG, "not able to get record for %d list len = %d\n", i, api_records.length);
+	}
+	else if (record->function == CUDA_LAUNCH_KERNEL) {
             cuda_launch_kernel_1_argument *arg = 
               ((cuda_launch_kernel_1_argument*)record->arguments);
             arg->arg4.mem_data_len = record->data_size;
@@ -824,6 +832,7 @@ int cr_launch_kernel(void)
     }
     ret = 0;
  cleanup:
+    pthread_mutex_unlock(&api_records.mutex);
     free(arg_ptr);
     return ret;
 }

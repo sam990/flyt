@@ -52,7 +52,7 @@ int gsched_none_retain(int id)
 
     for (size_t i = 0; i < ids.length; ++i) {
         elem = (gsched_none_t*)list_get(&ids, i);
-        if (id == elem->id) {
+        if ((elem == NULL) || (id == elem->id)) {
            break; 
         }
     }

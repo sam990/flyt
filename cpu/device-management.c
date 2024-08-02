@@ -43,6 +43,7 @@ size_t get_gpu_memory_usage() {
     }
 
     for (unsigned int i = 0; i < count; i++) {
+        LOGE(LOG_INFO, "process info pid %d usedGPUMemory %d: \n", process_info[i].pid, process_info[i].usedGpuMemory);
         if (process_info[i].pid == pid) {
             return process_info[i].usedGpuMemory;
         }
