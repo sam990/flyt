@@ -2,7 +2,7 @@
 
 mem_size=256
 
-counter=5
+counter=14
 csv_all='size,r1,r2,r3,r4'
 
 
