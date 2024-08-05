@@ -34,15 +34,16 @@ inline void __printRtErrors(cudaError_t err, const char *file, const int line )
 void prepare_mem(int **mem, size_t len)
 {
     cudaError_t rterr;
-    int host_mem[len];
-    if ((rterr = cudaMalloc(mem, len*sizeof(int))) != cudaSuccess) {
+    if ((rterr = cudaMalloc(mem, len*sizeof(int))) != cudaSuccess) { // malloc on device, update the mem ptr on host with device ptr.
         printRtErrors(rterr);
     }
 
+    int host_mem[len]; // ptr to len ints on host.
     for (size_t i = 0; i < len; i++) {
         host_mem[i] = (int)i;
     }
 
+    // copy 1,2,3.. etc from host buffer to device
     if ((rterr = cudaMemcpy(*mem, host_mem, len*sizeof(int), cudaMemcpyHostToDevice)) != cudaSuccess) {
         printRtErrors(rterr);
     }
@@ -91,7 +92,7 @@ int getModuleFromCubinInMemory(CUmodule *module, const char *cubin)
         printf("error\n");
         return 1;
     }
-    printf("size: %#0zx\n", (int)st.st_size);
+    printf("size: %#0zx\n", (int)st.st_size); // print hex values.
     void *buf = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (buf == MAP_FAILED) {
         printf("error\n");

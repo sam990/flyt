@@ -23,7 +23,7 @@
 #include "cpu-utils.h"
 #include "log.h"
 #include "oob.h"
-#include "mt-memcpy.h"
+#include "cpu-client-mt-memcpy.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB

@@ -1,5 +1,5 @@
 CUDA_SRC = /usr/local/cuda
-LIBTIRPC_PREFIX = ../../submodules/libtirpc/install
+LIBTIRPC_PREFIX = ../../../submodules/libtirpc/install
 
 CC = gcc
 LD = gcc

@@ -21,7 +21,7 @@ fn get_mqueue_path() -> String {
 
 fn get_virt_server_program_path() -> (String, u16) {
     let config = common::utils::Utils::load_config_file(SNODE_CONFIG_PATH);
-    (config["virt-server"]["program-path"].as_str().unwrap().to_string(), config["virt-server"]["auto-mode"].as_integer().unwrap() as u16)
+    (config["virt-server"]["program-path"].as_str().unwrap().to_string(), config["virt-server"]["thread-mode"].as_integer().unwrap() as u16)
 }
 
 fn get_resource_mgr_address() -> (String, u16) {
