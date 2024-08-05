@@ -1,0 +1,1 @@
+Test program to ensure machine gpu is mps-enabled.

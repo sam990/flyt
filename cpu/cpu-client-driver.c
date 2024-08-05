@@ -76,6 +76,7 @@ CUresult cuMemAlloc(CUdeviceptr* dptr, size_t bytesize)
     return result.err;
 }
 
+// not api-virtualised yet.
 #undef cuMemAllocPitch
 DEF_FN(CUresult, cuMemAllocPitch, CUdeviceptr*, dptr, size_t*, pPitch, size_t, WidthInBytes, size_t, Height, unsigned int, ElementSizeBytes)
 #undef cuMemFree

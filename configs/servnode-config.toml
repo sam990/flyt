@@ -3,7 +3,7 @@ address = "10.129.27.234"
 port = 12401
 
 [virt-server]
-program-path = "/home/ub-12-3/flyt/bin/cricket-rpc-server"
+program-path = "/home/armaan/Work/SYNERG/Puru_Flyt/flyt/bin/cricket-rpc-server"
 thread-mode = 1
 
 [ipc]

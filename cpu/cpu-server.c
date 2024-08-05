@@ -250,7 +250,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         prog = prog_num;
         vers = vers_num;
     }
-
+    printf("prog: %d, vers: %d\n", prog, vers);
     LOGE(LOG_DEBUG, "using prog=%d, vers=%d", prog, vers);
 
 

@@ -34,7 +34,7 @@
 #include "cpu-server-cusolver.h"
 #include "cpu-server-cublas.h"
 #include "cpu-server-cublaslt.h"
-#include "mt-memcpy.h"
+#include "cpu-server-mt-memcpy.h"
 #include "gsched.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-driver.h"

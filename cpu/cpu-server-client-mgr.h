@@ -1,3 +1,10 @@
+/**
+ * FILE: cpu-server-client-mgr.h
+ * -----------------------------
+ * Exclusively linked to the flyt server
+ * backend.
+ */
+
 # ifndef __FLYT_CPU_SERVER_CLIENT_MGR_H
 # define __FLYT_CPU_SERVER_CLIENT_MGR_H
 
@@ -10,10 +17,6 @@
 #define INIT_MODULE_SLOTS 8
 #define INIT_FUNCTION_SLOTS 128
 #define INIT_VAR_SLOTS 128
-
-
-
-
 
 enum MODULE_LOAD_TYPE {
     MODULE_LOAD_DATA = 0,

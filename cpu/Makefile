@@ -20,7 +20,7 @@ RPC_SERVER_MOD = cpu_rpc_prot_svc_mod.c
 RPC_CLIENT = cpu_rpc_prot_clnt.c
 RPC_XDR = cpu_rpc_prot_xdr.c
 RPC_DEF = cpu_rpc_prot.x
-RPC_H = $(RPC_DEF:%.x=%.h)
+RPC_H = $(RPC_DEF:%.x=%.h)client
 
 
 
@@ -41,7 +41,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cr.c 					    \
 			 gsched_none.c 			    \
 			 oob.c 					    \
-			 mt-memcpy.c				\
+			 cpu-server-mt-memcpy.c				\
 			 cpu-elf2.c					\
 			 cpu-server-nvml.c			\
 			 cpu-server-cudnn.c         \
@@ -68,7 +68,7 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-libwrap.c              \
 			 cpu-client-cusolver.c 		\
 			 oob.c 					    \
-			 mt-memcpy.c				\
+			 cpu-client-mt-memcpy.c				\
 			 cpu-elf2.c					\
 			 cpu-client-nvml.c          \
 			 cpu-client-cudnn.c			\
@@ -133,7 +133,7 @@ all : $(SERVER) $(CLIENT)
 $(CLIENT_STATIC): $(OBJ_CLIENT)
 	ar rcs $@ $^
 
-$(CLIENT) : $(OBJ_CLIENT)
+$(CLIENT) : $(OBJ_CLIENT) 
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
 
 $(SERVER_LIB) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
@@ -162,7 +162,3 @@ $(RPC_XDR) : $(RPC_DEF)
 
 clean:
 	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC)
-
-
-
-

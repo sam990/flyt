@@ -3,7 +3,7 @@
 TARGET_LIBCUDART_MAJOR_VERS = 12
 export TARGET_LIBCUDART_MAJOR_VERS
 
-.PHONY: all cuda-gdb libtirpc gpu cpu tests clean install install-cpu control-managers 
+.PHONY: all cuda-gdb libtirpc gpu cpu clean install install-cpu control-managers # tests
 .PHONY: install-cmgr install-cpu-server install-cpu-client install-tests install-gpu
 
 all: cpu install
@@ -52,9 +52,9 @@ control-managers:
 	@echo -e "\033[36m----> Building control-managers\033[0m"
 	$(MAKE) -C control-managers
 
-tests:
-	@echo -e "\033[36m----> Building test kernels\033[0m"
-	$(MAKE) -C tests
+# tests:
+# 	@echo -e "\033[36m----> Building test kernels\033[0m"
+# 	$(MAKE) -C tests
 
 install-cpu-server: bin/cricket-rpc-server
 	@echo -e "\033[36m----> Copying cpu-server to build/bin\033[0m"
@@ -99,6 +99,9 @@ bin/libtirpc.so: bin submodules/libtirpc/install/lib/libtirpc.so
 bin/libtirpc.so.3: bin submodules/libtirpc/install/lib/libtirpc.so.3 libtirpc
 	cp submodules/libtirpc/install/lib/libtirpc.so.3 bin
 
+# Copy the cricket-client.so contents (i.e. rpc calls) to the original cuda runtime library .so
+# symbolic link the original rt.so library to the newly created .999 library (containing cricket client implementation)
+# Once installed, regular cuda calls will be implemented by this new library.
 install-client-lib: bin/cricket-client.so /usr/local/cuda/lib64/libcudarto.so
 	@echo -e "\033[36m----> Installing vcuda library\033[0m"
 	sudo cp bin/cricket-client.so /usr/local/cuda/lib64/libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
