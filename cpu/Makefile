@@ -20,7 +20,7 @@ RPC_SERVER_MOD = cpu_rpc_prot_svc_mod.c
 RPC_CLIENT = cpu_rpc_prot_clnt.c
 RPC_XDR = cpu_rpc_prot_xdr.c
 RPC_DEF = cpu_rpc_prot.x
-RPC_H = $(RPC_DEF:%.x=%.h)client
+RPC_H = $(RPC_DEF:%.x=%.h)
 
 
 
