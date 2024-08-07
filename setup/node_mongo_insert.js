@@ -11,7 +11,6 @@ const config = {
 async function main() {
     const uri = `mongodb://${config.user}:${config.password}@${config.host}:${config.port}/${config.dbname}`;
     const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-
     try {
         await client.connect();
         console.log("Connected to the database");
