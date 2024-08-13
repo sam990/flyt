@@ -256,7 +256,7 @@ impl<'a> ServerNodesManager<'a> {
             return Err("VM resources not found".to_string());
         }
 
-        let vm_required_resources = vm_required_resources.unwrap();
+        let vm_required_resources: VMResources = vm_required_resources.unwrap();
 
         let target_gpu = self.get_free_gpu(&vm_required_resources);
 

@@ -9,7 +9,7 @@ all: $(OBJS)
 	nvcc $< -O0 -arch sm_86 -o $@ -lcuda -cudart=shared -lrt -lpthread
 
 %: %.c
-	gcc $< -o $@ -lrt -lpthread -ldl
+	gcc $< -o $@ -lrt -lpthread
 
 clean:
 	rm -f $(OBJS)
