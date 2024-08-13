@@ -19,10 +19,10 @@ async function main() {
         const collection = database.collection("vm_required_resources");
 
 	// Define the filter and the update operation
-        const filter = { vm_ip: "10.129.26.124" }; // Criteria to find the document
+        const filter = { vm_ip: "10.129.28.180" }; // Criteria to find the document
 	var doc = {
-	    vm_ip: "10.129.26.124",
-	    host_ip: "10.129.27.234",
+	    vm_ip: "10.129.28.180",
+	    host_ip: "10.129.2.27",
 	    compute_units: 64,
 	    memory: 8196
 	};
