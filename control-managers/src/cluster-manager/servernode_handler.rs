@@ -167,7 +167,7 @@ impl<'a> ServerNodesManager<'a> {
             self.add_server_node(server_node);
         }
 
-        let _ = self.update_server_node_gpus(&server_ip);
+        let _ = self.update_server_node_gpus(&server_ip);        
         
     }
 
@@ -687,8 +687,10 @@ impl<'a> ServerNodesManager<'a> {
 fn check_resource_availability(server_node: &ServerNode, vm_resources: &VMResources) -> Option<u64> {
     for gpu in server_node.gpus.iter() {
         let gpu_read = gpu.read().unwrap();
+
         let remain_compute_units = gpu_read.compute_units - gpu_read.allocated_compute_units;
         let remain_memory = gpu_read.memory - gpu_read.allocated_memory;
+
         if remain_memory >= vm_resources.memory && remain_compute_units >= vm_resources.compute_units {
             return Some(gpu_read.gpu_id);
         }

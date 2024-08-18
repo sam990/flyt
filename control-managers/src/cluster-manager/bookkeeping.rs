@@ -110,8 +110,9 @@ impl VMResourcesGetter {
             .build();
             
             let client = Client::with_options(client_options).ok()?;
-
+    
             Some(client.database(db_dbname).collection("vm_required_resources"))
+            
         };
 
         Self {
@@ -123,11 +124,13 @@ impl VMResourcesGetter {
     pub fn get_vm_required_resources(&self, vm_ip: &String) -> Option<VMResources> {
         // let mut lock = self.mongo_client.try_lock().ok()?;
         let collection = self.mongo_collection.as_ref()?;
+        let cnt = collection.count_documents(None, None);
         let filter = doc! { "vm_ip": vm_ip };
         collection.find_one(filter, None).ok()?.and_then(|mut rsc| {
             rsc.memory = rsc.memory * 1024 * 1024;
             Some(rsc)
         })
+
     }
 
 
