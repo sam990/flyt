@@ -1,12 +1,12 @@
 const { MongoClient } = require('mongodb');
 
 const config = {
-    host: "localhost",
+    host: "10.129.27.234",
     port: 27017,
-    user: "adminUser",
-    password: "flyt",
+    user: "root",
+    password: "example",
     dbname: "flyt"
-};
+}
 
 async function main() {
     const uri = `mongodb://${config.user}:${config.password}@${config.host}:${config.port}/${config.dbname}`;

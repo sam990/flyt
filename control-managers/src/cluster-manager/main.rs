@@ -19,7 +19,7 @@ fn main() {
 
     let ( servernode_port, client_port) = bookkeeping::get_ports();
 
-    let vm_resource_getter = bookkeeping::VMResourcesGetter::new();
+    let vm_resource_getter = bookkeeping::VMResourcesGetter::new(); 
 
     let server_nodes_manager = ServerNodesManager::new(&vm_resource_getter);
     let client_handler = client_handler::FlytClientManager::new(&server_nodes_manager);

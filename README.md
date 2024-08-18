@@ -41,7 +41,7 @@ On the client you need to substiture the original cuda runtime library with the 
 You need to run following modules:
 
 1. **flyt-cluster-manager:** This can be run on any machine in the cluster. It is responsible for managing the cluster of GPUs.
-2. **flyt-node-manager:** This should be run as a daemon on machines where the GPU is available. Before running the node manager, make sure that mps is enabled on the GPU. Also you need to set the environment variable `CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING=1` before running the node manager.
+2. **flyt-node-manager:** This should be run as a daemon on machines where the GPU is available. Before running the node manager, make sure that mps is enabled on the GPU. Also you need to set the environment variable ` ` before running the node manager.
 3. **flyt-client-manager:** This should be run on the Virtual Machine as a daemon.
 
 You should update the configuration files to point to the correct IP addresses/ports and other configurations.

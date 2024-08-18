@@ -33,6 +33,7 @@ tests/samples/nbody
 configs
 docs/ivshmem-channel-notes.self.md
 NOTES-armaan.md
+vm@*
 
 # npm modules
 setup/node_modules
