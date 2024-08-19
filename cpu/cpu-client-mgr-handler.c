@@ -133,15 +133,17 @@ char* init_client_mgr() {
 
     pid_t pid = getpid();
 
-    uint64_t recv_id = msg_recv_id();
+    uint64_t recv_id = msg_recv_id(); // == getpid()
     uint64_t send_id = msg_send_id();
 
     struct msgbuf_uint32 msg;
     msg.mtype = 1;
     msg.data = htonl(pid);
 
+    // send pid to cluster manager.
     msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0);
 
+    // get serverIP from clustermgr.
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
     
     if (virt_server_info == NULL) {

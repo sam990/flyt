@@ -114,9 +114,16 @@ static void rpc_connect(char *server_info)
             LOGE(LOG_ERROR, "error resolving hostname: %s", server);
             exit(1);
         }
+        // contains IP of host, 
+        // no resolve reqd by gethostbyname
+        // as `server` is an IPV4 address.
         sock_in.sin_addr = *(struct in_addr *)hp->h_addr;
         // inet_aton("137.226.133.199", &sock_in.sin_addr);
 
+        // create a TCP client handle that connects to 
+        // a single cricket-rpc-server socket.
+        // isock: socket that is bound to the server IP.
+        // sock_in: sockaddr_in struct that contains server IP.
         clnt = clnttcp_create(&sock_in, prog, vers, &isock, 0, 0);
         getsockname(isock, &local_addr, &sockaddr_len);
         connection_is_local =
@@ -183,6 +190,7 @@ void resume_connection(void)
 //     }
 // }
 
+// Called as soon as the library is loaded.
 void __attribute__((constructor)) init_rpc(void)
 {
     enum clnt_stat retval_1;

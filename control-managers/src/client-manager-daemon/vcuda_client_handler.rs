@@ -212,6 +212,7 @@ impl VCudaClientManager {
             log::info!("Client connected: {}", client_pid);
 
             let virt_server = virt_server_getter();
+            log::debug!("Got virt server.");
             if virt_server.is_none() {
                 log::error!("Error getting virt server details");
                 
