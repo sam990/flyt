@@ -44,6 +44,7 @@ impl <'b> ResourceManagerHandler <'b> {
                 };
                 let mut reader = BufReader::new(stream_clone);
                 let vserver = ResourceManagerHandler::read_virt_server_details(&mut reader, &mut stream);
+                log::debug!("vserver details read.");
                 if vserver.is_some() {
                     self.virt_server.write().unwrap().replace(vserver.clone().unwrap());
                     self.launch_cmd_reader_thread(scope, reader, stream);
@@ -67,7 +68,9 @@ impl <'b> ResourceManagerHandler <'b> {
 
     fn read_virt_server_details(reader: &mut BufReader<TcpStream>, stream: &mut TcpStream) -> Option<VirtServer> {
         match stream.write_all(format!("{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT).as_bytes()) {
-            Ok(_) => {}
+            Ok(_) => {
+                log::debug!("Sent CLIENTD_RMGR_CONNECT");
+            }
             Err(e) => {
                 log::error!("Error writing to stream: {}", e);
                 return None;
@@ -76,6 +79,7 @@ impl <'b> ResourceManagerHandler <'b> {
         
         let response =  match StreamUtils::read_response(reader, 2) {
             Ok(response) => {
+                log::debug!("Got response for CLIENTD_RMGR_CONNECT");
                 response
             }
             Err(error) => {
