@@ -1743,6 +1743,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 mem_data src_mem;
                 src_mem.mem_data_len = count;
                 src_mem.mem_data_val = (void*)src;
+                LOGE(LOG_DEBUG, "Memcpy data size: %lu\n", count);
                 retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
 #ifdef WITH_MT_MEMCPY
             }

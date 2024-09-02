@@ -117,6 +117,8 @@ char* init_client_mgr() {
         mknod(CLIENTD_MQUEUE_PATH, S_IFREG | 0666, 0);
     }
 
+    // this key value is the same as the one used on 
+    // the manager process.
     key_t key = ftok(CLIENTD_MQUEUE_PATH, PROJ_ID);
     if (key == -1) {
         perror("ftok");
@@ -125,6 +127,9 @@ char* init_client_mgr() {
 
     LOGE(LOG_DEBUG, "msgqueue key: %d\n", key);
 
+    // _id is a process-local handle to the message queue associated with the
+    // given key. This creates the message queue, "connected"
+    // to another process that initiated an MQ with the same key
     int clientd_mqueue_id = msgget(key, IPC_CREAT | 0666);
     if (clientd_mqueue_id == -1) {
         perror("msgget");
@@ -133,6 +138,12 @@ char* init_client_mgr() {
 
     pid_t pid = getpid();
 
+    // send ID: the recvID of a the messageQ endpoint
+    // that this process is sending to. 
+    // ---
+    // recv_id: The id that other mQ enpoints must send to
+    // This enables the message ueue backend to have
+    // multiple processes reading and writing.
     uint64_t recv_id = msg_recv_id(); // == getpid()
     uint64_t send_id = msg_send_id();
 
@@ -150,7 +161,7 @@ char* init_client_mgr() {
         return NULL;
     }
 
-    init_handler_thread(clientd_mqueue_id);
+    init_handler_thread(clientd_mqueue_id); 
 
     return virt_server_info;
 }

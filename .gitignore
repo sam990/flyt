@@ -34,6 +34,7 @@ configs
 docs/ivshmem-channel-notes.self.md
 NOTES-armaan.md
 vm@*
+synthetic_benchmark/*.log
 
 # npm modules
 setup/node_modules

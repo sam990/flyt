@@ -175,8 +175,6 @@ inline cricket_client* get_client_by_pid(int pid) {
 }
 */
 
-
-
 int remove_client_ptr(cricket_client* client) {
     if (client == NULL) {
         LOGE(LOG_ERROR, "Client is null");
