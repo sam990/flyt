@@ -60,17 +60,35 @@ impl VirtServerManager {
 
     pub fn create_virt_server(&self, gpu_id: u32, gpu_memory: u64, num_sm_cores: u32) -> Result<u64,String> {
         log::debug!("create_virt_server: gpu_id: {}, gpu_memory: {}, num_sm_cores: {}", gpu_id, gpu_memory, num_sm_cores);
+
+        // unique rpc id for each virt server instance (one per VM).
         let rpc_id = {
             let mut counter = self.counter.lock().unwrap();
             *counter += 1;
             *counter
         };
         
+        // to ensure correct mqueue message routing.
         let send_id = rpc_id as i64;
         let recv_id = send_id << 32;
 
         log::info!("Starting virt server with rpc_id: {}", rpc_id.to_string());
 
+        // Construct the command and log all parts for debugging
+        // // Store the path in a local variable
+    let program_path = self.virt_server_program_path.as_str();
+    let mem_path = "valgrind --leak-check=full";
+
+    //let mut cmd = Command::new(mem_path);
+        //.arg(program_path)
+    let mut cmd = Command::new(program_path);
+        cmd.env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
+        .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
+        .arg(rpc_id.to_string())//  vers: passed to svc_register. Can create multiple server instances.
+        .arg(gpu_id.to_string())
+        .arg(num_sm_cores.to_string())
+        .arg(gpu_memory.to_string())
+        .arg(self.automode.to_string());
         let program_path = self.virt_server_program_path.as_str();
         let output_file = "./strace_rpc_server.txt"; // Specify the path to the output file
         
