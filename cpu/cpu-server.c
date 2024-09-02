@@ -287,14 +287,17 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         break;
     }
 
-    if (!svc_register(transp, prog, vers, rpc_cd_prog_1, protocol)) {
+    // registers the dispatch routines (through service ops) in a list.
+    // libtirpc internal plumbing ensures that requests are routed
+    // to the correct function by each thread.
+    if (!svc_register(transp, prog, vers, rpc_cd_prog_1, protocol)) { 
         LOGE(LOG_ERROR, "unable to register (RPC_PROG_PROG, RPC_PROG_VERS).");
         exit(1);
     }
 
     // Set the maximum size of incoming requests
     if (thread_mode == 1) {
-	    int mode = RPC_SVC_MT_AUTO;
+	    int mode = RPC_SVC_MT_AUTO; //51
 	    printf("thread mode = %d\n", RPC_SVC_MTMODE_SET);
         if (rpc_control(RPC_SVC_MTMODE_SET, (void *)&mode) != TRUE) {
             LOGE(LOG_ERROR, "unable to set multi threaded mode .\n");
@@ -321,8 +324,6 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         LOGE(LOG_ERROR, "initializing scheduler failed.");
         goto cleanup4;
     }
-
-    
 
     if (list_init(&api_records, sizeof(api_record_t)) != 0) {
         LOGE(LOG_ERROR, "initializing api recorder failed.");
