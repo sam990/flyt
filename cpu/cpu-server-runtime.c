@@ -70,13 +70,15 @@ int server_runtime_init(int restore, int gpu_id)
 {
     #ifdef WITH_IB
     #endif //WITH_IB
+
+    // list of cricket mulithreaded memcpy structs.
     int ret = 0;
     if (list_init(&mt_memcpy_list, sizeof(mt_memcpy_server_t)) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy: failed to initialize list.");
         ret &= 1;
     }
     if (!restore) {
-        ret &= resource_mg_init(&rm_events, 1);
+        ret &= resource_mg_init(&rm_events, 1); // res mgr for events. Stores a list of client addr, cuda addr.
         ret &= resource_mg_init(&rm_arrays, 1);
         ret &= cusolver_init(1, NULL, NULL);
         ret &= cublas_init(1, NULL);

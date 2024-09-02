@@ -60,12 +60,15 @@ impl VirtServerManager {
 
     pub fn create_virt_server(&self, gpu_id: u32, gpu_memory: u64, num_sm_cores: u32) -> Result<u64,String> {
         log::debug!("create_virt_server: gpu_id: {}, gpu_memory: {}, num_sm_cores: {}", gpu_id, gpu_memory, num_sm_cores);
+
+        // unique rpc id for each virt server instance (one per VM).
         let rpc_id = {
             let mut counter = self.counter.lock().unwrap();
             *counter += 1;
             *counter
         };
         
+        // to ensure correct mqueue message routing.
         let send_id = rpc_id as i64;
         let recv_id = send_id << 32;
 
@@ -81,7 +84,7 @@ impl VirtServerManager {
     let mut cmd = Command::new(program_path);
         cmd.env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
         .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
-        .arg(rpc_id.to_string())
+        .arg(rpc_id.to_string())//  vers: passed to svc_register. Can create multiple server instances.
         .arg(gpu_id.to_string())
         .arg(num_sm_cores.to_string())
         .arg(gpu_memory.to_string())

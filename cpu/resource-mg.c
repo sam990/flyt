@@ -3,6 +3,8 @@
 #include "log.h"
 
 
+// init a "resource manager", which contains two lists:
+// new_res: cl
 int resource_mg_init(resource_mg *mg, int bypass)
 {
     int ret = 0;
