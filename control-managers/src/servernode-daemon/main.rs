@@ -42,7 +42,6 @@ fn main() {
 
     thread::scope(|s| {
         s.spawn(|| {
-
             loop {
                 match resource_manager_handler.connect(&address, port) {
                     Ok(_) => {

@@ -246,7 +246,7 @@ impl<'a> ServerNodesManager<'a> {
     }
 
     pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<Arc<RwLock<VirtServer>>,String> {
-        let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
+        let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip); // mongodb
         
         log::info!("Allocating VM resources for client: {}", client_ip);
         log::info!("VM resources required: {:?}", vm_required_resources);

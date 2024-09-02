@@ -27,7 +27,7 @@ resource_map* init_resource_map(uint64_t init_length) {
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 
     pthread_mutex_init(&map->mutex, &attr);
-    map->length = init_length;
+    map->length = init_length; // max entries allowed in map. Each map entry contans a mapped addr, presnt flag and args.
     map->free_ptr_idx = 1;
     map->tail_idx = 1;
     return map;
