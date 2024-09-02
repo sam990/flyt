@@ -50,7 +50,7 @@ static int delete_context_resources() {
 
 }
 
-
+// Create a new cuda context with sm_cores specified.
 int change_sm_cores(uint32_t nm_sm_cores) {
 
     cudaDeviceSynchronize();
@@ -74,6 +74,7 @@ int change_sm_cores(uint32_t nm_sm_cores) {
     affinity_param.type = CU_EXEC_AFFINITY_TYPE_SM_COUNT;
     affinity_param.param.smCount.val = nm_sm_cores;
 
+    // new cuda ctx with new sm_cores
     res2 = cuCtxCreate_v3(&newContext, &affinity_param, 1,  0, active_device);
 
     if (res2 != CUDA_SUCCESS) {

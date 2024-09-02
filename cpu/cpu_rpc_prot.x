@@ -1,4 +1,4 @@
-typedef opaque mem_data<>;
+typedef opaque mem_data<>; /* variable length array of max 2^32 -1 bytes*/
 
 typedef unsigned hyper size_t;
 typedef unsigned hyper ptr;
