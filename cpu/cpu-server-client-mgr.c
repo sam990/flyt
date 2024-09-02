@@ -32,7 +32,7 @@ int init_cpu_server_client_mgr() {
         return ret;
     }
     */
-    ret = resource_mg_init(&xp_fd_to_client, 0);
+    ret = resource_mg_init(&xp_fd_to_client, 0); // list of fds tcreated on server for each client process
     if (ret != 0) {
         //resource_mg_free(&pid_to_xp_fd);
         LOGE(LOG_ERROR, "Failed to initialize xp_fd_to_client resource manager");
@@ -63,7 +63,7 @@ cricket_client* create_client(int pid) {
         return NULL;
     }
     client->pid = pid;
-    client->gpu_mem = init_resource_map(INIT_MEM_SLOTS);
+    client->gpu_mem = init_resource_map(INIT_MEM_SLOTS); // 4096 allocs per client.
     if (client->gpu_mem == NULL) {
         LOGE(LOG_ERROR, "Failed to initialize gpu_mem resource map for new client");
         free(client);
