@@ -45,7 +45,7 @@ int ib_device = 0;
 extern void cpu_runtime_print_api_call_cnt(void);
 #endif // WITH_API_CNT
 
-static void rpc_connect(char *server_info)
+static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assigned by the node manager.
 {
     int isock;
     struct sockaddr_un sock_un = { 0 };
@@ -68,7 +68,7 @@ static void rpc_connect(char *server_info)
 
     strcpy(server, splitted->str[0]);
 
-    vers = strtoul(splitted->str[1], NULL, 10);
+    vers = strtoul(splitted->str[1], NULL, 10); // rpc vers is passed back to client for portmapper 
 
     free_splitted_str(splitted);
     splitted = NULL;
@@ -109,7 +109,7 @@ static void rpc_connect(char *server_info)
         LOG(LOG_INFO, "connecting via TCP...");
         isock = RPC_ANYSOCK;
         sock_in.sin_family = AF_INET;
-        sock_in.sin_port = 0;
+        sock_in.sin_port = 0; // ensures libtirpc routes to portmapper.
         if ((hp = gethostbyname(server)) == 0) {
             LOGE(LOG_ERROR, "error resolving hostname: %s", server);
             exit(1);
@@ -223,10 +223,19 @@ void __attribute__((constructor)) init_rpc(void)
     free(server_info);
 
     initialized = 1;
-    // if (signal(SIGUSR1, repair_connection) == SIG_ERR) {
-    //     LOGE(LOG_ERROR, "An error occurred while setting a signal handler.");
-    //     exit(1);
-    // }
+
+    /// Now we can communicate ivshmem params to the server.
+    /// In rpc_init_1, need to additionally send to server:
+    // - path to ivshmem backend. ("/dev/shm/<qemu-ivshmem-name>", string)
+    // - Size of ivshmem backend allocated to this process. (constant per process, int)
+    // - Whether client VM and flyt-rpc-server are on the same machine. (0/1, int)
+    // - Starting byte offset into the backend file for this process. ()
+    /// The client library will maintain these details on the VM as well.
+    /// Each process will have its own instance of the tracking vars used
+    /// in the lib.
+
+
+
     FUNC_BEGIN 
     retval_1 = rpc_init_1(getpid(), &result_1,  clnt);
     FUNC_END

@@ -75,7 +75,7 @@ bool_t rpc_init_1_svc(int pid, int *result, struct svc_req *rqstp) {
     // create and initialize 
     LOG(LOG_INFO, "RPC init requested %d", rqstp->rq_xprt->xp_fd);
     // rqstp->rq_xprt->xp_fd 
-    int ret = add_new_client(pid, rqstp->rq_xprt->xp_fd);
+    int ret = add_new_client(pid, rqstp->rq_xprt->xp_fd); // the connection fd.
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to initialize client manager for pid %d", pid);
         *result = 1;
@@ -266,11 +266,21 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         break;
     case TCP:
         LOG(LOG_INFO, "using TCP...");
+        // a random port number is assigned to this socket,
+        // now strored in a handler of type SVCXPRT *
+        // ----------------------------------------
+        // - Consider SVCXPRT == __rpc_svcxprt as a 
+        // generic transport handler class with
         transp = svctcp_create(RPC_ANYSOCK, 0, 0);
+        // Now we have a listen fd being tracked by select
+        // for connection request events.
         if (transp == NULL) {
             LOGE(LOG_ERROR, "cannot create service.");
             exit(1);
         }
+        // remove any previous mappings of this program
+        // on the rpcbind service in preperation for this 
+        // new svc_registration.
         pmap_unset(prog, vers);
         LOG(LOG_INFO, "listening on port %d", transp->xp_port);
         protocol = IPPROTO_TCP;
@@ -287,6 +297,12 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         break;
     }
 
+    // "service" - implemented by a program.
+    // A "program" - implements several remote procedures.
+    // Thus an RPC service is implemented by a server that implements
+    // a set of remote procedures.
+    // ---------------------------
+    // - struct svc_callout: Implements the list of registered callouts
     if (!svc_register(transp, prog, vers, rpc_cd_prog_1, protocol)) {
         LOGE(LOG_ERROR, "unable to register (RPC_PROG_PROG, RPC_PROG_VERS).");
         exit(1);
@@ -294,7 +310,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
 
     // Set the maximum size of incoming requests
     if (thread_mode == 1) {
-	    int mode = RPC_SVC_MT_AUTO;
+	    int mode = RPC_SVC_MT_AUTO; //51
 	    printf("thread mode = %d\n", RPC_SVC_MTMODE_SET);
         if (rpc_control(RPC_SVC_MTMODE_SET, (void *)&mode) != TRUE) {
             LOGE(LOG_ERROR, "unable to set multi threaded mode .\n");
@@ -314,26 +330,25 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     //     cudaRegisterAllv();
     // }
 
-    sched = &sched_fixed;
+    sched = &sched_fixed; // a struct of function pointers defined in gsched_fixed.c
     set_active_device(gpu_id);
 
     if (sched->init() != 0) {
         LOGE(LOG_ERROR, "initializing scheduler failed.");
         goto cleanup4;
     }
-
-    
-
+    // store call history on server in list api_records.
     if (list_init(&api_records, sizeof(api_record_t)) != 0) {
         LOGE(LOG_ERROR, "initializing api recorder failed.");
         goto cleanup4;
     }
-
+    
+    // init resource manager lists for runtime api calls
     if (server_runtime_init(restore, gpu_id) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup3;
     }
-
+    // do nothing for now
     if (server_driver_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup2;        
@@ -381,7 +396,9 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     // make sure that our output is flushed even for non line-buffered shells
     fflush(stdout);
     
-    send_initialised_msg();
+    // to signal back to client that the server is ready 
+    // to accept connection requests.
+    send_initialised_msg(); 
 
     if(thread_mode == 1) {
 	    int mt_mode = RPC_SVC_MT_AUTO;
