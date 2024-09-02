@@ -71,21 +71,37 @@ impl VirtServerManager {
 
         log::info!("Starting virt server with rpc_id: {}", rpc_id.to_string());
 
+        let program_path = self.virt_server_program_path.as_str();
+        let output_file = "./strace_rpc_server.txt"; // Specify the path to the output file
+        
+        // Command with strace -f and output redirection to a file
+        let mut cmd = Command::new("strace");
+        cmd.arg("-f")
+           .arg("-o").arg(output_file) // Redirect output to a file
+           .arg(program_path)
+           .env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
+           .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
+           .arg(rpc_id.to_string())
+           .arg(gpu_id.to_string())
+           .arg(num_sm_cores.to_string())
+           .arg(gpu_memory.to_string())
+           .arg(self.automode.to_string());
+
         // Construct the command and log all parts for debugging
         // // Store the path in a local variable
-    let program_path = self.virt_server_program_path.as_str();
-    let mem_path = "valgrind --leak-check=full";
+    // let program_path = self.virt_server_program_path.as_str();
+    // let mem_path = "valgrind --leak-check=full";
 
-    //let mut cmd = Command::new(mem_path);
-        //.arg(program_path)
-    let mut cmd = Command::new(program_path);
-        cmd.env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
-        .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
-        .arg(rpc_id.to_string())
-        .arg(gpu_id.to_string())
-        .arg(num_sm_cores.to_string())
-        .arg(gpu_memory.to_string())
-        .arg(self.automode.to_string());
+    // //let mut cmd = Command::new(mem_path);
+    //     //.arg(program_path)
+    // let mut cmd = Command::new(program_path);
+    //     cmd.env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
+    //     .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
+    //     .arg(rpc_id.to_string())
+    //     .arg(gpu_id.to_string())
+    //     .arg(num_sm_cores.to_string())
+    //     .arg(gpu_memory.to_string())
+    //     .arg(self.automode.to_string());
 
     // Logging the full command details
     log::info!("Executing command: {:?}", cmd);
