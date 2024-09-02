@@ -47,6 +47,20 @@ void *get_random_array(long long size) {
     return arr;
 }
 
+void *get_basic_array(long long size) {
+    uint8_t *arr = (uint8_t *)malloc(size);
+
+    if (arr == NULL) {
+        fprintf(stderr, "Unable to allocate array on cpu\n");
+        return NULL;
+    }
+
+    for (long long i = 0; i < size; i++) {
+        arr[i] = 1;
+    }
+    return arr;
+}
+
 
 
 int main(int argc, char* argv[]) {
@@ -71,6 +85,7 @@ int main(int argc, char* argv[]) {
     }
 
     long *h_a = (long *)get_random_array(mem_bytes);
+    //long *h_a = (long *)get_basic_array(mem_bytes);
 
     long *h_x = (long *)calloc(mem_bytes, 1);
     long *h_y = (long *)calloc(mem_bytes, 1);
@@ -94,6 +109,7 @@ int main(int argc, char* argv[]) {
     HANDLE_ERROR(cudaMemcpy(d_b, h_a, mem_bytes, cudaMemcpyHostToDevice));
 
     long long grid_size = num_threads >> 5;
+    printf("Grid size: %llu\n", grid_size);
     long long block_size = 32;
 
     add<<<grid_size,block_size>>>(num_iterations, d_a, d_b, d_c);
@@ -123,7 +139,6 @@ int main(int argc, char* argv[]) {
     free(h_x);
     free(h_y);
     free(h_z);
-
 
     return 0;
 }

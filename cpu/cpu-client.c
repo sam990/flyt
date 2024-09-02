@@ -125,9 +125,12 @@ static void rpc_connect(char *server_info)
         // isock: socket that is bound to the server IP.
         // sock_in: sockaddr_in struct that contains server IP.
         clnt = clnttcp_create(&sock_in, prog, vers, &isock, 0, 0);
+
+        // store address to which isock was bound (in clnttcp_create)
+        // in local_addr
         getsockname(isock, &local_addr, &sockaddr_len);
         connection_is_local =
-            (local_addr.sin_addr.s_addr == sock_in.sin_addr.s_addr);
+            (local_addr.sin_addr.s_addr == sock_in.sin_addr.s_addr); // this only works for non-VM case.
         break;
     case UDP:
         /* From RPCEGEN documentation:
@@ -208,6 +211,13 @@ void __attribute__((constructor)) init_rpc(void)
         LOGE(LOG_ERROR, "error initializing client manager");
         exit(1);
     }
+
+    // check if ivshmem possible
+    // --------------------------
+    // - client manager only has a thread to register new clients.
+    // - i.e. after the initial setup, arbitrary comms still not possible.
+    // 
+
 
     rpc_connect(server_info);
     free(server_info);
@@ -419,11 +429,12 @@ void **__cudaRegisterFatBinary(void *fatCubin)
         return NULL;
     }
     rpc_fat.mem_data_len = fatbin_size;
+    LOGE(LOG_DEBUG, "Fatbin Size: %lu\n", fatbin_size);
+
 
     // CUDA registers an atexit handler for fatbin cleanup that accesses
     // the fatbin data structure. Let's allocate some zeroes to avoid segfaults.
     result = (void**)calloc(1, 0x58);
-
     FUNC_BEGIN 
     retval_1 = rpc_elf_load_1(rpc_fat, (ptr)result, &rpc_result, clnt);
     FUNC_END

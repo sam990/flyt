@@ -200,9 +200,9 @@ impl VCudaClientManager {
                 log::error!("Error converting bytes to u32");
                 continue;
             }
-            let client_pid = client_pid.unwrap();
+            let client_pid = client_pid.unwrap(); 
             
-            let receive_id = (client_pid as u64) << 32;
+            let receive_id = (client_pid as u64) << 32; // this is the send_id on library end.
 
             let client_msg_id = ClientMessageTypeId {
                 send_id: client_pid as i64,
