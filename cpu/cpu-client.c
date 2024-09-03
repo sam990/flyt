@@ -233,11 +233,16 @@ void __attribute__((constructor)) init_rpc(void)
     /// The client library will maintain these details on the VM as well.
     /// Each process will have its own instance of the tracking vars used
     /// in the lib.
-
+    ivshmem_setup_desc ivshmem_args = {
+        .iv_stat = 1,
+        .f_be = "/dev/shm/ivshmem-xml",
+        .be_sz_proc = 0x10000, // 2^16 bytes per process i.e.  2^6 KB i.e 64 KB per process.
+        .be_off = 0
+    };
 
 
     FUNC_BEGIN 
-    retval_1 = rpc_init_1(getpid(), &result_1,  clnt);
+    retval_1 = rpc_init_1(getpid(), ivshmem_args, &result_1,  clnt);
     FUNC_END
     
     if (retval_1 != RPC_SUCCESS) {
