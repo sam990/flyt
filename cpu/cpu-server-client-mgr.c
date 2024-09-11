@@ -10,6 +10,7 @@
 #include "cpu-server-client-mgr.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu_rpc_prot.h"
+#include "cpu-server-ivshmem.h"
 
 #define STR_DUMP_SIZE 128
 
@@ -55,7 +56,7 @@ void free_cpu_server_client_mgr() {
     resource_mg_free(&restored_clients);
 }
 
-cricket_client* create_client(int pid) {
+cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
 
     cricket_client* client = (cricket_client*)malloc(sizeof(cricket_client));
     if (client == NULL) {
@@ -63,7 +64,7 @@ cricket_client* create_client(int pid) {
         return NULL;
     }
     client->pid = pid;
-    client->gpu_mem = init_resource_map(INIT_MEM_SLOTS); // 4096 allocs per client.
+    client->gpu_mem = init_resource_map(INIT_MEM_SLOTS); // 4096 allocs per client, but extends dynamically
     if (client->gpu_mem == NULL) {
         LOGE(LOG_ERROR, "Failed to initialize gpu_mem resource map for new client");
         free(client);
@@ -87,6 +88,9 @@ cricket_client* create_client(int pid) {
         return NULL;
     }
 
+    // ivshmem added.
+    client->ivshmem_ctx = _ctx;
+
     resource_mg_init(&client->modules, 0);
     resource_mg_init(&client->functions, 0);
     resource_mg_init(&client->vars, 0);
@@ -96,9 +100,11 @@ cricket_client* create_client(int pid) {
 
 }
 
-int add_new_client(int pid, int xp_fd) {
+// create a new client
+// add <&fd, &client> to xp_fd_to_client map.
+int add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *_ctx) {
 
-    cricket_client* client = create_client(pid);
+    cricket_client* client = create_client(pid, _ctx);
     if (client == NULL) {
         LOGE(LOG_ERROR, "Failed to create new client for pid %d", pid);
         return -1;
@@ -157,6 +163,7 @@ int move_restored_client(int pid, int xp_fd) {
 
 
 inline cricket_client* get_client(int xp_fd) {
+    // pass map-to-be-looked-up, address of client fd.
 	cricket_client *ret = (cricket_client*)resource_mg_get_default(&xp_fd_to_client, (void *)(long)xp_fd, NULL);
 	if(ret == NULL) {
 	    LOGE(LOG_ERROR, "get client for %d\n", xp_fd);

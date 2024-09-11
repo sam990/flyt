@@ -211,6 +211,10 @@ int resource_mg_add_sorted(resource_mg *mg, void* client_address, void* cuda_add
     ssize_t start = 0;
     ssize_t end = mg->map_res.length-1;
     ssize_t mid;
+    // this is a common function, when adding a new client, the semantics of address 
+    // arent exactly consistent.
+    // client address: Address of conn fd on SVCXPRT part of server heap.
+    // cuda address: Address of a client on server heap.
     struct resource_mg_map_elem_t new_elem = {.client_address = client_address,
                                               .cuda_address = cuda_address};
     resource_mg_map_elem *mid_elem;

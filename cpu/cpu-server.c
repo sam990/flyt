@@ -30,6 +30,7 @@
 #include "cpu-server-mgr-listener.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-client-mgr.h"
+#include "cpu-server-ivshmem.h"
 
 INIT_SOCKTYPE
 
@@ -71,11 +72,22 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t rpc_init_1_svc(int pid, int *result, struct svc_req *rqstp) {
+bool_t rpc_init_1_svc(int pid, ivshmem_setup_desc iv_stat, int *result, struct svc_req *rqstp) {
     // create and initialize 
     LOG(LOG_INFO, "RPC init requested %d", rqstp->rq_xprt->xp_fd);
-    // rqstp->rq_xprt->xp_fd 
-    int ret = add_new_client(pid, rqstp->rq_xprt->xp_fd); // the connection fd.
+    char *f_be = iv_stat.f_be;
+    LOGE(LOG_DEBUG, "ivshmem backend file: %s\n", f_be);
+    LOGE(LOG_DEBUG, "ivshmem enable?: %d\n", iv_stat.iv_enable);
+
+    ivshmem_svc_ctx *ivshmem_ctx = NULL;
+    if (iv_stat.iv_enable == 1) {
+        // shm OK
+        ivshmem_ctx = init_ivshmem_svc(iv_stat);
+    }
+
+    // rqstp->rq_xprt->xp_fd = the connection fd.
+    int ret = add_new_client(pid, rqstp->rq_xprt->xp_fd, ivshmem_ctx); 
+
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to initialize client manager for pid %d", pid);
         *result = 1;
