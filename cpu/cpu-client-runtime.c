@@ -1483,7 +1483,7 @@ cudaError_t cudaMalloc(void** devPtr, size_t size)
     if (result.err != 0) {
         return result.err;
     }
-    *devPtr = (void*)result.ptr_result_u.ptr;
+    *devPtr = (void*)result.ptr_result_u.ptr; // assign server heap VA
     return result.err;
 }
 
@@ -1704,6 +1704,10 @@ void* ib_thread(void* arg)
 extern char server[256];
 #define MT_MEMCPY_MEM_PER_THREAD (128*1024*1024)
 #define WITH_MT_MEMCPY
+
+// src is a pointer to a CUDA app userspace VA on VM.
+// dst is the server heap VA that contains a struct with
+// true GPU device VA of cudaMalloc'd memory.
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
 #ifdef WITH_API_CNT
@@ -1712,6 +1716,15 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
+    // if shm_enabled:
+    //   if kind = H2D:
+    //      memcpy(src to shm)
+    //      cuda_memcpy_shm_1(H2D)
+    //   elif kind = D2H:
+    //      cuda_memcpy_shm_1(D2H)
+    //      memcpy(shm to userspace src)
+    // else:
+    // everything thats below: default tcp.
     if (kind == cudaMemcpyHostToDevice) {
         // get index of mem reg (src: cpu reg memregion)
         int index = hainfo_getindex((void*)src);

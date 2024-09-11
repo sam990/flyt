@@ -18,6 +18,7 @@
 #include "list.h"
 #include "cpu-elf2.h"
 #include "cpu-client-mgr-handler.h"
+#include "cpu-client-ivshmem.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
@@ -34,7 +35,6 @@ unsigned long vers;
 
 INIT_SOCKTYPE
 int connection_is_local = 0;
-int shm_enabled = 1;
 int initialized = 0;
 
 #ifdef WITH_IB
@@ -125,6 +125,7 @@ static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assi
         // isock: socket that is bound to the server IP.
         // sock_in: sockaddr_in struct that contains server IP.
         clnt = clnttcp_create(&sock_in, prog, vers, &isock, 0, 0);
+        printf("clnttcp_create done.\n");
 
         // store address to which isock was bound (in clnttcp_create)
         // in local_addr
@@ -193,6 +194,20 @@ void resume_connection(void)
 //     }
 // }
 
+int check_node_locality(char *server_info) {
+    // parse server_info
+
+    // return based on mongoDB value
+
+    return SHM_OK;
+}
+
+char *get_shm_be_path(char *server_info) {
+    // parse server_info
+    // retrieve last arg.
+    return "/dev/shm/ivshmem-0-ub11.dat";
+}
+
 // Called as soon as the library is loaded.
 void __attribute__((constructor)) init_rpc(void)
 {
@@ -206,17 +221,25 @@ void __attribute__((constructor)) init_rpc(void)
 
     pthread_rwlock_init(&access_sem, NULL);
 
+    // return comma sep string of:
+    // IP, rpc_id, shm_enabled, filepath of shm backend.
+    // requires modification to rpc_connect parse
+    // and control managers.
     char* server_info = init_client_mgr();
     if (server_info == NULL) {
         LOGE(LOG_ERROR, "error initializing client manager");
         exit(1);
     }
 
-    // check if ivshmem possible
-    // --------------------------
-    // - client manager only has a thread to register new clients.
-    // - i.e. after the initial setup, arbitrary comms still not possible.
-    // 
+    int clnt_pid = getpid();
+    ivshmem_setup_desc _svc_args = {0};
+
+    if (check_node_locality(server_info) == SHM_OK) {
+        char *shm_be_path = get_shm_be_path(server_info);
+        init_ivshmem_clnt(clnt_pid, shm_be_path); // mmap pci BAR
+        _svc_args = ivshmem_ctx->svc_args;
+        LOGE(LOG_DEBUG, "ivshmem setup done");
+    }
 
 
     rpc_connect(server_info);
@@ -225,25 +248,10 @@ void __attribute__((constructor)) init_rpc(void)
     initialized = 1;
 
     /// Now we can communicate ivshmem params to the server.
-    /// In rpc_init_1, need to additionally send to server:
-    // - path to ivshmem backend. ("/dev/shm/<qemu-ivshmem-name>", string)
-    // - Size of ivshmem backend allocated to this process. (constant per process, int)
-    // - Whether client VM and flyt-rpc-server are on the same machine. (0/1, int)
-    // - Starting byte offset into the backend file for this process. ()
-    /// The client library will maintain these details on the VM as well.
-    /// Each process will have its own instance of the tracking vars used
-    /// in the lib.
-    ivshmem_setup_desc ivshmem_args = {
-        .iv_stat = 1,
-        .f_be = "/dev/shm/ivshmem-xml",
-        .be_sz_proc = 0x10000, // 2^16 bytes per process i.e.  2^6 KB i.e 64 KB per process.
-        .be_off = 0
-    };
-
-
     FUNC_BEGIN 
-    retval_1 = rpc_init_1(getpid(), ivshmem_args, &result_1,  clnt);
+    retval_1 = rpc_init_1(clnt_pid, _svc_args, &result_1,  clnt);
     FUNC_END
+
     
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror(clnt, "call failed");

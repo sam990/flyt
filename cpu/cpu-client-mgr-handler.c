@@ -154,7 +154,8 @@ char* init_client_mgr() {
     // send pid to cluster manager.
     msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0);
 
-    // get serverIP from clustermgr.
+    // wait for serverIP from clustermgr.
+    // also get shm_enabled, shm_be_path
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
     
     if (virt_server_info == NULL) {
