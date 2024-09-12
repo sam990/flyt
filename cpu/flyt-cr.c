@@ -17,6 +17,7 @@
 #include "list.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-driver.h"
+#include "cpu-server-ivshmem.h"
 
 #include "flyt-cr.h"
 #include <dirent.h>
@@ -477,8 +478,9 @@ int flyt_restore_checkpoint(char *basepath) {
 
             sprintf(client_path, "%s/%s", basepath, client_pid);
             int client_pid_int = atoi(client_pid);
-
-            cricket_client *client = create_client(client_pid_int);
+            
+            ivshmem_svc_ctx *_ctx = {0}; // temp
+            cricket_client *client = create_client(client_pid_int, _ctx);
 
             if (client == NULL) {
                 LOGE(LOG_ERROR, "Failed to create client for pid %d", client_pid_int);

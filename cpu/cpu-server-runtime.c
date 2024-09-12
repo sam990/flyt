@@ -1680,7 +1680,9 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     RECORD_SINGLE_ARG(argp);
     LOGE(LOG_DEBUG, "cudaMalloc(%d)", argp);
 
-    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd); // client contains a currently empty gpu-memory map.
+    // client contains a currently empty gpu-memory map.
+    // also contains an ivshmem areas map, but irrelevant rn.
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd); 
     if (client == NULL) {
         LOGE(LOG_ERROR, "error getting client");
         result->err = cudaErrorInvalidValue;
@@ -2197,6 +2199,35 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
 }
 #endif //WITH_IB
 
+bool_t cuda_memcpy_ivshmem_1_svc(int offset, ptr fake_device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
+{
+    GSCHED_RETAIN;
+    RECORD_API(cuda_memcpy_ivshmem_1_argument);
+    RECORD_ARG(1, offset);
+    RECORD_ARG(2, fake_device_ptr);
+    RECORD_ARG(3, size);
+    RECORD_ARG(4, kind);
+    LOGE(LOG_DEBUG, "cudaMemcpyIvshmem(offset: %d, device_ptr: %p, size: %d, kind: %d)", offset, fake_device_ptr, size, kind);
+    *result = cudaErrorInitializationError;
+
+    void *mem_ptr; // true device VA
+    GET_CLIENT(*result) // returns the client with linked ivshmem_ctx
+    GET_MEMORY(mem_ptr, fake_device_ptr, *result) // given a VA on server heap, return the addr stored in it.
+
+    if (kind == cudaMemcpyHostToDevice) {
+        void *r_addr = (void *)(shm_get_readaddr_svc(client->ivshmem_ctx) + (off_t)offset);
+        LOGE(LOG_DEBUG, "right before cudaMemcpyH2D\n");
+        *result = cudaMemcpy(mem_ptr, r_addr, size, kind);
+    } else if (kind == cudaMemcpyDeviceToHost) {
+        void *w_addr = (void *)(shm_get_writeaddr_svc(client->ivshmem_ctx) + (off_t)offset);
+        *result = cudaMemcpy(w_addr, mem_ptr, size, kind);
+    }
+
+    RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
+    return 1;
+}
+
 bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
@@ -2219,8 +2250,8 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
     }
 
     void *mem_ptr;
-    GET_CLIENT(*result)
-    GET_MEMORY(mem_ptr, device_ptr, *result)
+    GET_CLIENT(*result) // returns the client with linked ivshmem_ctx
+    GET_MEMORY(mem_ptr, device_ptr, *result) // given a VA on server heap, return the addr stored in it.
 
     if (kind == cudaMemcpyHostToDevice) {
         *result = cudaMemcpy(

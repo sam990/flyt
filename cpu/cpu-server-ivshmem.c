@@ -44,22 +44,24 @@ void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx) {
     #define PROC_READ_START_OFFSET_SVC (PROC_SHM_SIZE / 2) 
 
     // read from [sz/2, sz)
+    ctx->write_to.max_size = ctx->shm_proc_size  / 2;
     ctx->read_from.avail_size = ctx->shm_proc_size / 2;
     ctx->read_from.avail_offset = ctx->shm_proc_start + PROC_READ_START_OFFSET_SVC;
 
     // write to [0, sz/2)
+    ctx->read_from.max_size = ctx->shm_proc_size  / 2;
     ctx->write_to.avail_size = ctx->shm_proc_size / 2;
     ctx->write_to.avail_offset = ctx->shm_proc_start + PROC_WRITE_START_OFFSET_SVC;
 }
 
 // cast to void * at runtime
-uintptr_t shm_read_getaddr_svc(ivshmem_svc_ctx *_ctx) {
+uintptr_t shm_get_readaddr_svc(ivshmem_svc_ctx *_ctx) {
     uintptr_t shm_va = (uintptr_t)_ctx->shm_mmap;
 
     return (shm_va + PROC_READ_START_OFFSET_SVC);
 }
 
-uintptr_t shm_write_getaddr_svc(ivshmem_svc_ctx *_ctx) {
+uintptr_t shm_get_writeaddr_svc(ivshmem_svc_ctx *_ctx) {
     uintptr_t shm_va = (uintptr_t)_ctx->shm_mmap;
 
     return (shm_va + PROC_WRITE_START_OFFSET_SVC);
