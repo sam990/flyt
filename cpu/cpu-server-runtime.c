@@ -2199,15 +2199,16 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
 }
 #endif //WITH_IB
 
-bool_t cuda_memcpy_ivshmem_1_svc(int offset, ptr fake_device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
+bool_t cuda_memcpy_ivshmem_1_svc(int shm_offset, int iter_offset, ptr fake_device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
     RECORD_API(cuda_memcpy_ivshmem_1_argument);
-    RECORD_ARG(1, offset);
-    RECORD_ARG(2, fake_device_ptr);
-    RECORD_ARG(3, size);
-    RECORD_ARG(4, kind);
-    LOGE(LOG_DEBUG, "cudaMemcpyIvshmem(offset: %d, device_ptr: %p, size: %d, kind: %d)", offset, fake_device_ptr, size, kind);
+    RECORD_ARG(1, shm_offset);
+    RECORD_ARG(2, iter_offset);
+    RECORD_ARG(3, fake_device_ptr);
+    RECORD_ARG(4, size);
+    RECORD_ARG(5, kind);
+    LOGE(LOG_DEBUG, "cudaMemcpyIvshmem(offset: %d, iter_offset: %d, device_ptr: %p, size: %d, kind: %d)", shm_offset, iter_offset, fake_device_ptr, size, kind);
     *result = cudaErrorInitializationError;
 
     void *mem_ptr; // true device VA
@@ -2215,12 +2216,23 @@ bool_t cuda_memcpy_ivshmem_1_svc(int offset, ptr fake_device_ptr, size_t size, i
     GET_MEMORY(mem_ptr, fake_device_ptr, *result) // given a VA on server heap, return the addr stored in it.
 
     if (kind == cudaMemcpyHostToDevice) {
-        void *r_addr = (void *)(shm_get_readaddr_svc(client->ivshmem_ctx) + (off_t)offset);
+        void *r_addr = (void *)(shm_get_readaddr_svc(client->ivshmem_ctx) + (off_t)shm_offset);
+
         LOGE(LOG_DEBUG, "right before cudaMemcpyH2D\n");
-        *result = cudaMemcpy(mem_ptr, r_addr, size, kind);
+        *result = cudaMemcpy(
+            (void *)((uintptr_t)mem_ptr + iter_offset), 
+            r_addr, 
+            size, 
+            kind);
     } else if (kind == cudaMemcpyDeviceToHost) {
-        void *w_addr = (void *)(shm_get_writeaddr_svc(client->ivshmem_ctx) + (off_t)offset);
-        *result = cudaMemcpy(w_addr, mem_ptr, size, kind);
+        void *w_addr = (void *)(shm_get_writeaddr_svc(client->ivshmem_ctx) + (off_t)shm_offset);
+        
+        LOGE(LOG_DEBUG, "right before cudaMemcpyD2H\n");
+        *result = cudaMemcpy(
+            w_addr, 
+            (void *)((uintptr_t)mem_ptr + iter_offset), 
+            size, 
+            kind);
     }
 
     RECORD_RESULT(integer, *result);
