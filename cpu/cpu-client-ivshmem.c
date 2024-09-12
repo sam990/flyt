@@ -33,11 +33,11 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path) {
     // --
     // hardcoding offsets only works for single-proc, single-VM case.
     #define PROC_SHM_SIZE 0x10000
-    #define PROC_WRITE_TO_OFFSET (PROC_SHM_SIZE / 2)
-    #define PROC_READ_FROM_OFFSET 0
+    #define PROC_WRITE_START_OFFSET_CLNT (PROC_SHM_SIZE / 2)
+    #define PROC_READ_START_OFFSET_CLNT 0
     ivshmem_setup_desc _args = {
         .iv_enable = 1, // shm_enabled, IN MONGO
-        .f_be = "/dev/shm/ivshmem-0-ub11", // IN MONGO
+        .f_be = "/dev/shm/ivshmem-0-ub11.dat", // IN MONGO
         .proc_be_sz = PROC_SHM_SIZE, // Get from clnt manager. NOT IN MONGO
         .proc_be_off = 0 // get from clnt manager - start offset. NOT IN MONGO
     };
@@ -58,13 +58,57 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path) {
     ivshmem_ctx->shm_proc_start = _args.proc_be_off;
     ivshmem_ctx->shm_proc_size = _args.proc_be_sz;
     ivshmem_ctx->svc_args = _args;
+
+    init_ivshmem_areas_clnt(ivshmem_ctx);
     
     //LOGE(LOG_DEBUG, "created ivshmem ctx\n");
-    printf("created ivshmem ctx\n");
+    printf("clnt ivshmem ctx created. mmap VA: %p\n", ivshmem_ctx->shm_mmap);
 
     // increment be_off in client manager.
     _clnt_mgr_update_shm(ivshmem_ctx->pid);
 
+}
+
+void init_ivshmem_areas_clnt(ivshmem_clnt_ctx *ctx) {
+    // write to [sz/2, sz)
+    ctx->write_to.max_size = ctx->shm_proc_size  / 2;
+    ctx->write_to.avail_size = ctx->shm_proc_size  / 2;
+    ctx->write_to.avail_offset = ctx->shm_proc_start + PROC_WRITE_START_OFFSET_CLNT;
+
+    // read from [0, sz/2)
+    ctx->read_from.max_size = ctx->shm_proc_size  / 2;
+    ctx->read_from.avail_size = ctx->shm_proc_size  / 2;
+    ctx->read_from.avail_offset = ctx->shm_proc_start + PROC_READ_START_OFFSET_CLNT;
+}
+
+uintptr_t shm_get_writeaddr_clnt(ivshmem_clnt_ctx *ctx) {
+    uintptr_t shm_va = (uintptr_t)ctx->shm_mmap;
+
+    return (shm_va + PROC_WRITE_START_OFFSET_CLNT);
+}
+
+uintptr_t shm_get_readaddr_clnt(ivshmem_clnt_ctx *ctx) {
+    uintptr_t shm_va = (uintptr_t)ctx->shm_mmap;
+
+    return (shm_va + PROC_READ_START_OFFSET_CLNT);
+}
+
+off_t shm_get_write_area_offset(size_t sz) {
+    // default, write to start of write_to area
+    return (off_t)0;
+}
+
+off_t shm_get_read_area_offset(size_t sz) {
+    // default, read from start of read_from area
+    return (off_t)0;
+}
+
+int check_shm_limits(_ivshmem_area *area, int size) {
+    if (area->max_size < size) {
+        return 0;
+    } else {
+        return 1;
+    }
 }
 
 #define MAX_LINE_LENGTH 4096
