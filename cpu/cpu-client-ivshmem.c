@@ -104,10 +104,11 @@ off_t shm_get_read_area_offset(size_t sz) {
 }
 
 int check_shm_limits(_ivshmem_area *area, int size) {
-    if (area->max_size < size) {
-        return 0;
-    } else {
+    if (size < area->max_size) {
         return 1;
+    } else {
+        printf("Large memcpy, chunking...\n");
+        return 0;
     }
 }
 
