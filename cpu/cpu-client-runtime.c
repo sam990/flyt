@@ -1719,34 +1719,61 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
     enum clnt_stat retval;
     if (ivshmem_ctx->shm_enabled) {
         if (kind == cudaMemcpyHostToDevice) {
-            off_t w_off = shm_get_write_area_offset(count); 
-            void *w_addr = (void *)(shm_get_writeaddr_clnt(ivshmem_ctx) + w_off);
+            size_t copied_count = 0; // Tracks how much has been copied so far
 
-            if (check_shm_limits(&(ivshmem_ctx->write_to), count)) {
-                printf("Avail shm area: %d\nRequired Area: %d\n", ivshmem_ctx->write_to.avail_size, count);
-                memcpy(w_addr, src, count);
-                ivshmem_ctx->write_to.avail_size -= count;
-            } else {
-                // store metadata for iterative rpc_memcpy instances.
-                // do memcpy_shm with reduced size, 
-            }
+            // Keep looping until all data is copied
+            while (copied_count < count) {
+                // Calculate the remaining data size to copy
+                size_t remaining = count - copied_count;
 
-            retval = cuda_memcpy_ivshmem_1(w_off, (ptr)dst, count, kind, &ret, clnt);
-            if (retval != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "cuda_memcpy_shm failed");
-                goto cleanup;
+                // Check available shared memory and get the maximum transferable chunk size
+                size_t chunk_size = (check_shm_limits(&(ivshmem_ctx->write_to), remaining))
+                                        ? remaining
+                                        : ivshmem_ctx->write_to.max_size - 1;
+                printf("Memcpy user to shm chunk size = %ld bytes.\n", chunk_size);
+                // Adjust the offsets and addresses for current chunk transfer
+                off_t w_off = shm_get_write_area_offset(chunk_size);
+                void *w_addr = (void *)(shm_get_writeaddr_clnt(ivshmem_ctx) + w_off);
+
+                // Perform the copy operation for the current chunk
+                memcpy(w_addr, (void *)((uintptr_t)src + copied_count), chunk_size);
+
+                //ivshmem_ctx->write_to.avail_size -= chunk_size;
+
+                // Perform the RPC call for this chunk
+                // pass offset into gpu_alloc also
+                retval = cuda_memcpy_ivshmem_1(w_off, copied_count, (ptr)dst, chunk_size, kind, &ret, clnt);
+                if (retval != RPC_SUCCESS) {
+                    LOGE(LOG_ERROR, "cuda_memcpy_shm failed");
+                    goto cleanup;
+                }
+                // Update the copied count to reflect the transferred chunk
+                copied_count += chunk_size;
             }
         } else if (kind == cudaMemcpyDeviceToHost) {
-            off_t r_off = shm_get_read_area_offset(count); // "where in my read region is there space for a block to be written?"
-            void *r_addr = (void *)(shm_get_readaddr_clnt(ivshmem_ctx) + r_off);
+            size_t copied = 0;
+            while (copied < count) {
+                size_t remaining = count - copied;
 
-            retval = cuda_memcpy_ivshmem_1(r_off, (ptr)src, count, kind, &ret, clnt);
-            if (retval != RPC_SUCCESS) {
-                LOGE(LOG_ERROR, "cuda_memcpy_shm failed");
-                goto cleanup;
+                size_t chunk_size = (check_shm_limits(&(ivshmem_ctx->read_from), remaining))
+                                        ? remaining
+                                        : ivshmem_ctx->read_from.max_size - 1;
+
+                printf("Memcpy shm to user chunk size = %ld bytes.\n", chunk_size);
+                off_t r_off = shm_get_read_area_offset(chunk_size); // "where in my read region is there space for a block to be written?"
+                void *r_addr = (void *)(shm_get_readaddr_clnt(ivshmem_ctx) + r_off);
+
+                retval = cuda_memcpy_ivshmem_1(r_off, copied, (ptr)src, chunk_size, kind, &ret, clnt);
+                if (retval != RPC_SUCCESS) {
+                    LOGE(LOG_ERROR, "cuda_memcpy_shm failed");
+                    goto cleanup;
+                }
+                //ivshmem_ctx->read_from.avail_size -= chunk_size;
+                memcpy((void *)((uintptr_t)dst + copied), r_addr, chunk_size);
+
+                copied += chunk_size;
             }
 
-            memcpy(dst, r_addr, count);
         }
     } else {
         if (kind == cudaMemcpyHostToDevice) {
