@@ -16,6 +16,7 @@
 #define SHM_BE_PATH_SZ 128
 
 typedef struct __ivshmem_area {
+    size_t max_size;
     size_t avail_size;             
     off_t avail_offset; // returns lowest un-written offset.
 } _ivshmem_area;
@@ -33,10 +34,6 @@ typedef struct __ivshmem_svc_ctx {
     _ivshmem_area write_to; 
 } ivshmem_svc_ctx;
 
-// Create an ivshmem_svc_ctx instance.
-// Open the backend file, mmap
-// called per client (process), therefore in rpc_init_svc.
-// pass the returned ivshmem_ctx to create_client.
 ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt);
 
 void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx);
@@ -45,8 +42,8 @@ void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx);
 // memcpy helpers.
 // in D2H: svc dst_addr = write_getaddr() + r_off_clnt
 // in H2D: svc src_addr = read_getaddr() + w_off_clnt
-uintptr_t shm_read_getaddr_svc(ivshmem_svc_ctx *_ctx); // returns VA of start of mmaped region corresp to ivshmem_area read_from (shm_mmap + PROC_READ_OFFSET_SVC)
-uintptr_t shm_write_getaddr_svc(ivshmem_svc_ctx *_ctx); // returns VA of start of mmaped region corresp to ivshmem_area write_to (shm_mmap + PROC_WRITE_OFFSET_SVC)
+uintptr_t shm_get_readaddr_svc(ivshmem_svc_ctx *_ctx); // returns VA of start of mmaped region corresp to ivshmem_area read_from (shm_mmap + PROC_READ_OFFSET_SVC)
+uintptr_t shm_get_writeaddr_svc(ivshmem_svc_ctx *_ctx); // returns VA of start of mmaped region corresp to ivshmem_area write_to (shm_mmap + PROC_WRITE_OFFSET_SVC)
 
 #endif
 
