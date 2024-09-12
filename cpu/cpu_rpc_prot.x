@@ -367,7 +367,7 @@ program RPC_CD_PROG {
                           ptr, size_t)                                          = 426;*/
 
         /* ### CUDA_MEMCPY Family ### */
-        int          CUDA_MEMCPY_IVSHMEM(int, ptr, size_t, int)                 = 439;
+        int          CUDA_MEMCPY_IVSHMEM(int, int, ptr, size_t, int)            = 439;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)                    = 440;
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                              = 441;
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)                     = 442;
