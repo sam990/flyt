@@ -18,7 +18,7 @@
 #include "list.h"
 #include "cpu-elf2.h"
 #include "cpu-client-mgr-handler.h"
-#include "cpu-client-ivshmem.h"
+#include "cpu-client-ivshmem.h" // for ivshmem-ctx
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
