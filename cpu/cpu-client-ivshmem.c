@@ -32,7 +32,7 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path) {
     // be_off can be updated by init_ivshmem_clnt
     // --
     // hardcoding offsets only works for single-proc, single-VM case.
-    #define PROC_SHM_SIZE 0x10000
+    #define PROC_SHM_SIZE 2000000
     #define PROC_WRITE_START_OFFSET_CLNT (PROC_SHM_SIZE / 2)
     #define PROC_READ_START_OFFSET_CLNT 0
     ivshmem_setup_desc _args = {
@@ -107,7 +107,7 @@ int check_shm_limits(_ivshmem_area *area, int size) {
     if (size < area->max_size) {
         return 1;
     } else {
-        printf("Large memcpy, chunking...\n");
+        //printf("Large memcpy, chunking...\n");
         return 0;
     }
 }

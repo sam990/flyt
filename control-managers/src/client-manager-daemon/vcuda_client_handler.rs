@@ -224,8 +224,10 @@ impl VCudaClientManager {
                 continue;
             }
 
+            // temp, hardcode backend and shm_enable.
+
             let virt_server = virt_server.unwrap();
-            let address_str = format!("{},{}", virt_server.address, virt_server.rpc_id);
+            let address_str = format!("{},{}", virt_server.address, virt_server.rpc_id); // add backend path, shm_enable to this response
             let bytes = MqueueClientControlCommand::new("200", &address_str).as_bytes();
             log::debug!("Sending server details to client");
             match message_queue.send(&bytes, client_msg_id.send_id) {
