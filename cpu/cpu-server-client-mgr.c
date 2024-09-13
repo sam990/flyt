@@ -89,7 +89,9 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
     }
 
     // ivshmem added.
-    client->ivshmem_ctx = _ctx;
+    if (_ctx) {
+        client->ivshmem_ctx = _ctx;
+    }
 
     resource_mg_init(&client->modules, 0);
     resource_mg_init(&client->functions, 0);
