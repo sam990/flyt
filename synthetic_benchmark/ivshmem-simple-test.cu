@@ -38,7 +38,9 @@ int main(int argc, char **argv)
     }
 
     // Copy data from host to device
+    printf("before userspace cudamemcpy.\n");
     err = cudaMemcpy(device_data, host_data, data_size, cudaMemcpyHostToDevice);
+    printf("After userspace cudamemcpy\n");
     if (err != cudaSuccess) {
         fprintf(stderr, "cudaMemcpy (Host to Device) failed: %s\n", cudaGetErrorString(err));
         cudaFree(device_data);

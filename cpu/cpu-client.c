@@ -37,6 +37,13 @@ INIT_SOCKTYPE
 int connection_is_local = 0;
 int initialized = 0;
 
+ivshmem_setup_desc _EMPTY_svc_args = {
+    .iv_enable = SHM_NONE, 
+    .f_be = "EMPTY",
+    .proc_be_sz = 0,
+    .proc_be_off = 0
+};
+
 #ifdef WITH_IB
 int ib_device = 0;
 #endif // WITH_IB
@@ -200,6 +207,7 @@ int check_node_locality(char *server_info) {
     // return based on mongoDB value
 
     return SHM_OK;
+    // return SHM_NONE;
 }
 
 char *get_shm_be_path(char *server_info) {
@@ -232,6 +240,14 @@ void __attribute__((constructor)) init_rpc(void)
     }
 
     int clnt_pid = getpid();
+    /*
+     *  struct ivshmem_setup_desc {
+        uint8_t iv_enable;
+        char *f_be;
+        size_t proc_be_sz;
+        int proc_be_off;
+        };
+    */
     ivshmem_setup_desc _svc_args = {0};
 
     if (check_node_locality(server_info) == SHM_OK) {
@@ -239,8 +255,9 @@ void __attribute__((constructor)) init_rpc(void)
         init_ivshmem_clnt(clnt_pid, shm_be_path); // mmap pci BAR
         _svc_args = ivshmem_ctx->svc_args;
         LOGE(LOG_DEBUG, "ivshmem setup done");
+    } else {
+        _svc_args = _EMPTY_svc_args;
     }
-
 
     rpc_connect(server_info);
     free(server_info);
@@ -252,7 +269,6 @@ void __attribute__((constructor)) init_rpc(void)
     retval_1 = rpc_init_1(clnt_pid, _svc_args, &result_1,  clnt);
     FUNC_END
 
-    
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror(clnt, "call failed");
     }

@@ -1717,7 +1717,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
-    if (ivshmem_ctx->shm_enabled) {
+    if (ivshmem_ctx != NULL && ivshmem_ctx->shm_enabled) {
         if (kind == cudaMemcpyHostToDevice) {
             size_t copied_count = 0; // Tracks how much has been copied so far
 
@@ -1730,7 +1730,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 size_t chunk_size = (check_shm_limits(&(ivshmem_ctx->write_to), remaining))
                                         ? remaining
                                         : ivshmem_ctx->write_to.max_size - 1;
-                printf("Memcpy user to shm chunk size = %ld bytes.\n", chunk_size);
+                //printf("Memcpy user to shm chunk size = %ld bytes.\n", chunk_size);
                 // Adjust the offsets and addresses for current chunk transfer
                 off_t w_off = shm_get_write_area_offset(chunk_size);
                 void *w_addr = (void *)(shm_get_writeaddr_clnt(ivshmem_ctx) + w_off);
@@ -1759,7 +1759,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                                         ? remaining
                                         : ivshmem_ctx->read_from.max_size - 1;
 
-                printf("Memcpy shm to user chunk size = %ld bytes.\n", chunk_size);
+                //printf("Memcpy shm to user chunk size = %ld bytes.\n", chunk_size);
                 off_t r_off = shm_get_read_area_offset(chunk_size); // "where in my read region is there space for a block to be written?"
                 void *r_addr = (void *)(shm_get_readaddr_clnt(ivshmem_ctx) + r_off);
 

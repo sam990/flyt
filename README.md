@@ -56,6 +56,8 @@ A collection with the name `vm_required_resources` should be created in the data
     host_ip: <The ip address of the Host Machine of the VM>,
     compute_units: <The number of SM cores the VM should be allocated>,
     memory: <The amount of memory in GB the VM should be allocated>
+    // shm_enable: Whether shared memory transport is allowed
+    // shm_backend: shm filepath on host.
 }
 ```
 
