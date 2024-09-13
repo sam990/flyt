@@ -1981,6 +1981,7 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
       mem.mem_data_val, // src, i.e. where the user data is read from.
       size,
       cudaMemcpyHostToDevice);
+      printf("cudamemcpyH2D TCP done.\n");
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(mem.mem_data_val);
 #endif

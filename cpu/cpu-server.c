@@ -73,16 +73,18 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
 }
 
 bool_t rpc_init_1_svc(int pid, ivshmem_setup_desc iv_stat, int *result, struct svc_req *rqstp) {
-    // create and initialize 
     LOG(LOG_INFO, "RPC init requested %d", rqstp->rq_xprt->xp_fd);
-    char *f_be = iv_stat.f_be;
-    LOGE(LOG_DEBUG, "ivshmem backend file: %s\n", f_be);
-    LOGE(LOG_DEBUG, "ivshmem enable?: %d\n", iv_stat.iv_enable);
-
+    
+    // create and initialize 
     ivshmem_svc_ctx *ivshmem_ctx = NULL;
     if (iv_stat.iv_enable == 1) {
+        char *f_be = iv_stat.f_be;
+        LOGE(LOG_DEBUG, "ivshmem backend file: %s\n", f_be);
+        LOGE(LOG_DEBUG, "ivshmem enable?: %d\n", iv_stat.iv_enable);
         // shm OK
         ivshmem_ctx = init_ivshmem_svc(iv_stat);
+    } else {
+        printf("No shmem\n");
     }
 
     // rqstp->rq_xprt->xp_fd = the connection fd.

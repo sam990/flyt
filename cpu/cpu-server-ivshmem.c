@@ -39,7 +39,7 @@ ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt) {
 }
 
 void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx) {
-    #define PROC_SHM_SIZE 0x10000
+    #define PROC_SHM_SIZE 2000000
     #define PROC_WRITE_START_OFFSET_SVC 0
     #define PROC_READ_START_OFFSET_SVC (PROC_SHM_SIZE / 2) 
 
