@@ -14,6 +14,8 @@
 #include "cpu-client-mgr-handler.h"
 #include "log.h"
 #include "msg-handler.h"
+#include "cpu-utils.h"
+#include <assert.h> 
 
 #define CLIENTD_MQUEUE_PATH "/tmp/flyt-client-mgr"
 
@@ -65,7 +67,8 @@ static void* cpu_client_mgr_handler(void* arg) {
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_CHANGE_VIRT_SERVER, 64) == 0) {
-            char *server_info = strdup(msg.msg.data);
+            char *server_str = strdup(msg.msg.data);
+            server_info_t *server_info = parse_server_str(server_str);
             
             change_server(server_info);
 
@@ -111,7 +114,37 @@ void stop_client_mgr() {
     pthread_join(handler_thread, NULL);
 }
 
-char* init_client_mgr() {
+server_info_t *parse_server_str(char *server_str) {
+    server_info_t *res = malloc(sizeof(server_info_t));
+    assert(res);
+
+    // split and assign.
+    splitted_str *splitted = split_string(server_str, ",");
+    
+    if (splitted == NULL) {
+        LOGE(LOG_ERROR, "error splitting server info: %s", server_str);
+        exit(1);
+    }
+    if (splitted->size != 4) {
+        LOGE(LOG_ERROR, "error parsing server info: %s", server_str);
+        exit(1);
+    }
+
+    strcpy(res->server_ip, splitted->str[0]);
+
+    res->rpc_id = strtoul(splitted->str[1], NULL, 10);
+
+    res->shm_enable = strtoul(splitted->str[2], NULL, 10);
+
+    strcpy(res->shm_backend, splitted->str[3]);
+
+    free_splitted_str(splitted);
+    splitted = NULL;
+
+    return res;
+}
+
+server_info_t *init_client_mgr() {
     LOGE(LOG_DEBUG, "Connecting to client manager");
     if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
         mknod(CLIENTD_MQUEUE_PATH, S_IFREG | 0666, 0);
@@ -156,13 +189,17 @@ char* init_client_mgr() {
 
     // wait for serverIP from clustermgr.
     // also get shm_enabled, shm_be_path
+    // via strdup.
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
+    // printf("From Control Plane: %s#\n", virt_server_info);
     
     if (virt_server_info == NULL) {
         return NULL;
     }
 
+    server_info_t *virt_server = parse_server_str(virt_server_info);
+
     init_handler_thread(clientd_mqueue_id); 
 
-    return virt_server_info;
+    return virt_server;
 }

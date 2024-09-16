@@ -30,8 +30,8 @@ CLIENT *clnt = NULL;
 
 list kernel_infos = { 0 };
 
-char server[256];
-unsigned long vers;
+// needed for oob send in mt_memcpy on client.
+char SERVER_IP[256];
 
 INIT_SOCKTYPE
 int connection_is_local = 0;
@@ -52,7 +52,8 @@ int ib_device = 0;
 extern void cpu_runtime_print_api_call_cnt(void);
 #endif // WITH_API_CNT
 
-static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assigned by the node manager.
+
+static void rpc_connect(server_info_t *server_info) // "server_ip, vers" - `vers` is assigned by the node manager.
 {
     int isock;
     struct sockaddr_un sock_un = { 0 };
@@ -61,24 +62,12 @@ static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assi
     struct hostent *hp;
     socklen_t sockaddr_len = sizeof(struct sockaddr_in);
     unsigned long prog = 0;
-
-    splitted_str *splitted = split_string(server_info, ",");
     
-    if (splitted == NULL) {
-        LOGE(LOG_ERROR, "error splitting server info: %s", server_info);
-        exit(1);
-    }
-    if (splitted->size != 2) {
-        LOGE(LOG_ERROR, "error parsing server info: %s", server_info);
-        exit(1);
-    }
+    unsigned long vers = server_info->rpc_id;
+    char *server = server_info->server_ip;
 
-    strcpy(server, splitted->str[0]);
-
-    vers = strtoul(splitted->str[1], NULL, 10); // rpc vers is passed back to client for portmapper 
-
-    free_splitted_str(splitted);
-    splitted = NULL;
+    // for mt_memcpy in client-runtime. Not ideal.
+    strcpy(SERVER_IP, server);
     
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
@@ -158,11 +147,11 @@ static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assi
     }
 }
 
-void change_server(char *server_info)
+void change_server(server_info_t *server_info)
 {
     enum clnt_stat retval_1;
     int result_1;
-    LOG(LOG_INFO, "changing server to %s", server_info);
+    LOG(LOG_INFO, "changing server to %s", server_info->server_ip);
     rpc_connect(server_info);
 }
 
@@ -201,19 +190,23 @@ void resume_connection(void)
 //     }
 // }
 
-int check_node_locality(char *server_info) {
-    // parse server_info
+// <server_ip,rpc_id, shm_enable,shm_backend>
+int check_node_locality(server_info_t *server_info) {  
+    int shm_enable = server_info->shm_enable;
+    printf("shm enabled? %d\n");
 
     // return based on mongoDB value
-
-    return SHM_OK;
-    // return SHM_NONE;
+    if (shm_enable) {
+        return SHM_OK;
+    } else {
+        return SHM_NONE;
+    }
 }
 
-char *get_shm_be_path(char *server_info) {
+char *get_shm_be_path(server_info_t *server_info) {
     // parse server_info
     // retrieve last arg.
-    return "/dev/shm/ivshmem-0-ub11.dat";
+    return server_info->shm_backend;
 }
 
 // Called as soon as the library is loaded.
@@ -233,21 +226,15 @@ void __attribute__((constructor)) init_rpc(void)
     // IP, rpc_id, shm_enabled, filepath of shm backend.
     // requires modification to rpc_connect parse
     // and control managers.
-    char* server_info = init_client_mgr();
+    // server_info_t *server_info
+    server_info_t* server_info = init_client_mgr();
     if (server_info == NULL) {
         LOGE(LOG_ERROR, "error initializing client manager");
         exit(1);
     }
 
     int clnt_pid = getpid();
-    /*
-     *  struct ivshmem_setup_desc {
-        uint8_t iv_enable;
-        char *f_be;
-        size_t proc_be_sz;
-        int proc_be_off;
-        };
-    */
+
     ivshmem_setup_desc _svc_args = {0};
 
     if (check_node_locality(server_info) == SHM_OK) {
