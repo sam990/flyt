@@ -31,7 +31,9 @@ static volatile uint8_t keep_handler_alive = 1;
 
 
 static void* cpu_client_mgr_handler(void* arg) {
-    
+    // same mq, same ids as the virst-server-req sender,
+    // but response dosnt get handled in this (wrong)
+    // thread.
     uint64_t recv_type = msg_recv_id();
     uint64_t send_type = msg_send_id();
     
@@ -44,7 +46,7 @@ static void* cpu_client_mgr_handler(void* arg) {
         if (msgrcv(clientd_mqueue_id, &msg, sizeof(mqueue_msg), recv_type, 0) == -1) {
             LOGE(LOG_ERROR, "Error receiving message from client manager: %s", strerror(errno));
         }
-
+        LOGE(LOG_DEBUG, "Got a message on the library handler thread, non-ivshmem.\n");
        if (strncmp(msg.msg.cmd, PING, 64) == 0) {
             struct msgbuf_uint32 resp;
             resp.mtype = send_type;
@@ -52,7 +54,7 @@ static void* cpu_client_mgr_handler(void* arg) {
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_PAUSE, 64) == 0) {
-            pthread_rwlock_wrlock(&access_sem);
+            pthread_rwlock_wrlock(&access_sem); // pause. no more reqs.
             struct msgbuf_uint32 resp;
             resp.mtype = send_type;
             resp.data = htonl(200);
@@ -66,8 +68,12 @@ static void* cpu_client_mgr_handler(void* arg) {
             resp.data = htonl(200);
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
+        // happens before client resume
+        // creates a new rpc connection with the new virt server instance.
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_CHANGE_VIRT_SERVER, 64) == 0) {
             char *server_str = strdup(msg.msg.data);
+            // will fail.
+            // in migration path, server_str sent by client_mgr is just an IP address.
             server_info_t *server_info = parse_server_str(server_str);
             
             change_server(server_info);
@@ -131,12 +137,16 @@ server_info_t *parse_server_str(char *server_str) {
     }
 
     strcpy(res->server_ip, splitted->str[0]);
+    printf("server ip from cmgr: %s\n", res->server_ip);
 
     res->rpc_id = strtoul(splitted->str[1], NULL, 10);
+    printf("rpc_id from cmgr: %d\n", res->rpc_id);
 
     res->shm_enable = strtoul(splitted->str[2], NULL, 10);
+    printf("shm_enable from cmgr: %d\n", res->shm_enable);
 
     strcpy(res->shm_backend, splitted->str[3]);
+    printf("be from cmgr: %s\n", res->shm_backend);
 
     free_splitted_str(splitted);
     splitted = NULL;
@@ -163,6 +173,9 @@ server_info_t *init_client_mgr() {
     // _id is a process-local handle to the message queue associated with the
     // given key. This creates the message queue, "connected"
     // to another process that initiated an MQ with the same key
+    //
+    // This is the library handle to the client manager daemon.
+    // Needs to be global.
     int clientd_mqueue_id = msgget(key, IPC_CREAT | 0666);
     if (clientd_mqueue_id == -1) {
         perror("msgget");
@@ -177,8 +190,8 @@ server_info_t *init_client_mgr() {
     // recv_id: The id that other mQ enpoints must send to
     // This enables the message ueue backend to have
     // multiple processes reading and writing.
-    uint64_t recv_id = msg_recv_id(); // == getpid()
-    uint64_t send_id = msg_send_id();
+    uint64_t recv_id = msg_recv_id(); // == getpid(), different per process
+    uint64_t send_id = msg_send_id(); // different per process
 
     struct msgbuf_uint32 msg;
     msg.mtype = 1;
@@ -191,15 +204,26 @@ server_info_t *init_client_mgr() {
     // also get shm_enabled, shm_be_path
     // via strdup.
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
-    // printf("From Control Plane: %s#\n", virt_server_info);
+    printf("From Control Plane: %s#\n", virt_server_info);
+    printf("sup\n");
     
     if (virt_server_info == NULL) {
         return NULL;
     }
 
     server_info_t *virt_server = parse_server_str(virt_server_info);
+    virt_server->clientd_mqueue_id = clientd_mqueue_id;
+    printf("unix mq id from lib: %d\n", virt_server->clientd_mqueue_id);
 
     init_handler_thread(clientd_mqueue_id); 
+
+    // test send-recv here, post thread-creation.
+    // haha once a message queue id is created, 
+    // only one thread should rec the messages.
+    // (recv_id, send_id) is unique.
+    // send only needs to specify what queue to use
+    // - can use common queue.
+   // msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0);
 
     return virt_server;
 }

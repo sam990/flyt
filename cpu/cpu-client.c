@@ -193,7 +193,7 @@ void resume_connection(void)
 // <server_ip,rpc_id, shm_enable,shm_backend>
 int check_node_locality(server_info_t *server_info) {  
     int shm_enable = server_info->shm_enable;
-    printf("shm enabled? %d\n");
+    printf("shm enabled? %d\n", shm_enable);
 
     // return based on mongoDB value
     if (shm_enable) {
@@ -220,7 +220,7 @@ void __attribute__((constructor)) init_rpc(void)
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     init_log(LOG_LEVEL, __FILE__);
 
-    pthread_rwlock_init(&access_sem, NULL);
+    pthread_rwlock_init(&access_sem, NULL); // to allow read/write access to client.
 
     // return comma sep string of:
     // IP, rpc_id, shm_enabled, filepath of shm backend.
@@ -239,7 +239,7 @@ void __attribute__((constructor)) init_rpc(void)
 
     if (check_node_locality(server_info) == SHM_OK) {
         char *shm_be_path = get_shm_be_path(server_info);
-        init_ivshmem_clnt(clnt_pid, shm_be_path); // mmap pci BAR
+        init_ivshmem_clnt(clnt_pid, shm_be_path, server_info->clientd_mqueue_id); // mmap pci BAR
         _svc_args = ivshmem_ctx->svc_args;
         LOGE(LOG_DEBUG, "ivshmem setup done");
     } else {

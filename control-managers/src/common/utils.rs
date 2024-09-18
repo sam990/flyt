@@ -27,7 +27,7 @@ impl Utils {
        }
        Some(u32::from_be_bytes(bytes.try_into().unwrap()))    
     }
-
+    
     pub fn load_config_file(config_path: &str) -> Table {
         let mut file = File::open(config_path).unwrap();
         let mut contents = String::new();
