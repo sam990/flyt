@@ -76,7 +76,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-cublaslt.c      \
 			 cpu-client-mgr-handler.c   \
 			 cpu-client-ivshmem.c       \
-			 resource-mg.c
+			 resource-mg.c 				\
+			 msg-handler.c
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c

@@ -88,7 +88,6 @@ bool_t rpc_init_1_svc(int pid, ivshmem_setup_desc iv_stat, int *result, struct s
 }
 
 bool_t rpc_ckp_restore_1_svc(int pid, int *result, struct svc_req *rqstp) {
-    // create and initialize 
     LOG(LOG_INFO, "RPC ckp_restore requested %d", rqstp->rq_xprt->xp_fd);
     // rqstp->rq_xprt->xp_fd 
     int ret = move_restored_client(pid, rqstp->rq_xprt->xp_fd);

@@ -38,13 +38,12 @@ typedef struct __ivshmem_clnt_ctx {
 
 extern ivshmem_clnt_ctx *ivshmem_ctx;
 
-void init_ivshmem_clnt();
+void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id);
 void init_ivshmem_areas_clnt(ivshmem_clnt_ctx *ctx);
 
 char *_get_pci_path_clnt();
 
-void _clnt_mgr_update_shm(int clnt_pid);
-ivshmem_setup_desc _clnt_mgr_get_shm(int clnt_pid, char *shm_be_path);
+ivshmem_setup_desc *_clnt_mgr_get_shm(int clnt_pid, int clientd_mq_id);
 
 
 uintptr_t shm_get_writeaddr_clnt(ivshmem_clnt_ctx *ctx);

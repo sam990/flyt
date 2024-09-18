@@ -62,6 +62,11 @@ fn main() {
         s.spawn(|| {
             client_mgr.listen_to_clients(|| res_mgr.get_virt_server(s));
         });
+
+        s.spawn(|| {
+            client_mgr.handle_ivshmem();
+        });
+        
     });
 
     
