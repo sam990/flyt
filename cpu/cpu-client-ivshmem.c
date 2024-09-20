@@ -58,7 +58,10 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     assert(_pci_fd != -1);
 
     ivshmem_ctx->shm_mmap = mmap(NULL, _args->proc_be_sz, PROT_READ | PROT_WRITE, MAP_SHARED, _pci_fd, _args->proc_be_off);
-    assert(ivshmem_ctx->shm_mmap != MAP_FAILED);
+    if (ivshmem_ctx->shm_mmap == MAP_FAILED) {
+        LOGE(LOG_ERROR, "Error receiving mapping region: %s", strerror(errno));
+    }
+    //assert();
     close(_pci_fd);
 
     memcpy(ivshmem_ctx->shm_be_path, _args->f_be, strlen(_args->f_be) + 1);
