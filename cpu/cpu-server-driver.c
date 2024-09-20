@@ -224,7 +224,7 @@ int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
     return 0;
 }
 
-
+// restore the checkpointed client state on the server.
 static int __server_driver_ctx_state_restore(int ckp_restore) {
 
     LOGE(LOG_DEBUG, "Restoring context state");

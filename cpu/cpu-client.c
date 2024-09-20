@@ -234,8 +234,6 @@ void __attribute__((constructor)) init_rpc(void)
     /// Each process will have its own instance of the tracking vars used
     /// in the lib.
 
-
-
     FUNC_BEGIN 
     retval_1 = rpc_init_1(getpid(), &result_1,  clnt);
     FUNC_END
