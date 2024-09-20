@@ -168,7 +168,7 @@ server_info_t *init_client_mgr() {
         exit(EXIT_FAILURE);
     }
 
-    LOGE(LOG_DEBUG, "msgqueue key: %d\n", key);
+    LOGE(LOG_DEBUG, "msgqueue key: 0x%x\n", key);
 
     // _id is a process-local handle to the message queue associated with the
     // given key. This creates the message queue, "connected"
@@ -183,6 +183,7 @@ server_info_t *init_client_mgr() {
     }
 
     pid_t pid = getpid();
+    printf("here, pid=%d\n", pid);
 
     // send ID: the recvID of a the messageQ endpoint
     // that this process is sending to. 
@@ -193,12 +194,20 @@ server_info_t *init_client_mgr() {
     uint64_t recv_id = msg_recv_id(); // == getpid(), different per process
     uint64_t send_id = msg_send_id(); // different per process
 
+    printf("here, send_id=%d\n", send_id);
+
     struct msgbuf_uint32 msg;
     msg.mtype = 1;
     msg.data = htonl(pid);
 
+    printf("here, htonl pid=%d\n", msg.data);
+
     // send pid to cluster manager.
-    msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0);
+    if (msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0) == -1) {
+        LOGE(LOG_ERROR, "ERROR: send pid to cmgr failed: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    printf("here2\n");
 
     // wait for serverIP from clustermgr.
     // also get shm_enabled, shm_be_path

@@ -10,7 +10,7 @@ use ipc_rs::{MessageQueue, MessageQueueKey, PathProjectIdKey};
 
 const PROJ_ID: i32 = 0x42;
 
-const PROC_SHM_SIZE: u64 = 2<<20; // 1 MB 
+const PROC_SHM_SIZE: u64 = 2<<20; // 1 MB, 4MB, 8MB, 16MB, 32 MB. 64MB, 128, 256, 512. Must be page aligned.
 
 static ivshmem_avail_offset: AtomicU64 = AtomicU64::new(0);
 
@@ -252,27 +252,28 @@ impl VCudaClientManager {
             let shm_backend = "/dev/shm/ivshmem-0-ub11.dat";
             let virt_server = virt_server.unwrap();
             
+            // if shm enable, create ivshmem_ctx struct
+            // Important: Ctx must be created before sending the response.
+            if shm_enable == 1 {
+                let _ctx = IvshmemCtx {
+                    pid: client_pid as i64,
+                    shm_offset: ivshmem_avail_offset.load(Ordering::SeqCst),
+                    shm_sz: PROC_SHM_SIZE,
+                };
+                client_msg_id.clnt_shm_ctx = Some(_ctx);
+
+                // increment self.ivshmem_avail_offset by proc_be_sz
+                ivshmem_avail_offset.fetch_add(PROC_SHM_SIZE, Ordering::SeqCst);
+            }
+            self.add_client(client_msg_id);
+
             let address_str = format!("{},{},{},{}\0", virt_server.address, virt_server.rpc_id, shm_enable, shm_backend); // add backend path, shm_enable to this response
-            
             let bytes = MqueueClientControlCommand::new("200", &address_str).as_bytes();
             log::debug!("Sending server details to client");
             
             match message_queue.send(&bytes, client_msg_id.send_id) {
                 Ok(_) => {
                     log::info!("Sent virt server details to client: {}", client_pid);
-                    // if shm enable, create ivshmem_ctx struct
-                    if shm_enable == 1 {
-                        let _ctx = IvshmemCtx {
-                            pid: client_pid as i64,
-                            shm_offset: ivshmem_avail_offset.load(Ordering::SeqCst),
-                            shm_sz: PROC_SHM_SIZE,
-                        };
-                        client_msg_id.clnt_shm_ctx = Some(_ctx);
-
-                        // increment self.ivshmem_avail_offset by proc_be_sz
-                        ivshmem_avail_offset.fetch_add(PROC_SHM_SIZE, Ordering::SeqCst);
-                    }
-                    self.add_client(client_msg_id);
                 },
                 Err(_) => {
                     log::error!("Error sending virt server details to client: {}", client_pid);
@@ -326,6 +327,8 @@ impl VCudaClientManager {
             let proc_shm_sz = clnt.clnt_shm_ctx.unwrap().shm_sz;
 
             // send back response, but with a different send, recv id
+            // is this safe???
+            // every process will be listening on pid * 2
             let send_id = clnt.send_id * 2;
 
             let shm_resp = format!("{},{}", off, proc_shm_sz);
