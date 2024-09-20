@@ -39,16 +39,13 @@ ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt) {
 }
 
 void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx) {
-    #define PROC_SHM_SIZE 2000000
-    #define PROC_WRITE_START_OFFSET_SVC 0
-    #define PROC_READ_START_OFFSET_SVC (PROC_SHM_SIZE / 2) 
-
     // read from [sz/2, sz)
     ctx->write_to.max_size = ctx->shm_proc_size  / 2;
     ctx->read_from.avail_size = ctx->shm_proc_size / 2;
-    ctx->read_from.avail_offset = ctx->shm_proc_start + PROC_READ_START_OFFSET_SVC;
+    ctx->read_from.avail_offset = ctx->shm_proc_start + ctx->shm_proc_size/2;
 
     // write to [0, sz/2)
+    #define PROC_WRITE_START_OFFSET_SVC 0
     ctx->read_from.max_size = ctx->shm_proc_size  / 2;
     ctx->write_to.avail_size = ctx->shm_proc_size / 2;
     ctx->write_to.avail_offset = ctx->shm_proc_start + PROC_WRITE_START_OFFSET_SVC;
@@ -58,7 +55,7 @@ void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx) {
 uintptr_t shm_get_readaddr_svc(ivshmem_svc_ctx *_ctx) {
     uintptr_t shm_va = (uintptr_t)_ctx->shm_mmap;
 
-    return (shm_va + PROC_READ_START_OFFSET_SVC);
+    return (shm_va + (_ctx->shm_proc_size / 2));
 }
 
 uintptr_t shm_get_writeaddr_svc(ivshmem_svc_ctx *_ctx) {

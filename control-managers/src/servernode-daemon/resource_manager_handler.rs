@@ -111,7 +111,7 @@ impl ResourceManagerHandler {
                     }
                     
                 }
-
+                // from cluster manager during checkpoint restore.
                 FlytApiCommand::RMGR_SNODE_ALLOC_VIRT_SERVER => {
 
                     log::info!("Got allocate virt server command");
@@ -189,7 +189,8 @@ impl ResourceManagerHandler {
                         }
                     }
                 }
-
+                // at destIP of VM Migrate. Note that checkpoint was made at old IP node.
+                // client is still paused.
                 FlytApiCommand::RMGR_SNODE_RESTORE => {
                     log::info!("Got restore virt server command");
 
@@ -202,7 +203,13 @@ impl ResourceManagerHandler {
 
                     let rpc_id = rpc_id.unwrap();
                     let ckp_path = stream_read_line!(reader);
-
+                    
+                    // create a new client struct for the migrated VM,
+                    // restore server state of checkpointed clients.
+                    // the client on original node is still paused.
+                    // Q: How to detect that shm is no longer possible after migration?
+                    // - here, migration amounts to changing the virt server that a client
+                    // is sending its vcuda calls to.
                     log::info!("Restoring virt server: {} at path {}", rpc_id, ckp_path);
                     let ret = self.virt_server_manager.restore_virt_server(rpc_id, ckp_path.as_str());
                     match ret {
