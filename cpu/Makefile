@@ -52,7 +52,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 device-management.c \
 			 resource-map.c \
 			 cpu-server-client-mgr.c \
-			 flyt-cr.c
+			 flyt-cr.c \
+			 cpu-server-dev-mem.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -161,4 +162,4 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC)
+	rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC)

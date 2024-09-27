@@ -51,7 +51,8 @@ static void* mt_memcpy_copy_thread(void* targs)
             return (void*)ret;
         }
 
-        void *dev_ptr = resource_map_get_addr(client->gpu_mem, args->server->dev_ptr);
+        // void *dev_ptr = resource_map_get_addr(client->gpu_mem, args->server->dev_ptr);
+        void *dev_ptr = args->server->dev_ptr;
         if (dev_ptr == NULL) {
             LOGE(LOG_ERROR, "oob: failed to get device pointer.");
             return (void*)ret;
@@ -68,7 +69,9 @@ static void* mt_memcpy_copy_thread(void* targs)
         }
     } else if (args->server->dir == MT_MEMCPY_DTOH) {
 
-        void *dev_ptr = resource_map_get_addr(client->gpu_mem, args->server->dev_ptr);
+        // void *dev_ptr = resource_map_get_addr(client->gpu_mem, args->server->dev_ptr);
+        void *dev_ptr = args->server->dev_ptr;
+
         if (dev_ptr == NULL) {
             LOGE(LOG_ERROR, "oob: failed to get device pointer.");
             return (void*)ret;

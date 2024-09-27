@@ -5,7 +5,7 @@
 
 
 typedef struct __mem_ckp_header_t {
-    void *haddr;
+    uint64_t addr;
     mem_alloc_args_t args;
 } mem_ckp_header_t;
 
