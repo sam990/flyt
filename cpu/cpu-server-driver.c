@@ -973,7 +973,7 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        *(void**)cuda_args[i] = resource_map_get_addr_default(client->gpu_mem, *(void**)cuda_args[i], *(void**)cuda_args[i]);
+        // *(void**)cuda_args[i] = resource_map_get_addr_default(client->gpu_mem, *(void**)cuda_args[i], *(void**)cuda_args[i]);
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 

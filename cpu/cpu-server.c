@@ -30,6 +30,7 @@
 #include "cpu-server-mgr-listener.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-client-mgr.h"
+#include "cpu-server-dev-mem.h"
 
 INIT_SOCKTYPE
 
@@ -373,6 +374,11 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
 
     if (init_cpu_server_client_mgr() != 0) {
         LOGE(LOG_ERROR, "initializing client manager failed.");
+        goto cleanup00;
+    }
+
+    if (init_server_dev_mem(gpu_id) != 0) {
+        LOGE(LOG_ERROR, "initializing server_dev_mem failed.");
         goto cleanup00;
     }
 

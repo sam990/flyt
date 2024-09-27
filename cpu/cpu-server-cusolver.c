@@ -79,13 +79,10 @@ bool_t rpc_cusolverdndgetrf_buffersize_1_svc(ptr handle, int m, int n, ptr A, in
     LOGE(LOG_DEBUG, "cusolverDnDgetrf_buffersize");
 
     GET_CLIENT(result->err);
-    void *mem_ptr_A;
-    GET_MEMORY(mem_ptr_A, A, result->err);
-
 
     result->err = cusolverDnDgetrf_bufferSize(resource_mg_get_or_null(&rm_cusolver, (void*)handle),
                                               m, n,
-                                              mem_ptr_A,
+                                              A,
                                               lda, &result->int_result_u.data);
     GSCHED_RELEASE;
     return 1;
@@ -97,19 +94,14 @@ bool_t rpc_cusolverdndgetrf_1_svc(ptr handle, int m, int n, ptr A, int lda, ptr 
     LOGE(LOG_DEBUG, "cusolverDnDgetrf");
 
     GET_CLIENT(*result);
-    void *mem_ptr_A, *mem_ptr_Workspace, *mem_ptr_devIpiv, *mem_ptr_devInfo;
-    GET_MEMORY(mem_ptr_A, A, *result);
-    GET_MEMORY(mem_ptr_Workspace, Workspace, *result);
-    GET_MEMORY(mem_ptr_devIpiv, devIpiv, *result);
-    GET_MEMORY(mem_ptr_devInfo, devInfo, *result);
 
     *result = cusolverDnDgetrf(resource_mg_get_or_null(&rm_cusolver, (void*)handle),
                                m, n,
-                               mem_ptr_A,
+                               A,
                                lda,
-                               mem_ptr_Workspace,
-                               mem_ptr_devIpiv,
-                               mem_ptr_devInfo);
+                               Workspace,
+                               devIpiv,
+                               devInfo);
     GSCHED_RELEASE;
     return 1;
 }
@@ -120,20 +112,15 @@ bool_t rpc_cusolverdndgetrs_1_svc(ptr handle, int trans, int n, int nrhs, ptr A,
     LOGE(LOG_DEBUG, "cusolverDnDgetrs");
 
     GET_CLIENT(*result);
-    void *mem_ptr_A, *mem_ptr_devIpiv, *mem_ptr_B, *mem_ptr_devInfo;
-    GET_MEMORY(mem_ptr_A, A, *result);
-    GET_MEMORY(mem_ptr_devIpiv, devIpiv, *result);
-    GET_MEMORY(mem_ptr_B, B, *result);
-    GET_MEMORY(mem_ptr_devInfo, devInfo, *result);
 
     *result = cusolverDnDgetrs(resource_mg_get_or_null(&rm_cusolver, (void*)handle),
                                (cublasOperation_t)trans, n, nrhs,
-                               mem_ptr_A,
+                               A,
                                lda,
-                               mem_ptr_devIpiv,
-                               mem_ptr_B,
+                               devIpiv,
+                               B,
                                ldb,
-                               mem_ptr_devInfo);
+                               devInfo);
 
     LOGE(LOG_DEBUG, "handle: %p, A: %p, devIpiv: %p, B: %p, devInfo: %p", handle, A, devIpiv, B, devInfo);
     LOGE(LOG_DEBUG, "trans: %d, n: %d, nrhs: %d, lda: %d, ldb: %d, result: %d", trans, n, nrhs, lda, ldb, *result);
