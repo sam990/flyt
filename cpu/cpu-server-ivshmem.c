@@ -25,15 +25,18 @@ ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt) {
     // mmap
     int _be_fd = open(args_from_clnt.f_be, O_RDWR);
     assert(_be_fd != -1);
+    //printf("Mapping offset %lu\n, ends at: %lu\n", args_from_clnt.proc_be_off, args_from_clnt.proc_be_off + args_from_clnt.proc_be_sz);
 
     _ctx->shm_mmap = mmap(NULL, args_from_clnt.proc_be_sz, PROT_READ | PROT_WRITE, MAP_SHARED, _be_fd, args_from_clnt.proc_be_off);
     assert(_ctx->shm_mmap != MAP_FAILED);
+
+    madvise(_ctx->shm_mmap, args_from_clnt.proc_be_sz, MADV_WILLNEED);
     close(_be_fd);
 
     // init ivshmem areas
     init_ivshmem_areas_svc(_ctx);
 
-    printf("svc ivshmem ctx created. mmap VA: %p\n", _ctx->shm_mmap);
+    //printf("svc ivshmem ctx created. mmap VA: %p\n", _ctx->shm_mmap);
 
     return _ctx;
 }

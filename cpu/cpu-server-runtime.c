@@ -2217,7 +2217,7 @@ bool_t cuda_memcpy_ivshmem_1_svc(int shm_offset, int iter_offset, ptr fake_devic
     GET_MEMORY(mem_ptr, fake_device_ptr, *result) // given a VA on server heap, return the addr stored in it.
 
     if (kind == cudaMemcpyHostToDevice) {
-        void *r_addr = (void *)(shm_get_readaddr_svc(client->ivshmem_ctx) + (off_t)shm_offset);
+        void *r_addr = (void *)(shm_get_readaddr_svc(client->ivshmem_ctx) + (uint64_t)shm_offset);
 
         LOGE(LOG_DEBUG, "right before cudaMemcpyH2D\n");
         *result = cudaMemcpy(
@@ -2226,7 +2226,7 @@ bool_t cuda_memcpy_ivshmem_1_svc(int shm_offset, int iter_offset, ptr fake_devic
             size, 
             kind);
     } else if (kind == cudaMemcpyDeviceToHost) {
-        void *w_addr = (void *)(shm_get_writeaddr_svc(client->ivshmem_ctx) + (off_t)shm_offset);
+        void *w_addr = (void *)(shm_get_writeaddr_svc(client->ivshmem_ctx) + (uint64_t)shm_offset);
         
         LOGE(LOG_DEBUG, "right before cudaMemcpyD2H\n");
         *result = cudaMemcpy(

@@ -18,15 +18,15 @@
 typedef struct __ivshmem_area {
     size_t max_size;
     size_t avail_size;             
-    off_t avail_offset; // returns lowest un-written offset.
+    uint64_t avail_offset; // returns lowest un-written offset.
 } _ivshmem_area;
 
 // goes in cricket_client
 typedef struct __ivshmem_svc_ctx {
     int pid;
-    int shm_enabled;
-    off_t shm_proc_start;
-    int shm_proc_size;
+    uint8_t shm_enabled;
+    uint64_t shm_proc_start;
+    uint64_t shm_proc_size;
     void *shm_mmap; // &shm_mmap[read_area.offset] = src mem_ptr passed to the cuda_memcpy_svc.
     char shm_be_path[SHM_BE_PATH_SZ];
 
