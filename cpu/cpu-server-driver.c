@@ -837,7 +837,7 @@ bool_t rpc_cudeviceprimaryctxgetstate_1_svc(int dev, dint_result *result,
     GSCHED_RETAIN;
     result->err = cuDevicePrimaryCtxGetState(dev, &(result->dint_result_u.data.i1),
                                             &(result->dint_result_u.data.i2));
-    LOGE(LOG_DEBUG, "state: %d, flags: %d", result->dint_result_u.data.i1,
+    LOGE(LOG_DEBUG, "flags: %d, active: %d", result->dint_result_u.data.i1,
                                            result->dint_result_u.data.i2);
     GSCHED_RELEASE;
     return 1;
