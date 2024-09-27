@@ -10,7 +10,7 @@ use ipc_rs::{MessageQueue, MessageQueueKey, PathProjectIdKey};
 
 const PROJ_ID: i32 = 0x42;
 
-const PROC_SHM_SIZE: u64 = 2<<20; // 1 MB, 4MB, 8MB, 16MB, 32 MB. 64MB, 128, 256, 512. Must be page aligned.
+const PROC_SHM_SIZE: u64 = 2<<28; // 1 MB, 4MB, 8MB, 16MB, 32 MB. 64MB, 128, 256, 512, 1024
 
 static ivshmem_avail_offset: AtomicU64 = AtomicU64::new(0);
 

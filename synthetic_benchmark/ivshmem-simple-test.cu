@@ -3,15 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_MEMCPY 2<<22
+
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <size of data in bytes>\n", argv[0]);
-        return 1;
-    }
+    size_t data_size = MAX_MEMCPY;
 
-    // Parse the size of data to be copied from the command line
-    size_t data_size = atol(argv[1]);
+    if (argc == 2) {
+        fprintf(stderr, "Usage: %s <size of data in bytes>\n", argv[0]);
+        // Parse the size of data to be copied from the command line
+        data_size = atol(argv[1]);
+    }
 
     // Allocate host memory
     char *host_data = (char *)malloc(data_size);

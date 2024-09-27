@@ -32,11 +32,19 @@
 
 #ifdef WITH_API_CNT
 int api_call_cnt = 0;
+int iv_memcpy_rpc_call_cnt = 0;
+int memcpy_call_cnt = 0;
 size_t memcpy_cnt = 0;
 void cpu_runtime_print_api_call_cnt(void)
 {
-    LOG(LOG_INFO, "api-call-cnt: %d", api_call_cnt);
-    LOG(LOG_INFO, "memcpy-cnt: %d", memcpy_cnt);
+    printf("api-call-cnt: %d\n", api_call_cnt);
+    printf("memcpy-api-calls: %d\n", memcpy_call_cnt);
+    printf("Non-memcpy-api-calls: %d\n", api_call_cnt - memcpy_call_cnt);
+    
+    printf("ivshmem-memcpy-rpc-call-cnt: %d\n", iv_memcpy_rpc_call_cnt);
+    printf("memcpy-sz: %ld\n", memcpy_cnt);
+    // LOG(LOG_INFO, "api-call-cnt: %d", api_call_cnt);
+    // LOG(LOG_INFO, "memcpy-cnt: %d", memcpy_cnt);
 }
 #endif //WITH_API_CNT
 
@@ -1714,12 +1722,14 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
+    memcpy_call_cnt++;
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
     if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
         if (kind == cudaMemcpyHostToDevice) {
-            size_t copied_count = 0;
+            int copied_count = 0;
+            int rpc_cnt = 0;
 
             // Keep looping until all data is copied
             while (copied_count < count) {
@@ -1732,7 +1742,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                                         : ivshmem_ctx->write_to.max_size - 1;
                 //printf("Memcpy user to shm chunk size = %ld bytes.\n", chunk_size);
 
-                off_t w_off = shm_get_write_area_offset(chunk_size);
+                uint64_t w_off = shm_get_write_area_offset(chunk_size);
                 void *w_addr = (void *)(shm_get_writeaddr_clnt(ivshmem_ctx) + w_off);
 
                 memcpy(w_addr, (void *)((uintptr_t)src + copied_count), chunk_size);
@@ -1746,9 +1756,15 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 }
 
                 copied_count += chunk_size;
+                rpc_cnt ++;
             }
+            #ifdef WITH_API_CNT
+                api_call_cnt += (rpc_cnt - 1);
+                iv_memcpy_rpc_call_cnt += (rpc_cnt - 1);
+            #endif 
         } else if (kind == cudaMemcpyDeviceToHost) {
-            size_t copied = 0;
+            int copied = 0;
+            int rpc_cnt = 0;
             while (copied < count) {
                 size_t remaining = count - copied;
 
@@ -1757,20 +1773,31 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                                         : ivshmem_ctx->read_from.max_size - 1;
 
                 //printf("Memcpy shm to user chunk size = %ld bytes.\n", chunk_size);
-                off_t r_off = shm_get_read_area_offset(chunk_size); // "where in my read region is there space for a block to be written?"
+                uint64_t r_off = shm_get_read_area_offset(chunk_size); // "where in my read region is there space for a block to be written?"
                 void *r_addr = (void *)(shm_get_readaddr_clnt(ivshmem_ctx) + r_off);
 
                 retval = cuda_memcpy_ivshmem_1(r_off, copied, (ptr)src, chunk_size, kind, &ret, clnt);
                 if (retval != RPC_SUCCESS) {
-                    LOGE(LOG_ERROR, "cuda_memcpy_ivshmem failed");
+                    LOGE(LOG_ERROR, "cuda_memcpy_ivshmem D2H failed");
                     goto cleanup;
                 }
                 //ivshmem_ctx->read_from.avail_size -= chunk_size;
                 memcpy((void *)((uintptr_t)dst + copied), r_addr, chunk_size);
 
                 copied += chunk_size;
+                rpc_cnt ++;
             }
+            #ifdef WITH_API_CNT
+                api_call_cnt += (rpc_cnt - 1);
+                iv_memcpy_rpc_call_cnt += (rpc_cnt - 1);
+            #endif 
 
+        } else if (kind == cudaMemcpyDeviceToDevice) {
+            retval = cuda_memcpy_dtod_1((ptr)dst, (ptr)src, count, &ret, clnt);
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "RPC failed.");
+                clnt_perror(clnt, "call failed");
+            }
         }
     } else {
         if (kind == cudaMemcpyHostToDevice) {

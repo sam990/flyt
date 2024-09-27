@@ -10,7 +10,7 @@ struct ivshmem_setup_desc {
     uint8_t iv_enable; /* 0 or 1 */
     string f_be<128>;
     size_t proc_be_sz;
-    int proc_be_off;
+    uint64_t proc_be_off;
 };
 
 struct dint {
