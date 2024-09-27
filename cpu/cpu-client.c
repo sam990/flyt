@@ -218,7 +218,7 @@ void __attribute__((constructor)) init_rpc(void)
     char *printmessage_1_arg1 = "hello";
 
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
-    init_log(LOG_LEVEL, __FILE__);
+    //init_log(LOG_LEVEL, __FILE__);
 
     pthread_rwlock_init(&access_sem, NULL); // to allow read/write access to client.
 

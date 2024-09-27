@@ -61,6 +61,7 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     if (ivshmem_ctx->shm_mmap == MAP_FAILED) {
         LOGE(LOG_ERROR, "Error receiving mapping region: %s", strerror(errno));
     }
+    madvise(ivshmem_ctx->shm_mmap, _args->proc_be_sz, MADV_WILLNEED);
     //assert();
     close(_pci_fd);
 
@@ -103,14 +104,14 @@ uintptr_t shm_get_readaddr_clnt(ivshmem_clnt_ctx *ctx) {
     return (shm_va + PROC_READ_START_OFFSET_CLNT);
 }
 
-off_t shm_get_write_area_offset(size_t sz) {
+uint64_t shm_get_write_area_offset(size_t sz) {
     // default, write to start of write_to area
-    return (off_t)0;
+    return (uint64_t)0;
 }
 
-off_t shm_get_read_area_offset(size_t sz) {
+uint64_t shm_get_read_area_offset(size_t sz) {
     // default, read from start of read_from area
-    return (off_t)0;
+    return (uint64_t)0;
 }
 
 int check_shm_limits(_ivshmem_area *area, int size) {
