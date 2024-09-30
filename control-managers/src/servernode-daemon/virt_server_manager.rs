@@ -76,9 +76,6 @@ impl VirtServerManager {
 
         // Construct the command and log all parts for debugging
         // Store the path in a local variable
-
-        // Construct the command and log all parts for debugging
-        // Store the path in a local variable
         let program_path = self.virt_server_program_path.as_str();
         let mem_path = "valgrind --leak-check=full";
 

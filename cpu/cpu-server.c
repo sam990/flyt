@@ -30,6 +30,7 @@
 #include "cpu-server-mgr-listener.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-client-mgr.h"
+#include "cpu-server-ivshmem.h"
 
 INIT_SOCKTYPE
 
@@ -71,11 +72,21 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
     return 1;
 }
 
-bool_t rpc_init_1_svc(int pid, int *result, struct svc_req *rqstp) {
-    // create and initialize 
+bool_t rpc_init_1_svc(int pid, ivshmem_setup_desc iv_stat, int *result, struct svc_req *rqstp) {
     LOG(LOG_INFO, "RPC init requested %d", rqstp->rq_xprt->xp_fd);
-    // rqstp->rq_xprt->xp_fd 
-    int ret = add_new_client(pid, rqstp->rq_xprt->xp_fd); // the connection fd.
+    
+    // create and initialize 
+    ivshmem_svc_ctx *ivshmem_ctx = NULL;
+    if (iv_stat.iv_enable == 1) {
+        char *f_be = iv_stat.f_be;
+        LOGE(LOG_DEBUG, "ivshmem backend file: %s\n", f_be);
+        LOGE(LOG_DEBUG, "ivshmem enable?: %d\n", iv_stat.iv_enable);
+        // shm OK
+        ivshmem_ctx = init_ivshmem_svc(iv_stat);
+    }
+    // rqstp->rq_xprt->xp_fd = the connection fd.
+    int ret = add_new_client(pid, rqstp->rq_xprt->xp_fd, ivshmem_ctx); 
+
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to initialize client manager for pid %d", pid);
         *result = 1;
@@ -207,7 +218,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     char *command = NULL;
     act.sa_handler = int_handler;
     printf("welcome to cricket!\n");
-    init_log(LOG_LEVEL, __FILE__);
+    //init_log(LOG_LEVEL, __FILE__);
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     sigaction(SIGINT, &act, NULL);
 

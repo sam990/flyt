@@ -52,6 +52,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 device-management.c \
 			 resource-map.c \
 			 cpu-server-client-mgr.c \
+			 cpu-server-ivshmem.c \
 			 flyt-cr.c
 
 SRC_SERVER_LIB = server-library.c
