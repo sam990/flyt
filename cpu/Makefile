@@ -53,7 +53,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 resource-map.c \
 			 cpu-server-client-mgr.c \
 			 cpu-server-ivshmem.c \
-			 flyt-cr.c
+			 flyt-cr.c \
+			 cpu-server-dev-mem.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -93,13 +94,13 @@ RPCGEN_FLAGS = -C -M -N
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
 
-LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
+LIB_FLAGS += $(LIBTIRPC_PREFIX)/lib/libtirpc.a # static linking libtirpc
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
 LIB_FLAGS += -L$(CUDA_SRC)/lib64/stubs
 CC_FLAGS += -std=gnu11 $(INC_FLAGS)
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
-LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf 
+LD_FLAGS = $(LIB_FLAGS) -ldl -lcrypto -lelf 
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running
@@ -137,13 +138,13 @@ $(CLIENT_STATIC): $(OBJ_CLIENT)
 	ar rcs $@ $^
 
 $(CLIENT) : $(OBJ_CLIENT) 
-	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
+	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(CLIENT_LD_FLAGS) 
 
 $(SERVER_LIB) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
-	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_BIN_LD_FLAGS)
+	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(SERVER_BIN_LD_FLAGS) 
 
 $(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
-	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
+	$(LD) $(CC_FLAGS) -o $@ $^ $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(SERVER_BIN_LD_FLAGS) 
 
 $(RPC_H) : $(RPC_DEF)
 	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
@@ -164,4 +165,4 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC)
+	rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC)

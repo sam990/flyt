@@ -40,6 +40,7 @@
 #include "cpu-server-driver.h"
 #include "device-management.h"
 #include "cpu-server-client-mgr.h"
+#include "cpu-server-dev-mem.h"
 
 
 
@@ -1218,7 +1219,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-        *(void**)cuda_args[i] = resource_map_get_addr_default(client->gpu_mem, *(void**)cuda_args[i], *(void**)cuda_args[i]);
+        // *(void**)cuda_args[i] = resource_map_get_addr_default(client->gpu_mem, *(void**)cuda_args[i], *(void**)cuda_args[i]);
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
@@ -1397,10 +1398,9 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 
     #else
 
-    
-    void *mem_ptr = resource_map_get_addr(client->gpu_mem, (void*)devPtr);
+    mem_alloc_args_t *alloc_args = resource_mg_get_or_null(&client->gpu_mem, (void *)devPtr);
 
-    if (mem_ptr == NULL) {
+    if (alloc_args == NULL) {
         LOGE(LOG_ERROR, "error getting memory pointer");
         *result = cudaErrorInvalidValue;
         GSCHED_RELEASE;
@@ -1408,10 +1408,10 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
     }
 
     PRIMARY_CTX_RETAIN;
-    *result = cudaFree(mem_ptr);
+    *result = free_dev_mem((void *)devPtr, alloc_args->padded_size);
 
     if (*result == cudaSuccess) {
-        resource_map_unset(client->gpu_mem, (void*)devPtr);
+        resource_mg_remove(&client->gpu_mem, (void *)devPtr);
     }
 
     PRIMARY_CTX_RELEASE;
@@ -1711,17 +1711,20 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
             }    
 #else
     PRIMARY_CTX_RETAIN;
-    void *dev_mem_ptr; // true device address is passed here by cudamalloc
-    result->err = cudaMalloc(&dev_mem_ptr, argp); // malloc argp bytes.
+    void *dev_mem_ptr;
+    size_t padded_size;
+    result->err = dev_mem_alloc(&dev_mem_ptr, argp, 0, &padded_size);
     PRIMARY_CTX_RELEASE;
     // resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
-    mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
-    args->type = MEM_ALLOC_TYPE_DEFAULT;
-    args->size = argp;
-    // store a gpu alloc struct in the gpu_mem map, and return the server heap virtual address 
-    // of the alloc struct back to the client.
-    // note that the alloc struct contains the true device address.
-    resource_map_add(client->gpu_mem, dev_mem_ptr, args, (void**)&(result->ptr_result_u.ptr)); 
+    if (result->err == cudaSuccess) {
+        mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
+        args->type = MEM_ALLOC_TYPE_DEFAULT;
+        args->size = argp;
+        args->padded_size = padded_size;
+
+        resource_mg_add_sorted(&client->gpu_mem, dev_mem_ptr, args);
+        result->ptr_result_u.ptr = (ptr)dev_mem_ptr;
+    }
 #endif
 
     RECORD_RESULT(ptr_result_u, *result); // store api call metadata. on server.
@@ -1751,13 +1754,12 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
         GSCHED_RELEASE;
         return 1;
     }
-
+    size_t padded_out;
     PRIMARY_CTX_RETAIN;
-    result->err = cudaMalloc3D(&pptr, extent);
+    result->err = dev_mem_alloc_3d((void **)&result->pptr_result_u.ptr.ptr, depth, height, width, &result->pptr_result_u.ptr.pitch, &padded_out);
     PRIMARY_CTX_RELEASE;
-    result->pptr_result_u.ptr.pitch = pptr.pitch;
-    result->pptr_result_u.ptr.xsize = pptr.xsize;
-    result->pptr_result_u.ptr.ysize = pptr.ysize;
+    result->pptr_result_u.ptr.xsize = width;
+    result->pptr_result_u.ptr.ysize = height;
     
     if (result->err == cudaSuccess) {
         mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
@@ -1766,7 +1768,9 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
         args->height = height;
         args->width = width;
         args->pitch = pptr.pitch;
-        resource_map_add(client->gpu_mem, (void*)pptr.ptr, args, (void**)&(result->pptr_result_u.ptr.ptr));
+        args->size = depth*height*pptr.pitch;
+        args->padded_size = padded_out;
+        resource_mg_add_sorted(&client->gpu_mem, (void *)result->pptr_result_u.ptr.ptr, args);
     }
 
     RECORD_RESULT(integer, result->err);
@@ -1859,10 +1863,9 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
         GSCHED_RELEASE;
         return 1;
     }
+    size_t padded_out;
     PRIMARY_CTX_RETAIN;
-    result->err = cudaMallocPitch((void*)&result->ptrsz_result_u.data.p,
-                                  &result->ptrsz_result_u.data.s,
-                                  width, height);
+    result->err = dev_mem_alloc_pitched((void *)&result->ptrsz_result_u.data.p, width, height, &result->ptrsz_result_u.data.s, &padded_out);
     PRIMARY_CTX_RELEASE;
     
     if (result->err == cudaSuccess) {
@@ -1871,7 +1874,9 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
         args->width = width;
         args->height = height;
         args->pitch = result->ptrsz_result_u.data.s;
-        resource_map_add(client->gpu_mem, (void*)result->ptrsz_result_u.data.p, args, (void**)&(result->ptrsz_result_u.data.p));
+        args->size = result->ptrsz_result_u.data.s*height;
+        args->padded_size = padded_out;
+        resource_mg_add_sorted(&client->gpu_mem, (void *)result->ptrsz_result_u.data.p, args);
     }
 
     RECORD_RESULT(integer, result->err);
@@ -1890,13 +1895,8 @@ bool_t cuda_mem_advise_1_svc(ptr devPtr, size_t count, int advice, int device, i
 
     LOGE(LOG_DEBUG, "cudaMemAdvise");
 
-    void *mem_ptr;
-    GET_CLIENT(*result)
-
-    GET_MEMORY(mem_ptr, devPtr, *result)
-
     *result = cudaMemAdvise(
-      mem_ptr,
+      (void *)devPtr,
       count, advice, device);
 
     RECORD_RESULT(integer, *result);
@@ -1925,12 +1925,8 @@ bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, pt
 
     LOGE(LOG_DEBUG, "cudaMemPrefetchAsync");
 
-    void *mem_ptr;
-    GET_CLIENT(*result)
-    GET_MEMORY(mem_ptr, devPtr, *result)
-
     *result = cudaMemPrefetchAsync(
-      mem_ptr,
+      devPtr,
       count, dstDevice, (void*)stream);
 
     RECORD_RESULT(integer, *result);
@@ -1951,9 +1947,6 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     RECORD_ARG(2, mem);
     RECORD_ARG(3, size);
 
-    GET_CLIENT(*result) // Each client manages its own gpu-mem map.
-
-
     LOGE(LOG_DEBUG, "cudaMemcpyHtoD(%p, %p, %zu)", (void*)ptr, mem.mem_data_val, size);
     if (size != mem.mem_data_len) {
         LOGE(LOG_ERROR, "data size mismatch");
@@ -1968,17 +1961,10 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
         return 1;
     }
 #endif
-    // mem_ptr: true device VA
-    // ptr: Fake device VA, sent from client. Generated during a prior cudaMalloc.
-    // ptr is the server heap VA of the r_m_item that contains the true device VA for
-    // this fake VA.
-    // *result: Return value in case of failure.
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, ptr, *result)
 
     *result = cudaMemcpy(
-      mem_ptr, // the true device address, returned from the resource map.
-      mem.mem_data_val, // src, i.e. where the user data is read from.
+      (void *)ptr,
+      mem.mem_data_val,
       size,
       cudaMemcpyHostToDevice);
       //printf("cudamemcpyH2D TCP done.\n");
@@ -2103,17 +2089,10 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
 
     LOGE(LOG_DEBUG, "cudaMemcpyDtoD(%p, %p, %zu)", (void*)dst, (void*)src, size);
 
-    GET_CLIENT(*result)
-
-    void *mem_ptr_dst;
-    void *mem_ptr_src;
-
-    GET_MEMORY(mem_ptr_dst, dst, *result)
-    GET_MEMORY(mem_ptr_src, src, *result)
     
     *result = cudaMemcpy(
-      mem_ptr_dst,
-      mem_ptr_src,
+      (void *)dst,
+      (void *)src,
       size, cudaMemcpyDeviceToDevice);
 
     RECORD_RESULT(integer, *result);
@@ -2262,20 +2241,17 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
         goto out;
     }
 
-    void *mem_ptr;
-    GET_CLIENT(*result) // returns the client with linked ivshmem_ctx
-    GET_MEMORY(mem_ptr, device_ptr, *result) // given a VA on server heap, return the addr stored in it.
 
     if (kind == cudaMemcpyHostToDevice) {
         *result = cudaMemcpy(
-          mem_ptr,
+          (void *)device_ptr,
           hainfo[index].server_ptr,
           size,
           kind);
     } else if (kind == cudaMemcpyDeviceToHost) {
         *result = cudaMemcpy(
           hainfo[index].server_ptr,
-          mem_ptr,
+          (void *)device_ptr,
           size,
           kind);
     }
@@ -2292,7 +2268,6 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     //Does not need to be recorded because doesn't change device state
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)", ptr, size);
 
-    GET_CLIENT(result->err)
 
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
@@ -2306,12 +2281,9 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     }
 #endif
 
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, ptr, result->err)
-
     result->err = cudaMemcpy(
       result->mem_result_u.data.mem_data_val,
-      mem_ptr,
+      (void *)ptr,
       size,
       cudaMemcpyDeviceToHost);
 #ifdef WITH_MEMCPY_REGISTER
@@ -2367,7 +2339,7 @@ bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, s
     GSCHED_RETAIN;
     GET_CLIENT(*result)
     void *symbol_addr;
-    GET_MEMORY(symbol_addr, device_ptr, *result)
+    GET_VARIABLE(symbol_addr, device_ptr, *result)
     *result = cuda_memcpy_shm_1_svc(index, (ptr)(symbol_addr+offset), size, kind, result, rqstp);
     GSCHED_RELEASE;
     return 1;
@@ -2385,13 +2357,8 @@ bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struc
     RECORD_ARG(3, count);
     LOGE(LOG_DEBUG, "cudaMemset");
 
-    GET_CLIENT(*result)
-
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, devPtr, *result)
-
     *result = cudaMemset(
-      mem_ptr,
+      (void *)devPtr,
       value,
       count);
     RECORD_RESULT(integer, *result);
@@ -2410,13 +2377,8 @@ bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, s
     RECORD_ARG(5, width);
     LOGE(LOG_DEBUG, "cudaMemset2D");
 
-    GET_CLIENT(*result)
-
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, devPtr, *result)
-
     *result = cudaMemset2D(
-      mem_ptr,
+      (void *)devPtr,
       pitch,
       value,
       width,
@@ -2439,16 +2401,13 @@ bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t wi
     LOGE(LOG_DEBUG, "cudaMemset2DAsync");
 
     GET_CLIENT(*result)
-    
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, devPtr, *result)
 
     void* stream_ptr;
     GET_STREAM(stream_ptr, stream, *result)
     
 
     *result = cudaMemset2DAsync(
-      mem_ptr,
+      (void *)devPtr,
       pitch,
       value,
       width,
@@ -2473,13 +2432,8 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
     RECORD_ARG(8, width);
     LOGE(LOG_DEBUG, "cudaMemset3D");
 
-    GET_CLIENT(*result)
-
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, devPtr, *result)
-
     struct cudaPitchedPtr pptr = {.pitch = pitch,
-                                  .ptr = mem_ptr,
+                                  .ptr = (void *)devPtr,
                                   .xsize = xsize,
                                   .ysize = ysize};
     struct cudaExtent extent = {.depth = depth,
@@ -2508,14 +2462,11 @@ bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t
 
     GET_CLIENT(*result)
 
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, devPtr, *result)
-
     void* stream_ptr;
     GET_STREAM(stream_ptr, stream, *result)
 
     struct cudaPitchedPtr pptr = {.pitch = pitch,
-                                  .ptr = mem_ptr,
+                                  .ptr =(void *)devPtr,
                                   .xsize = xsize,
                                   .ysize = ysize};
     struct cudaExtent extent = {.depth = depth,
@@ -2539,14 +2490,11 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, 
 
     GET_CLIENT(*result)
 
-    void *mem_ptr;
-    GET_MEMORY(mem_ptr, devPtr, *result)
-
     void *stream_ptr;
     GET_STREAM(stream_ptr, stream, *result)
 
     *result = cudaMemsetAsync(
-      mem_ptr,
+      (void *)devPtr,
       value,
       count,
       (cudaStream_t)stream_ptr);

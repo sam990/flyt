@@ -2311,3 +2311,14 @@ DEF_FN(CUresult, __cudaInitModule, long, ptr)
 DEF_FN(CUresult, __cudaPopCallConfiguration, long, arg1, long, arg2, long, arg3, long, arg4)
 DEF_FN(CUresult, __cudaPushCallConfiguration, long, arg1, int, arg2, long, arg3, int, arg4, long, arg5, long, arg6)
 DEF_FN(CUresult, __cudaRegisterFatBinaryEnd, long, arg1)
+DEF_FN(cudaError_t, cudaGraphDebugDotPrint, cudaGraph_t, graph, const char*, path, unsigned int, flags)
+
+cudaError_t cudaStreamGetCaptureInfo(cudaStream_t stream, enum cudaStreamCaptureStatus *captureStatus_out, unsigned long long *id_out, cudaGraph_t *graph_out, const cudaGraphNode_t **dependencies_out, size_t *numDependencies_out) {
+    LOGE(LOG_ERROR, "cudaStreamGetCaptureInfo Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaGraphInstantiateWithFlags(cudaGraphExec_t* pGraphExec, cudaGraph_t graph, unsigned long long flags ) {
+    LOGE(LOG_ERROR, "cudaGraphInstantiateWithFlags Not implemented");
+    return cudaErrorUnknown;
+}
