@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include "resource-mg.h"
 #include "resource-map.h"
+#include "cpu-server-ivshmem.h"
 
 #define INIT_MEM_SLOTS 4096
 #define INIT_STREAM_SLOTS 16
@@ -87,6 +88,7 @@ typedef struct __cricket_client {
     resource_mg functions;
     resource_mg vars;
     // further can be added
+    ivshmem_svc_ctx *ivshmem_ctx;
 } cricket_client;
 
 typedef uint64_t cricket_client_iter;
@@ -96,9 +98,9 @@ int init_cpu_server_client_mgr();
 
 void free_cpu_server_client_mgr();
 
-cricket_client *create_client(int pid);
+cricket_client *create_client(int pid, ivshmem_svc_ctx *ctx);
 
-int add_new_client(int pid, int xp_fd);
+int add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *ctx);
 
 int add_restored_client(cricket_client *client);
 

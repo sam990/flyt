@@ -55,7 +55,7 @@ uint64_t resource_map_index_from_addr(void* addr) {
 
 resource_map_item* resource_map_get(resource_map* map, void* addr) {
     pthread_mutex_lock(&map->mutex);
-    resource_map_item *val = &(map->list[(uint64_t)addr - OFFSET]);
+    resource_map_item *val = &(map->list[(uint64_t)addr - OFFSET]); // this is the address of a r_m_item
     pthread_mutex_unlock(&map->mutex);
     return val;
 }
@@ -91,6 +91,7 @@ uint8_t resource_map_contains(resource_map* map, void* addr) {
     return val;
 }
 
+// is mapped_addr given? Yes, it is a true GPU VA.
 int resource_map_add(resource_map* map, void* mapped_addr, void *args, void **client_addr) {
     pthread_mutex_lock(&map->mutex);
     if (map->free_ptr_idx >= map->length && map->tail_idx >= map->length) {
@@ -106,7 +107,7 @@ int resource_map_add(resource_map* map, void* mapped_addr, void *args, void **cl
         map->list[map->tail_idx].mapped_addr = mapped_addr;
         map->list[map->tail_idx].args = args;
         map->list[map->tail_idx].present = 1;
-        *client_addr = (void*)(map->tail_idx + OFFSET);
+        *client_addr = (void*)(map->tail_idx + OFFSET); // return the pointer to where the true addr is stored.
         map->tail_idx++;
         map->free_ptr_idx++;
     }

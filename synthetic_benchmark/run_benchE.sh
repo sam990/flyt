@@ -11,7 +11,7 @@ do
 echo "Mem size: $mem_size"
 row="$mem_size"
 for i in {0..3}; do
-	# echo $i
+	echo "$i"
 	time=`./benchE $mem_size 8192 5000 | tee -a benchE.log |  sed -n  's/Time: \([[:digit:]]\+\) ms/\1/p'`
 	row="$row,$time"
 done

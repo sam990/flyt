@@ -17,6 +17,7 @@
 #include "list.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-driver.h"
+#include "cpu-server-ivshmem.h"
 
 #include "flyt-cr.h"
 #include <dirent.h>
@@ -164,7 +165,7 @@ int flyt_create_checkpoint(char *basepath) {
             return -1;
         }
 
-        sprintf(client_path, "%s/%d", basepath, client->pid);
+        sprintf(client_path, "%s/%d", basepath, client->pid); // Eg: /mnt/flytckp/10.129.2.127/12348
 
         if (mkdir(client_path, 0777) == -1) {
             LOGE(LOG_ERROR, "Error creating client directory %s: %s", client_path, strerror(errno));
@@ -179,7 +180,7 @@ int flyt_create_checkpoint(char *basepath) {
             return -1;
         }
 
-        sprintf(filename, "%s/gpu_mem", client_path);
+        sprintf(filename, "%s/gpu_mem", client_path); // /mnt/flytckp/10.129.2.127/12348/gpu_mem
         if (dump_memory(filename, client->gpu_mem) != 0) {
             LOGE(LOG_ERROR, "Failed to dump memory for client %d", client->pid);
             free(client_path);
@@ -187,7 +188,7 @@ int flyt_create_checkpoint(char *basepath) {
             return -1;
         }
 
-        sprintf(filename, "%s/modules", client_path);
+        sprintf(filename, "%s/modules", client_path); // /mnt/flytckp/10.129.2.127/12348/modules
         if (dump_modules(filename, &client->modules) != 0) {
             LOGE(LOG_ERROR, "Failed to dump modules for client %d", client->pid);
             free(client_path);
@@ -477,8 +478,9 @@ int flyt_restore_checkpoint(char *basepath) {
 
             sprintf(client_path, "%s/%s", basepath, client_pid);
             int client_pid_int = atoi(client_pid);
-
-            cricket_client *client = create_client(client_pid_int);
+            
+            ivshmem_svc_ctx *_ctx = {0}; // temp, get new shm mmap by 
+            cricket_client *client = create_client(client_pid_int, _ctx);
 
             if (client == NULL) {
                 LOGE(LOG_ERROR, "Failed to create client for pid %d", client_pid_int);

@@ -9713,3 +9713,451 @@ Result: 530364076
 +00:00:00.537608 [32mDEBUG[0m: __cudaUnregisterFatBinary(fatCubinHandle=0x564151192020)	in [4mcpu-client.c:459[0m
 +00:00:00.538948 [34mINFO[0m:	api-call-cnt: 15
 +00:00:00.538959 [34mINFO[0m:	memcpy-cnt: 20971520
+Grid size: 256
+Time: 325 ms
+Result: 35047696
+
+Grid size: 256
+Time: 273 ms
+Result: 35047696
+
+Grid size: 256
+Time: 274 ms
+Result: 35047696
+
+Grid size: 256
+Time: 273 ms
+Result: 35047696
+
+Grid size: 256
+Time: 275 ms
+Result: 68112660
+
+Grid size: 256
+Time: 277 ms
+Result: 68112660
+
+Grid size: 256
+Time: 276 ms
+Result: 68112660
+
+Grid size: 256
+Time: 276 ms
+Result: 68112660
+
+Grid size: 256
+Time: 278 ms
+Result: 134144120
+
+Grid size: 256
+Time: 277 ms
+Result: 134144120
+
+Grid size: 256
+Time: 278 ms
+Result: 134144120
+
+Grid size: 256
+Time: 277 ms
+Result: 134144120
+
+Grid size: 256
+Time: 280 ms
+Result: 266294552
+
+Grid size: 256
+Time: 281 ms
+Result: 266294552
+
+Grid size: 256
+Time: 280 ms
+Result: 266294552
+
+Grid size: 256
+Time: 280 ms
+Result: 266294552
+
+Grid size: 256
+Time: 286 ms
+Result: 530364076
+
+Grid size: 256
+Time: 286 ms
+Result: 530364076
+
+Grid size: 256
+Time: 287 ms
+Result: 530364076
+
+Grid size: 256
+Time: 285 ms
+Result: 530364076
+
+Grid size: 256
+Time: 295 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 294 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 295 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 294 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 318 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 317 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 317 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 318 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 362 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 362 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 362 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 361 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 452 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 452 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 452 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 452 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 660 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 675 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 653 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 667 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 1003 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 1035 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 1013 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 1005 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 1724 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 1735 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 1729 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 1737 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 3151 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 3178 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 3159 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 3175 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 6044 ms
+Result: 270589272548
+
+Grid size: 256
+Time: 6072 ms
+Result: 270589272548
+
+Grid size: 256
+Time: 6082 ms
+Result: 270589272548
+
+Grid size: 256
+Time: 6175 ms
+Result: 270589272548
+
+Grid size: 256
+Time: 311 ms
+Result: 35047696
+
+Grid size: 256
+Time: 273 ms
+Result: 35047696
+
+Grid size: 256
+Time: 274 ms
+Result: 35047696
+
+Grid size: 256
+Time: 274 ms
+Result: 35047696
+
+Grid size: 256
+Time: 275 ms
+Result: 68112660
+
+Grid size: 256
+Time: 276 ms
+Result: 68112660
+
+Grid size: 256
+Time: 275 ms
+Result: 68112660
+
+Grid size: 256
+Time: 276 ms
+Result: 68112660
+
+Grid size: 256
+Time: 277 ms
+Result: 134144120
+
+Grid size: 256
+Time: 277 ms
+Result: 134144120
+
+Grid size: 256
+Time: 278 ms
+Result: 134144120
+
+Grid size: 256
+Time: 277 ms
+Result: 134144120
+
+Grid size: 256
+Time: 280 ms
+Result: 266294552
+
+Grid size: 256
+Time: 280 ms
+Result: 266294552
+
+Grid size: 256
+Time: 279 ms
+Result: 266294552
+
+Grid size: 256
+Time: 277 ms
+Result: 266294552
+
+Grid size: 256
+Time: 281 ms
+Result: 530364076
+
+Grid size: 256
+Time: 281 ms
+Result: 530364076
+
+Grid size: 256
+Time: 281 ms
+Result: 530364076
+
+Grid size: 256
+Time: 281 ms
+Result: 530364076
+
+Grid size: 256
+Time: 292 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 291 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 293 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 292 ms
+Result: 1058767456
+
+Grid size: 256
+Time: 312 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 311 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 311 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 312 ms
+Result: 2115634250
+
+Grid size: 256
+Time: 351 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 351 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 353 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 351 ms
+Result: 4229958312
+
+Grid size: 256
+Time: 437 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 434 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 436 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 433 ms
+Result: 8457871100
+
+Grid size: 256
+Time: 639 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 609 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 630 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 605 ms
+Result: 16913193780
+
+Grid size: 256
+Time: 954 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 948 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 1015 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 1000 ms
+Result: 33823973188
+
+Grid size: 256
+Time: 1735 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 1728 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 1724 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 1733 ms
+Result: 67646296190
+
+Grid size: 256
+Time: 3153 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 3163 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 3146 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 3153 ms
+Result: 135295024592
+
+Grid size: 256
+Time: 6054 ms
+Result: 270589272548
+
+Grid size: 256
+Time: 6061 ms
+Result: 270589272548
+
+Grid size: 256
+Time: 6056 ms
+Result: 270589272548
+
+Grid size: 256
+Time: 6098 ms
+Result: 270589272548
+

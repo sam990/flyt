@@ -6,6 +6,13 @@ typedef hyper ll;
 typedef opaque rpc_cuda_device_prop[1032];
 typedef opaque rpc_matmul_heuristic_result[96];
 
+struct ivshmem_setup_desc {
+    uint8_t iv_enable; /* 0 or 1 */
+    string f_be<128>;
+    size_t proc_be_sz;
+    uint64_t proc_be_off;
+};
+
 struct dint {
     int i1;
     int i2;
@@ -231,7 +238,7 @@ program RPC_CD_PROG {
         int          rpc_elf_load(mem_data, ptr)                                 = 51;
         int          rpc_elf_unload(ptr)                                         = 52;
         int          rpc_register_var(ptr, ptr, ptr, string, int, size_t, int, int) = 53;
-        int          rpc_init(int)                                               = 54;
+        int          rpc_init(int, ivshmem_setup_desc)                              = 54;
         int          rpc_ckp_restore(int)                                        = 55;
 
         /* RUNTIME API */
@@ -360,6 +367,7 @@ program RPC_CD_PROG {
                           ptr, size_t)                                          = 426;*/
 
         /* ### CUDA_MEMCPY Family ### */
+        int          CUDA_MEMCPY_IVSHMEM(int, int, ptr, size_t, int)            = 439;
         int          CUDA_MEMCPY_HTOD(ptr, mem_data, size_t)                    = 440;
         mem_result   CUDA_MEMCPY_DTOH(ptr, size_t)                              = 441;
         int          CUDA_MEMCPY_SHM(int, ptr, size_t, int)                     = 442;
