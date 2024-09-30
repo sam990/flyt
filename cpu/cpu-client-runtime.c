@@ -24,6 +24,7 @@
 #include "log.h"
 #include "oob.h"
 #include "cpu-client-mt-memcpy.h"
+#include "cpu-client-ivshmem.h" // for ivshmem-ctx
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -31,11 +32,19 @@
 
 #ifdef WITH_API_CNT
 int api_call_cnt = 0;
+int iv_memcpy_rpc_call_cnt = 0;
+int memcpy_call_cnt = 0;
 size_t memcpy_cnt = 0;
 void cpu_runtime_print_api_call_cnt(void)
 {
-    LOG(LOG_INFO, "api-call-cnt: %d", api_call_cnt);
-    LOG(LOG_INFO, "memcpy-cnt: %d", memcpy_cnt);
+    printf("api-call-cnt: %d\n", api_call_cnt);
+    printf("memcpy-api-calls: %d\n", memcpy_call_cnt);
+    printf("Non-memcpy-api-calls: %d\n", api_call_cnt - memcpy_call_cnt);
+    
+    printf("ivshmem-memcpy-rpc-call-cnt: %d\n", iv_memcpy_rpc_call_cnt);
+    printf("memcpy-sz: %ld\n", memcpy_cnt);
+    // LOG(LOG_INFO, "api-call-cnt: %d", api_call_cnt);
+    // LOG(LOG_INFO, "memcpy-cnt: %d", memcpy_cnt);
 }
 #endif //WITH_API_CNT
 
@@ -1483,7 +1492,7 @@ cudaError_t cudaMalloc(void** devPtr, size_t size)
     if (result.err != 0) {
         return result.err;
     }
-    *devPtr = (void*)result.ptr_result_u.ptr;
+    *devPtr = (void*)result.ptr_result_u.ptr; // assign server heap VA
     return result.err;
 }
 
@@ -1701,159 +1710,240 @@ void* ib_thread(void* arg)
 }
 #endif //WITH_IB
 
-extern char server[256];
+extern char SERVER_IP[256];
 #define MT_MEMCPY_MEM_PER_THREAD (128*1024*1024)
 #define WITH_MT_MEMCPY
+
+// src is a pointer to a CUDA app userspace VA on VM.
+// dst is the server heap VA that contains a struct with
+// true GPU device VA of cudaMalloc'd memory.
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
 #ifdef WITH_API_CNT
     api_call_cnt++;
     memcpy_cnt += count;
+    memcpy_call_cnt++;
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
-    if (kind == cudaMemcpyHostToDevice) {
-        // get index of mem reg (src: cpu reg memregion)
-        int index = hainfo_getindex((void*)src);
-        // not a cudaHostAlloc'ed memory 
-        if (index == -1) {
-#ifdef WITH_MT_MEMCPY
-            if (count > 2*MT_MEMCPY_MEM_PER_THREAD) {
-                const int thread_num = count/MT_MEMCPY_MEM_PER_THREAD;
-                dint_result result;
-                oob_t oob;
-                retval = cuda_memcpy_mt_htod_1((ptr)dst, count, thread_num, &result, clnt);
+    if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
+        if (kind == cudaMemcpyHostToDevice) {
+            int copied_count = 0;
+            int rpc_cnt = 0;
+
+            // Keep looping until all data is copied
+            while (copied_count < count) {
+                // Calculate the remaining data size to copy
+                size_t remaining = count - copied_count;
+
+                // Check available shared memory and get the maximum transferable chunk size
+                size_t chunk_size = (check_shm_limits(&(ivshmem_ctx->write_to), remaining))
+                                        ? remaining
+                                        : ivshmem_ctx->write_to.max_size - 1;
+                //printf("Memcpy user to shm chunk size = %ld bytes.\n", chunk_size);
+
+                uint64_t w_off = shm_get_write_area_offset(chunk_size);
+                void *w_addr = (void *)(shm_get_writeaddr_clnt(ivshmem_ctx) + w_off);
+
+                memcpy(w_addr, (void *)((uintptr_t)src + copied_count), chunk_size);
+
+                // Perform the RPC call for this chunk
+                // pass offset into gpu_alloc also
+                retval = cuda_memcpy_ivshmem_1(w_off, copied_count, (ptr)dst, chunk_size, kind, &ret, clnt);
                 if (retval != RPC_SUCCESS) {
-                    LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
-                    goto cleanup;
-                }
-                
-                if (mt_memcpy_client(server, result.dint_result_u.data.i1, (void*)src, count, MT_MEMCPY_HTOD, thread_num) != 0) {
-                    LOGE(LOG_ERROR, "mt_memcpy_client failed");
+                    LOGE(LOG_ERROR, "cuda_memcpy_shm failed");
                     goto cleanup;
                 }
 
-                retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
-                if (retval != RPC_SUCCESS) {
-                    LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
-                    goto cleanup;
-                }
-            } else {
-#endif //WITH_MT_MEMCPY
-                mem_data src_mem;
-                src_mem.mem_data_len = count;
-                src_mem.mem_data_val = (void*)src;
-                LOGE(LOG_DEBUG, "Memcpy data size: %lu\n", count);
-                retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
-#ifdef WITH_MT_MEMCPY
+                copied_count += chunk_size;
+                rpc_cnt ++;
             }
-#endif //WITH_MT_MEMCPY
-        } else {
-            if (shm_enabled && connection_is_local == 1) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)dst, count, kind, &ret, clnt);
-            } else if (socktype == TCP) { //Use infiniband
-#ifdef WITH_IB
-                //the following commend connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
-                retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
-                ib_requester_send((void*)src, index, count, false);
-                //ib_cleanup();
-#else
-                LOGE(LOG_ERROR, "infiniband is disabled.");
-                goto cleanup;
-#endif //WITH_IB
-            }
-        }
-        if (retval != RPC_SUCCESS) {
-            LOGE(LOG_ERROR, "RPC failed.");
-            clnt_perror (clnt, "call failed");
-        }
-    } else if (kind == cudaMemcpyDeviceToHost) {
-        //get the dst, reg cpu mem reg/ buffer
-        int index = hainfo_getindex(dst);
-        /* not a cudaHostAlloc'ed memory */
-        if (index == -1) {
-#ifdef WITH_MT_MEMCPY
-            if (count > 2*MT_MEMCPY_MEM_PER_THREAD) {
-                const int thread_num = count/MT_MEMCPY_MEM_PER_THREAD;
-                dint_result result;
-                oob_t oob;
-                retval = cuda_memcpy_mt_dtoh_1((ptr)src, count, thread_num, &result, clnt);
-                if (retval != RPC_SUCCESS) {
-                    LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
-                    goto cleanup;
-                }
-                
-                if (mt_memcpy_client(server, result.dint_result_u.data.i1, dst, count, MT_MEMCPY_DTOH, thread_num) != 0) {
-                    LOGE(LOG_ERROR, "mt_memcpy_client failed");
-                    goto cleanup;
-                }
-                
-                retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
-                if (retval != RPC_SUCCESS) {
-                    LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
-                    goto cleanup;
-                }
-            } else {
-#endif //WITH_MT_MEMCPY
-                mem_result result;
-                result.mem_result_u.data.mem_data_len = count;
-                result.mem_result_u.data.mem_data_val = dst;
-                //printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
-                retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
-                ret = result.err;
-                if (result.err != 0) {
-                    goto cleanup;
-                }
-                if (result.mem_result_u.data.mem_data_len != count) {
-                    LOGE(LOG_ERROR, "error");
-                    goto cleanup;
-                }
-#ifdef WITH_MT_MEMCPY
-            }
-#endif //WITH_MT_MEMCPY
-        } else {
-            if (shm_enabled && connection_is_local) { //Use local shared memory
-                retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)src, count, kind, &ret, clnt);
-            } else if (socktype == TCP) { //Use infiniband
-#ifdef WITH_IB
-                pthread_t thread = {0};
-                struct ib_thread_info info = {
-                    .index = index,
-                    .host_ptr = dst,
-                    .size = count,
-                };
-                // initialize server waiting for dev to host transfer
-               if (pthread_create(&thread, NULL, ib_thread, &info) != 0) {
-                    LOGE(LOG_ERROR, "starting ib thread failed.");
-                    goto cleanup;
-                }
+            #ifdef WITH_API_CNT
+                api_call_cnt += (rpc_cnt - 1);
+                iv_memcpy_rpc_call_cnt += (rpc_cnt - 1);
+            #endif 
+        } else if (kind == cudaMemcpyDeviceToHost) {
+            int copied = 0;
+            int rpc_cnt = 0;
+            while (copied < count) {
+                size_t remaining = count - copied;
 
-                //this lead to server side function cuda_memcpy_ib_1 and sends server data to initialiced waiting ib server
-                retval = cuda_memcpy_ib_1(index, (ptr)src, count, kind, &ret, clnt);
-                pthread_join(thread, NULL);
-#else
-                LOGE(LOG_ERROR, "infiniband is disabled.");
-                goto cleanup;
-#endif //WITH_IB
-            }
+                size_t chunk_size = (check_shm_limits(&(ivshmem_ctx->read_from), remaining))
+                                        ? remaining
+                                        : ivshmem_ctx->read_from.max_size - 1;
 
-        }
-        if (retval != RPC_SUCCESS) {
-            LOGE(LOG_ERROR, "RPC failed.");
-            clnt_perror (clnt, "call failed");
-        }
-    } else if (kind == cudaMemcpyDeviceToDevice) {
-        retval = cuda_memcpy_dtod_1((ptr)dst, (ptr)src, count, &ret, clnt);
-        if (retval != RPC_SUCCESS) {
-            LOGE(LOG_ERROR, "RPC failed.");
-            clnt_perror (clnt, "call failed");
+                //printf("Memcpy shm to user chunk size = %ld bytes.\n", chunk_size);
+                uint64_t r_off = shm_get_read_area_offset(chunk_size); // "where in my read region is there space for a block to be written?"
+                void *r_addr = (void *)(shm_get_readaddr_clnt(ivshmem_ctx) + r_off);
+
+                retval = cuda_memcpy_ivshmem_1(r_off, copied, (ptr)src, chunk_size, kind, &ret, clnt);
+                if (retval != RPC_SUCCESS) {
+                    LOGE(LOG_ERROR, "cuda_memcpy_ivshmem D2H failed");
+                    goto cleanup;
+                }
+                //ivshmem_ctx->read_from.avail_size -= chunk_size;
+                memcpy((void *)((uintptr_t)dst + copied), r_addr, chunk_size);
+
+                copied += chunk_size;
+                rpc_cnt ++;
+            }
+            #ifdef WITH_API_CNT
+                api_call_cnt += (rpc_cnt - 1);
+                iv_memcpy_rpc_call_cnt += (rpc_cnt - 1);
+            #endif 
+
+        } else if (kind == cudaMemcpyDeviceToDevice) {
+            retval = cuda_memcpy_dtod_1((ptr)dst, (ptr)src, count, &ret, clnt);
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "RPC failed.");
+                clnt_perror(clnt, "call failed");
+            }
         }
     } else {
-        LOGE(LOG_ERROR, "unknown kind");
+        if (kind == cudaMemcpyHostToDevice) {
+            // get index of mem reg (src: cpu reg memregion)
+            int index = hainfo_getindex((void*)src);
+            // not a cudaHostAlloc'ed memory 
+            if (index == -1) {
+#ifdef WITH_MT_MEMCPY
+                if (count > 2 * MT_MEMCPY_MEM_PER_THREAD) {
+                    const int thread_num = count / MT_MEMCPY_MEM_PER_THREAD;
+                    dint_result result;
+                    oob_t oob;
+                    retval = cuda_memcpy_mt_htod_1((ptr)dst, count, thread_num, &result, clnt);
+                    if (retval != RPC_SUCCESS) {
+                        LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
+                        goto cleanup;
+                    }
+
+                    if (mt_memcpy_client(SERVER_IP, result.dint_result_u.data.i1, (void*)src, count, MT_MEMCPY_HTOD, thread_num) != 0) {
+                        LOGE(LOG_ERROR, "mt_memcpy_client failed");
+                        goto cleanup;
+                    }
+
+                    retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
+                    if (retval != RPC_SUCCESS) {
+                        LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
+                        goto cleanup;
+                    }
+                } else {
+#endif // WITH_MT_MEMCPY
+                    mem_data src_mem;
+                    src_mem.mem_data_len = count;
+                    src_mem.mem_data_val = (void*)src;
+                    LOGE(LOG_DEBUG, "Memcpy data size: %lu\n", count);
+                    retval = cuda_memcpy_htod_1((uint64_t)dst, src_mem, count, &ret, clnt);
+#ifdef WITH_MT_MEMCPY
+                }
+#endif // WITH_MT_MEMCPY
+            } else {
+                if (shm_enabled && connection_is_local == 1) { // Use local shared memory
+                    retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)dst, count, kind, &ret, clnt);
+                } else if (socktype == TCP) { // Use infiniband
+#ifdef WITH_IB
+                    // the following command connects to serverside cuda_memcpy_ib_1_svc, server thread is initialized waiting for client send
+                    retval = cuda_memcpy_ib_1(index, (ptr)dst, count, kind, &ret, clnt);
+                    ib_requester_send((void*)src, index, count, false);
+                    // ib_cleanup();
+#else
+                    LOGE(LOG_ERROR, "infiniband is disabled.");
+                    goto cleanup;
+#endif // WITH_IB
+                }
+            }
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "RPC failed.");
+                clnt_perror(clnt, "call failed");
+            }
+        } else if (kind == cudaMemcpyDeviceToHost) {
+            // get the dst, reg cpu mem reg/ buffer
+            int index = hainfo_getindex(dst);
+            /* not a cudaHostAlloc'ed memory */
+            if (index == -1) {
+#ifdef WITH_MT_MEMCPY
+                if (count > 2 * MT_MEMCPY_MEM_PER_THREAD) {
+                    const int thread_num = count / MT_MEMCPY_MEM_PER_THREAD;
+                    dint_result result;
+                    oob_t oob;
+                    retval = cuda_memcpy_mt_dtoh_1((ptr)src, count, thread_num, &result, clnt);
+                    if (retval != RPC_SUCCESS) {
+                        LOGE(LOG_ERROR, "cuda_memcpy_mt_htod failed");
+                        goto cleanup;
+                    }
+
+                    if (mt_memcpy_client(SERVER_IP, result.dint_result_u.data.i1, dst, count, MT_MEMCPY_DTOH, thread_num) != 0) {
+                        LOGE(LOG_ERROR, "mt_memcpy_client failed");
+                        goto cleanup;
+                    }
+
+                    retval = cuda_memcpy_mt_sync_1(result.dint_result_u.data.i2, &ret, clnt);
+                    if (retval != RPC_SUCCESS) {
+                        LOGE(LOG_ERROR, "cuda_memcpy_mt_sync failed");
+                        goto cleanup;
+                    }
+                } else {
+#endif // WITH_MT_MEMCPY
+                    mem_result result;
+                    result.mem_result_u.data.mem_data_len = count;
+                    result.mem_result_u.data.mem_data_val = dst;
+                    // printf("cuda_memcpy_dtoh(%p, %zu)\n", src, count);
+                    retval = cuda_memcpy_dtoh_1((uint64_t)src, count, &result, clnt);
+                    ret = result.err;
+                    if (result.err != 0) {
+                        goto cleanup;
+                    }
+                    if (result.mem_result_u.data.mem_data_len != count) {
+                        LOGE(LOG_ERROR, "error");
+                        goto cleanup;
+                    }
+#ifdef WITH_MT_MEMCPY
+                }
+#endif // WITH_MT_MEMCPY
+            } else {
+                if (shm_enabled && connection_is_local) { // Use local shared memory
+                    retval = cuda_memcpy_shm_1(hainfo[index].idx, (ptr)src, count, kind, &ret, clnt);
+                } else if (socktype == TCP) { // Use infiniband
+#ifdef WITH_IB
+                    pthread_t thread = {0};
+                    struct ib_thread_info info = {
+                        .index = index,
+                        .host_ptr = dst,
+                        .size = count,
+                    };
+                    // initialize server waiting for dev to host transfer
+                    if (pthread_create(&thread, NULL, ib_thread, &info) != 0) {
+                        LOGE(LOG_ERROR, "starting ib thread failed.");
+                        goto cleanup;
+                    }
+
+                    // this lead to server side function cuda_memcpy_ib_1 and sends server data to initialized waiting ib server
+                    retval = cuda_memcpy_ib_1(index, (ptr)src, count, kind, &ret, clnt);
+                    pthread_join(thread, NULL);
+#else
+                    LOGE(LOG_ERROR, "infiniband is disabled.");
+                    goto cleanup;
+#endif // WITH_IB
+                }
+            }
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "RPC failed.");
+                clnt_perror(clnt, "call failed");
+            }
+        } else if (kind == cudaMemcpyDeviceToDevice) {
+            retval = cuda_memcpy_dtod_1((ptr)dst, (ptr)src, count, &ret, clnt);
+            if (retval != RPC_SUCCESS) {
+                LOGE(LOG_ERROR, "RPC failed.");
+                clnt_perror(clnt, "call failed");
+            }
+        } else {
+            LOGE(LOG_ERROR, "unknown kind");
+        }
     }
-cleanup:
-    return ret;
-}
+
+    cleanup:
+        return ret;
+    }
+
 DEF_FN(cudaError_t, cudaMemcpy2D, void*, dst, size_t, dpitch, const void*, src, size_t, spitch, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
 DEF_FN(cudaError_t, cudaMemcpy2DArrayToArray, cudaArray_t, dst, size_t, wOffsetDst, size_t, hOffsetDst, cudaArray_const_t, src, size_t, wOffsetSrc, size_t, hOffsetSrc, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
 DEF_FN(cudaError_t, cudaMemcpy2DAsync, void*, dst, size_t, dpitch, const void*, src, size_t, spitch, size_t, width, size_t, height, enum cudaMemcpyKind, kind, cudaStream_t, stream)

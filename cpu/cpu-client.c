@@ -18,6 +18,7 @@
 #include "list.h"
 #include "cpu-elf2.h"
 #include "cpu-client-mgr-handler.h"
+#include "cpu-client-ivshmem.h" // for ivshmem-ctx
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
@@ -29,13 +30,19 @@ CLIENT *clnt = NULL;
 
 list kernel_infos = { 0 };
 
-char server[256];
-unsigned long vers;
+// needed for oob send in mt_memcpy on client.
+char SERVER_IP[256];
 
 INIT_SOCKTYPE
 int connection_is_local = 0;
-int shm_enabled = 1;
 int initialized = 0;
+
+ivshmem_setup_desc _EMPTY_svc_args = {
+    .iv_enable = SHM_NONE, 
+    .f_be = "EMPTY",
+    .proc_be_sz = 0,
+    .proc_be_off = 0
+};
 
 #ifdef WITH_IB
 int ib_device = 0;
@@ -45,7 +52,8 @@ int ib_device = 0;
 extern void cpu_runtime_print_api_call_cnt(void);
 #endif // WITH_API_CNT
 
-static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assigned by the node manager.
+
+static void rpc_connect(server_info_t *server_info) // "server_ip, vers" - `vers` is assigned by the node manager.
 {
     int isock;
     struct sockaddr_un sock_un = { 0 };
@@ -54,24 +62,12 @@ static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assi
     struct hostent *hp;
     socklen_t sockaddr_len = sizeof(struct sockaddr_in);
     unsigned long prog = 0;
-
-    splitted_str *splitted = split_string(server_info, ",");
     
-    if (splitted == NULL) {
-        LOGE(LOG_ERROR, "error splitting server info: %s", server_info);
-        exit(1);
-    }
-    if (splitted->size != 2) {
-        LOGE(LOG_ERROR, "error parsing server info: %s", server_info);
-        exit(1);
-    }
+    unsigned long vers = server_info->rpc_id;
+    char *server = server_info->server_ip;
 
-    strcpy(server, splitted->str[0]);
-
-    vers = strtoul(splitted->str[1], NULL, 10); // rpc vers is passed back to client for portmapper 
-
-    free_splitted_str(splitted);
-    splitted = NULL;
+    // for mt_memcpy in client-runtime. Not ideal.
+    strcpy(SERVER_IP, server);
     
     LOG(LOG_INFO, "connection to host \"%s\"", server);
 
@@ -125,6 +121,7 @@ static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assi
         // isock: socket that is bound to the server IP.
         // sock_in: sockaddr_in struct that contains server IP.
         clnt = clnttcp_create(&sock_in, prog, vers, &isock, 0, 0);
+        printf("clnttcp_create done.\n");
 
         // store address to which isock was bound (in clnttcp_create)
         // in local_addr
@@ -150,11 +147,11 @@ static void rpc_connect(char *server_info) // "server_ip, vers" - `vers` is assi
     }
 }
 
-void change_server(char *server_info)
+void change_server(server_info_t *server_info)
 {
     enum clnt_stat retval_1;
     int result_1;
-    LOG(LOG_INFO, "changing server to %s", server_info);
+    LOG(LOG_INFO, "changing server to %s", server_info->server_ip);
     rpc_connect(server_info);
 }
 
@@ -193,6 +190,25 @@ void resume_connection(void)
 //     }
 // }
 
+// <server_ip,rpc_id, shm_enable,shm_backend>
+int check_node_locality(server_info_t *server_info) {  
+    int shm_enable = server_info->shm_enable;
+    printf("shm enabled? %d\n", shm_enable);
+
+    // return based on mongoDB value
+    if (shm_enable) {
+        return SHM_OK;
+    } else {
+        return SHM_NONE;
+    }
+}
+
+char *get_shm_be_path(server_info_t *server_info) {
+    // parse server_info
+    // retrieve last arg.
+    return server_info->shm_backend;
+}
+
 // Called as soon as the library is loaded.
 void __attribute__((constructor)) init_rpc(void)
 {
@@ -202,22 +218,33 @@ void __attribute__((constructor)) init_rpc(void)
     char *printmessage_1_arg1 = "hello";
 
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
-    init_log(LOG_LEVEL, __FILE__);
+    //init_log(LOG_LEVEL, __FILE__);
 
-    pthread_rwlock_init(&access_sem, NULL);
+    pthread_rwlock_init(&access_sem, NULL); // to allow read/write access to client.
 
-    char* server_info = init_client_mgr();
+    // return comma sep string of:
+    // IP, rpc_id, shm_enabled, filepath of shm backend.
+    // requires modification to rpc_connect parse
+    // and control managers.
+    // server_info_t *server_info
+    server_info_t* server_info = init_client_mgr();
     if (server_info == NULL) {
         LOGE(LOG_ERROR, "error initializing client manager");
         exit(1);
     }
 
-    // check if ivshmem possible
-    // --------------------------
-    // - client manager only has a thread to register new clients.
-    // - i.e. after the initial setup, arbitrary comms still not possible.
-    // 
+    int clnt_pid = getpid();
 
+    ivshmem_setup_desc _svc_args = {0};
+
+    if (check_node_locality(server_info) == SHM_OK) {
+        char *shm_be_path = get_shm_be_path(server_info);
+        init_ivshmem_clnt(clnt_pid, shm_be_path, server_info->clientd_mqueue_id); // mmap pci BAR
+        _svc_args = ivshmem_ctx->svc_args;
+        LOGE(LOG_DEBUG, "ivshmem setup done");
+    } else {
+        _svc_args = _EMPTY_svc_args;
+    }
 
     rpc_connect(server_info);
     free(server_info);
@@ -225,19 +252,10 @@ void __attribute__((constructor)) init_rpc(void)
     initialized = 1;
 
     /// Now we can communicate ivshmem params to the server.
-    /// In rpc_init_1, need to additionally send to server:
-    // - path to ivshmem backend. ("/dev/shm/<qemu-ivshmem-name>", string)
-    // - Size of ivshmem backend allocated to this process. (constant per process, int)
-    // - Whether client VM and flyt-rpc-server are on the same machine. (0/1, int)
-    // - Starting byte offset into the backend file for this process. ()
-    /// The client library will maintain these details on the VM as well.
-    /// Each process will have its own instance of the tracking vars used
-    /// in the lib.
-
     FUNC_BEGIN 
-    retval_1 = rpc_init_1(getpid(), &result_1,  clnt);
+    retval_1 = rpc_init_1(clnt_pid, _svc_args, &result_1,  clnt);
     FUNC_END
-    
+
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror(clnt, "call failed");
     }

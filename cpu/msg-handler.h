@@ -21,12 +21,7 @@ struct msgbuf_uint32 {
     uint32_t data;    /* message data */
 };
 
-uint64_t msg_send_id() {
-    return ((uint64_t)getpid()) << 32;
-}
-
-uint64_t msg_recv_id() {
-    return getpid();
-}
+uint64_t msg_send_id();
+uint64_t msg_recv_id();
 
 #endif //_MSG_HANDLER_H_

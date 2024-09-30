@@ -141,6 +141,9 @@ int add_restored_client(cricket_client *client) {
     return ret;
 }
 
+// for the client * created early in the migrate procedure,
+// link it to the server-side fd created when rpc_connect()
+// is accept'd
 int move_restored_client(int pid, int xp_fd) {
     cricket_client* client = (cricket_client*)resource_mg_get_default(&restored_clients, (void *)(long)pid, NULL);
     
