@@ -188,13 +188,7 @@ bool_t rpc_cublasltmatmul_1_svc(ptr lightHandle,
     GSCHED_RETAIN;
 
     GET_CLIENT(*result);
-    void *mem_ptr_A, *mem_ptr_B, *mem_ptr_C, *mem_ptr_D, *mem_ptr_workspace, *stream_ptr;
-
-    GET_MEMORY(mem_ptr_A, A, *result);
-    GET_MEMORY(mem_ptr_B, B, *result);
-    GET_MEMORY(mem_ptr_C, C, *result);
-    GET_MEMORY(mem_ptr_D, D, *result);
-    GET_MEMORY(mem_ptr_workspace, workspace, *result);
+    void *stream_ptr;
     
     GET_STREAM(stream_ptr, stream, *result);
 
@@ -202,18 +196,18 @@ bool_t rpc_cublasltmatmul_1_svc(ptr lightHandle,
         (cublasLtHandle_t)resource_mg_get_or_null(&rm_cublaslt, (void*)lightHandle),
         (cublasLtMatmulDesc_t)resource_mg_get_or_null(&rm_cublaslt, (void*)computeDesc),
         &alpha,
-        mem_ptr_A,
+        A,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Adesc),
-        mem_ptr_B,
+        B,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Bdesc),
         &beta,
-        mem_ptr_C,
+        C,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Cdesc),
-        mem_ptr_D,
+        D,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Ddesc),
         // (const cublasLtMatmulAlgo_t *)algo,
-	NULL,
-        mem_ptr_workspace,
+	    NULL,
+        workspace,
         workspaceSizeInBytes,
        (cudaStream_t)stream_ptr
     );

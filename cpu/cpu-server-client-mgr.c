@@ -11,6 +11,7 @@
 #include "cpu-server-resource-controller.h"
 #include "cpu_rpc_prot.h"
 #include "cpu-server-ivshmem.h"
+#include "cpu-server-dev-mem.h"
 
 #define STR_DUMP_SIZE 128
 
@@ -64,18 +65,13 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
         return NULL;
     }
     client->pid = pid;
-    client->gpu_mem = init_resource_map(INIT_MEM_SLOTS); // 4096 allocs per client, but extends dynamically
-    if (client->gpu_mem == NULL) {
-        LOGE(LOG_ERROR, "Failed to initialize gpu_mem resource map for new client");
-        free(client);
-        return NULL;
-    }
+
+    
     client->default_stream = NULL; // create a default stream
 
     cudaError_t err = cudaStreamCreateWithFlags((cudaStream_t *)&client->default_stream, cudaStreamNonBlocking);
     if (err != cudaSuccess) {
         LOGE(LOG_ERROR, "Failed to create default stream for new client: %s", cudaGetErrorString(err));
-        free_resource_map(client->gpu_mem);
         free(client);
         return NULL;
     }
@@ -83,7 +79,6 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
     client->custom_streams = init_resource_map(INIT_STREAM_SLOTS);
     if (client->custom_streams == NULL) {
         LOGE(LOG_ERROR, "Failed to initialize custom_streams resource map for new client");
-        free_resource_map(client->gpu_mem);
         free(client);
         return NULL;
     }
@@ -93,6 +88,7 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
         client->ivshmem_ctx = _ctx;
     }
 
+    resource_mg_init(&client->gpu_mem, 0);
     resource_mg_init(&client->modules, 0);
     resource_mg_init(&client->functions, 0);
     resource_mg_init(&client->vars, 0);
@@ -121,7 +117,7 @@ int add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *_ctx) {
 
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to add new client to resource managers");
-        free_resource_map(client->gpu_mem);
+        resource_mg_free(&client->gpu_mem);
         free_resource_map(client->custom_streams);
         resource_mg_free(&client->modules);
         resource_mg_free(&client->functions);
@@ -202,7 +198,7 @@ int remove_client_ptr(cricket_client* client) {
     
 
     // free client
-    free_resource_map(client->gpu_mem);
+    resource_mg_free(&client->gpu_mem);
     free_resource_map(client->custom_streams);
 
     pthread_mutex_lock(&client->modules.mutex);
@@ -277,19 +273,16 @@ int remove_client(int xp_fd) {
 static int freeResources(cricket_client* client) {
     PRIMARY_CTX_RETAIN;
     
-    resource_map_iter *mem_iter = resource_map_init_iter(client->gpu_mem);
+    
+    resource_mg_map_elem *map_elem;
 
-    if (mem_iter == NULL) {
-        LOGE(LOG_ERROR, "Failed to initialize gpu_mem resource map iterator");
-        return -1;
+    for (size_t i = 0; i < client->gpu_mem.map_res.length; i++) {
+        resource_mg_get_element_at(&client->gpu_mem, FALSE, i, (void **)&map_elem);
+
+        mem_alloc_args_t *mem_args = (mem_alloc_args_t *)map_elem->cuda_address;
+        free_dev_mem(map_elem->client_address, mem_args->padded_size);
     }
 
-    uint64_t mem_idx;
-    while ((mem_idx = resource_map_iter_next(mem_iter)) != 0) {
-        cudaFree(resource_map_get_addr(client->gpu_mem, (void *)mem_idx));
-    }
-
-    resource_map_free_iter(mem_iter);
 
     resource_map_iter *stream_iter = resource_map_init_iter(client->custom_streams);
     

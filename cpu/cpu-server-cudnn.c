@@ -873,7 +873,7 @@ bool_t rpc_cudnndestroylrndescriptor_1_svc(ptr lrnDesc, int *result, struct svc_
     return 1;
 }
 
-bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc,           cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
+bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
 {
     RECORD_API(rpc_cudnnpoolingforward_1_argument);
     RECORD_NARG(handle);
@@ -890,19 +890,15 @@ bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc,           cudn
 
     GET_CLIENT(*result)
 
-    void *mem_ptr_x, *mem_ptr_y;
-    GET_MEMORY(mem_ptr_x, x, *result)
-    GET_MEMORY(mem_ptr_y, y, *result)
-
     *result = cudnnPoolingForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)mem_ptr_x,
+        (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)mem_ptr_y);
+        (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -925,19 +921,15 @@ bool_t rpc_cudnnactivationforward_1_svc(ptr handle, ptr activationDesc, cudnn_sc
 
     GET_CLIENT(*result)
 
-    void *mem_ptr_x, *mem_ptr_y;
-    GET_MEMORY(mem_ptr_x, x, *result)
-    GET_MEMORY(mem_ptr_y, y, *result) 
-
     *result = cudnnActivationForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)mem_ptr_x,
+        (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)mem_ptr_y);
+        (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -961,20 +953,16 @@ bool_t rpc_cudnnlrncrosschannelforward_1_svc(ptr handle, ptr normDesc, int lrnMo
 
     GET_CLIENT(*result)
 
-    void *mem_ptr_x, *mem_ptr_y;
-    GET_MEMORY(mem_ptr_x, x, *result)
-    GET_MEMORY(mem_ptr_y, y, *result)
-
     *result = cudnnLRNCrossChannelForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
         (cudnnLRNMode_t)lrnMode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)mem_ptr_x,
+        (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)mem_ptr_y);
+        (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -998,20 +986,16 @@ bool_t rpc_cudnnsoftmaxforward_1_svc(ptr handle, int algo, int mode, cudnn_scali
 
     GET_CLIENT(*result)
 
-    void *mem_ptr_x, *mem_ptr_y;
-    GET_MEMORY(mem_ptr_x, x, *result)
-    GET_MEMORY(mem_ptr_y, y, *result)
-
     *result = cudnnSoftmaxForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnSoftmaxAlgorithm_t)algo,
         (cudnnSoftmaxMode_t)mode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)mem_ptr_x,
+        (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)mem_ptr_y);
+        (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1218,26 +1202,21 @@ bool_t rpc_cudnnconvolutionforward_1_svc(ptr handle, cudnn_scaling_t alpha, ptr 
 
     GET_CLIENT(*result)
 
-    void *mem_ptr_x, *mem_ptr_w, *mem_ptr_y, *mem_ptr_workSpace;
-    GET_MEMORY(mem_ptr_x, x, *result)
-    GET_MEMORY(mem_ptr_w, w, *result)
-    GET_MEMORY(mem_ptr_y, y, *result)
-    GET_MEMORY(mem_ptr_workSpace, workSpace, *result)
 
     *result = cudnnConvolutionForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)mem_ptr_x,
+        (const void*)x,
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
-        (const void*)mem_ptr_w,
+        (const void*)w,
         (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
         algo,
-        (void*)mem_ptr_workSpace,
+        (void*)workSpace,
         workSpaceSizeInBytes,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)mem_ptr_y);
+        (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1259,19 +1238,14 @@ bool_t rpc_cudnnaddtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr aDesc, pt
 
     GET_CLIENT(*result)
 
-    void *mem_ptr_A, *mem_ptr_C;
-    GET_MEMORY(mem_ptr_A, A, *result)
-    GET_MEMORY(mem_ptr_C, C, *result)
-
-
     *result = cudnnAddTensor(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)aDesc),
-        (const void*)mem_ptr_A,
+        (const void*)A,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)cDesc),
-        (void*)mem_ptr_C);
+        (void*)C);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1293,18 +1267,14 @@ bool_t rpc_cudnntransformtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr xDe
 
     GET_CLIENT(*result)
 
-    void *mem_ptr_x, *mem_ptr_y;
-    GET_MEMORY(mem_ptr_x, x, *result)
-    GET_MEMORY(mem_ptr_y, y, *result)
-
     *result = cudnnTransformTensor(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (const void*)mem_ptr_x,
+        (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
-        (void*)mem_ptr_y);
+        (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
