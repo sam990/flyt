@@ -30,11 +30,8 @@
 #include "cpu-server-mgr-listener.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-client-mgr.h"
-<<<<<<< HEAD
 #include "cpu-server-ivshmem.h"
-=======
 #include "cpu-server-dev-mem.h"
->>>>>>> origin/sameer-flyt
 
 INIT_SOCKTYPE
 

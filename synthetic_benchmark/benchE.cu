@@ -95,7 +95,9 @@ int main(int argc, char* argv[]) {
     long *d_b;
     long *d_c;
 
+    printf("b4 cuda sync\n");
     HANDLE_ERROR(cudaDeviceSynchronize());
+    printf("aft cuda sync\n");
     
     timespec ts_start, ts_end;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -105,8 +107,10 @@ int main(int argc, char* argv[]) {
     HANDLE_ERROR(cudaMalloc(&d_c, mem_bytes));
 
     HANDLE_ERROR(cudaMemset(d_c, 0, mem_bytes));
+    printf("b4 h2d 0\n");
     HANDLE_ERROR(cudaMemcpy(d_a, h_a, mem_bytes, cudaMemcpyHostToDevice));
     HANDLE_ERROR(cudaMemcpy(d_b, h_a, mem_bytes, cudaMemcpyHostToDevice));
+    printf("b4 h2d 1\n");
 
     long long grid_size = num_threads >> 5;
     printf("Grid size: %llu\n", grid_size);

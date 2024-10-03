@@ -57,11 +57,15 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     int _pci_fd = open(pci_path, O_RDWR);
     assert(_pci_fd != -1);
 
-    ivshmem_ctx->shm_mmap = mmap(NULL, _args->proc_be_sz, PROT_READ | PROT_WRITE, MAP_SHARED, _pci_fd, _args->proc_be_off);
+    uint64_t pg_sz = sysconf(_SC_PAGESIZE);
+    uint64_t pg_align_off = _args->proc_be_off + (pg_sz - (_args->proc_be_off % pg_sz)) % pg_sz;
+    //printf("original offset: %lu\n aligned off: %lu\n", _args->proc_be_off, pg_align_off);
+
+    ivshmem_ctx->shm_mmap = mmap(NULL, _args->proc_be_sz, PROT_READ | PROT_WRITE, MAP_SHARED, _pci_fd, pg_align_off);
     if (ivshmem_ctx->shm_mmap == MAP_FAILED) {
         LOGE(LOG_ERROR, "Error receiving mapping region: %s", strerror(errno));
     }
-    madvise(ivshmem_ctx->shm_mmap, _args->proc_be_sz, MADV_WILLNEED);
+    // madvise(ivshmem_ctx->shm_mmap, _args->proc_be_sz, MADV_WILLNEED);
     //assert();
     close(_pci_fd);
 
@@ -75,7 +79,7 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     init_ivshmem_areas_clnt(ivshmem_ctx);
     
     //LOGE(LOG_DEBUG, "created ivshmem ctx\n");
-    printf("clnt ivshmem ctx created. mmap VA: %p\n", ivshmem_ctx->shm_mmap);
+    printf("clnt ivshmem ctx created. mmap start VA: %p\nend VA: %p\n", ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_mmap + ivshmem_ctx->shm_proc_size);
 
 }
 
