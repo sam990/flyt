@@ -44,7 +44,6 @@ cpu-client: libtirpc
 cpu: libtirpc cpu-server cpu-client
 	@echo -e "\033[36m----> Building cpu\033[0m"
 
-
 install-cpu-client: cpu-client bin/cricket-client.so
 	@echo -e "\033[36m----> Copying cpu-client to build/bin\033[0m"
 
@@ -106,6 +105,7 @@ install-client-lib: bin/cricket-client.so /usr/local/cuda/lib64/libcudarto.so
 	@echo -e "\033[36m----> Installing vcuda library\033[0m"
 	sudo cp bin/cricket-client.so /usr/local/cuda/lib64/libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
 	sudo sh -c "cd /usr/local/cuda/lib64 && ln -sf libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999 libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS) && ldconfig"
+	sudo ln -s /usr/local/cuda/lib64/libcudart.so /usr/lib/x86_64-linux-gnu/libcuda.so.1
 
 restore-client-lib: /usr/local/cuda/bkp
 	@echo -e "\033[36m----> Restoring original library\033[0m"
@@ -113,6 +113,7 @@ restore-client-lib: /usr/local/cuda/bkp
 	sudo rm -rf /usr/local/cuda/bkp
 	sudo rm -rf /usr/local/cuda/lib64/libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
 	sudo rm -rf /usr/local/cuda/lib64/libcudarto.so*
+	sudo rm /usr/lib/x86_64-linux-gnu/libcuda.so.1
 	sudo sh -c "cd /usr/local/cuda/lib64 && ldconfig"
 
 submodules/patchelf/install/bin/patchelf:
