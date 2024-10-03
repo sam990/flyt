@@ -259,6 +259,9 @@ int remove_client(int xp_fd) {
         return -1;
     }
 
+    // munmap 
+    munmap(client->ivshmem_ctx->shm_mmap, client->ivshmem_ctx->shm_proc_size);
+
     LOGE(LOG_INFO, "Client with xp_fd %d being removed", xp_fd);
     int ret = remove_client_ptr(client);
 
