@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <cuda_runtime.h>
+#include <sys/mman.h>
 
 #include "log.h"
 #include "resource-map.h"
