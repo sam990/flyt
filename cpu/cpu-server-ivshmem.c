@@ -25,12 +25,15 @@ ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt) {
     // mmap
     int _be_fd = open(args_from_clnt.f_be, O_RDWR);
     assert(_be_fd != -1);
+
+    uint64_t pg_sz = sysconf(_SC_PAGESIZE);
+    uint64_t pg_align_off = args_from_clnt.proc_be_off + (pg_sz - (args_from_clnt.proc_be_off % pg_sz)) % pg_sz;
     //printf("Mapping offset %lu\n, ends at: %lu\n", args_from_clnt.proc_be_off, args_from_clnt.proc_be_off + args_from_clnt.proc_be_sz);
 
-    _ctx->shm_mmap = mmap(NULL, args_from_clnt.proc_be_sz, PROT_READ | PROT_WRITE, MAP_SHARED, _be_fd, args_from_clnt.proc_be_off);
+    _ctx->shm_mmap = mmap(NULL, args_from_clnt.proc_be_sz, PROT_READ | PROT_WRITE, MAP_SHARED, _be_fd, pg_align_off);
     assert(_ctx->shm_mmap != MAP_FAILED);
 
-    madvise(_ctx->shm_mmap, args_from_clnt.proc_be_sz, MADV_WILLNEED);
+    //madvise(_ctx->shm_mmap, args_from_clnt.proc_be_sz, MADV_WILLNEED);
     close(_be_fd);
 
     // init ivshmem areas
