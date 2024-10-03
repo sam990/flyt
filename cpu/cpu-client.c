@@ -10,6 +10,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 
 #include "cpu-common.h"
 #include "cpu-libwrap.h"
@@ -295,6 +296,11 @@ void __attribute__((destructor)) deinit_rpc(void)
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
         }
+
+        // unmap pci BAR
+        munmap(ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_proc_size);
+
+
         kernel_infos_free(kernel_infos.elements, kernel_infos.length);
         list_free(&kernel_infos);
 #ifdef WITH_API_CNT

@@ -1417,7 +1417,7 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
 
 #else
         LOGE(LOG_DEBUG, "cudaHostAlloc is not supported for TCP transports without IB. Using malloc instead...");
-        *pHost = malloc(size);
+        *pHost = malloc(size); // pageable memory.
         if (*pHost == NULL) {
             goto out;
         } else {
@@ -1492,7 +1492,7 @@ cudaError_t cudaMalloc(void** devPtr, size_t size)
     if (result.err != 0) {
         return result.err;
     }
-    *devPtr = (void*)result.ptr_result_u.ptr; // assign server heap VA
+    *devPtr = (void*)result.ptr_result_u.ptr; // true device VA (after sameer)
     return result.err;
 }
 
@@ -1715,8 +1715,7 @@ extern char SERVER_IP[256];
 #define WITH_MT_MEMCPY
 
 // src is a pointer to a CUDA app userspace VA on VM.
-// dst is the server heap VA that contains a struct with
-// true GPU device VA of cudaMalloc'd memory.
+// After sameer changes: dst = true GPU device VA of cudaMalloc'd memory.
 cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpyKind kind)
 {
 #ifdef WITH_API_CNT
@@ -1740,12 +1739,20 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                 size_t chunk_size = (check_shm_limits(&(ivshmem_ctx->write_to), remaining))
                                         ? remaining
                                         : ivshmem_ctx->write_to.max_size - 1;
-                //printf("Memcpy user to shm chunk size = %ld bytes.\n", chunk_size);
+                // printf("Memcpy user to shm chunk size = %ld bytes.\n", chunk_size);
 
-                uint64_t w_off = shm_get_write_area_offset(chunk_size);
+                uint64_t w_off = shm_get_write_area_offset(chunk_size); // 0
                 void *w_addr = (void *)(shm_get_writeaddr_clnt(ivshmem_ctx) + w_off);
+                //printf("Write to: %p\n, w_off: %d, copied_cnt: %d, count: %d, remaining: %d\n", w_addr, w_off, copied_count, count, remaining);
+
+                // check avx alignment for large memcpy
+                // if (((uintptr_t)src % 64 != 0) || ((uintptr_t)w_addr % 64 != 0)) {
+                //     printf("src: %p\ndst: %p\n", src, w_addr);
+                //     printf("Addresses are not 64-byte aligned.\n");
+                // }
 
                 memcpy(w_addr, (void *)((uintptr_t)src + copied_count), chunk_size);
+                //printf("memcpy to mmap shm done.\n");
 
                 // Perform the RPC call for this chunk
                 // pass offset into gpu_alloc also
@@ -1961,6 +1968,7 @@ cudaError_t cudaMemcpyAsync(void* dst, const void* src, size_t count, enum cudaM
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
+    //printf("In lib memcpy-async\n, sz = %lu\n", count);
     return cudaMemcpy(dst, src, count, kind);
 }
 DEF_FN(cudaError_t, cudaMemcpyFromSymbol, void*, dst, const void*, symbol, size_t, count, size_t, offset, enum cudaMemcpyKind, kind)

@@ -45,7 +45,6 @@ char *_get_pci_path_clnt();
 
 ivshmem_setup_desc *_clnt_mgr_get_shm(int clnt_pid, int clientd_mq_id);
 
-
 uintptr_t shm_get_writeaddr_clnt(ivshmem_clnt_ctx *ctx);
 uintptr_t shm_get_readaddr_clnt(ivshmem_clnt_ctx *ctx);
 
