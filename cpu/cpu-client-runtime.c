@@ -1743,7 +1743,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 
                 uint64_t w_off = shm_get_write_area_offset(chunk_size); // 0
                 void *w_addr = (void *)(shm_get_writeaddr_clnt(ivshmem_ctx) + w_off);
-                //printf("Write to: %p\n, w_off: %d, copied_cnt: %d, count: %d, remaining: %d\n", w_addr, w_off, copied_count, count, remaining);
+                printf("Write to: %p\n, w_off: %d, copied_cnt: %d, count: %d, remaining: %d\n", w_addr, w_off, copied_count, count, remaining);
 
                 // check avx alignment for large memcpy
                 // if (((uintptr_t)src % 64 != 0) || ((uintptr_t)w_addr % 64 != 0)) {

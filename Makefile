@@ -101,11 +101,13 @@ bin/libtirpc.so.3: bin submodules/libtirpc/install/lib/libtirpc.so.3 libtirpc
 # Copy the cricket-client.so contents (i.e. rpc calls) to the original cuda runtime library .so
 # symbolic link the original rt.so library to the newly created .999 library (containing cricket client implementation)
 # Once installed, regular cuda calls will be implemented by this new library.
+#
 install-client-lib: bin/cricket-client.so /usr/local/cuda/lib64/libcudarto.so
 	@echo -e "\033[36m----> Installing vcuda library\033[0m"
 	sudo cp bin/cricket-client.so /usr/local/cuda/lib64/libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999
 	sudo sh -c "cd /usr/local/cuda/lib64 && ln -sf libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS).9.999 libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS) && ldconfig"
-	sudo ln -s /usr/local/cuda/lib64/libcudart.so /usr/lib/x86_64-linux-gnu/libcuda.so.1
+	sudo ln -sf /usr/local/cuda/lib64/libcudart.so /usr/lib/x86_64-linux-gnu/libcuda.so.1
+	
 
 restore-client-lib: /usr/local/cuda/bkp
 	@echo -e "\033[36m----> Restoring original library\033[0m"

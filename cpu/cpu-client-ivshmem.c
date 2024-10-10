@@ -17,7 +17,7 @@
 #include <errno.h>
 #include "cpu-utils.h"
 
-ivshmem_clnt_ctx *ivshmem_ctx = NULL; 
+ivshmem_clnt_ctx *ivshmem_ctx = NULL; // default
 
 // enter only if shm_enabled.
 void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
@@ -27,6 +27,7 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     assert(ivshmem_ctx != NULL);
     ivshmem_ctx->shm_enabled = SHM_OK;
     ivshmem_ctx->pid = clnt_pid;
+    ivshmem_ctx->clnt_mgr_mq = clientd_mq_id;
 
     // rec a string
     ivshmem_setup_desc *_args = _clnt_mgr_get_shm(clnt_pid, clientd_mq_id);
@@ -35,7 +36,7 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     printf("len shm path: %d\n", strlen(shm_be_path));
     _args->f_be = shm_be_path;
 
-    // get ivshmem_args from client manager via UDS
+    // get ivshmem_args from client manager via mq
     // currently hardcoded default.
     // These can be stored in the MongoDB database initially
     // and then transferred to the client manager.
@@ -213,4 +214,25 @@ ivshmem_setup_desc *_clnt_mgr_get_shm(int clnt_pid, int clientd_mq_id) {
     free_splitted_str(splitted);
 
     return _desc;
+}
+
+
+void clnt_mgr_free_shm(int clnt_pid, int clientd_mq_id) {
+    LOGE(LOG_DEBUG, "Freeing SHM offset from client manager.");
+
+    #define CLNT_CLNTD_IVSHMEM_FREE_OFFSET 3
+    struct msgbuf_uint32 ivshmem_get_req = {0}; // allow 64 byte .data
+    ivshmem_get_req.mtype = CLNT_CLNTD_IVSHMEM_FREE_OFFSET;
+
+    uint32_t pid = htonl(clnt_pid);
+    ivshmem_get_req.data = pid;
+
+    printf("Sending ivshmem free req, size: %ld\n", sizeof(ivshmem_get_req.data));
+
+    // send uds msg to client manager
+    // all 4 bytes.
+    msgsnd(clientd_mq_id, &ivshmem_get_req, sizeof(ivshmem_get_req.data), 0);
+
+    // response not required
+
 }

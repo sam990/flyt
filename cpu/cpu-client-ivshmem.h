@@ -26,6 +26,7 @@ typedef struct __ivshmem_area {
 typedef struct __ivshmem_clnt_ctx {
     uint8_t shm_enabled;
     int pid;
+    int clnt_mgr_mq;
     ivshmem_setup_desc svc_args;
     uint64_t shm_proc_start; // shm_mmap + shm_proc_start: lowest VA of the mmaped shm of this process.
     uint64_t shm_proc_size;
@@ -44,6 +45,7 @@ void init_ivshmem_areas_clnt(ivshmem_clnt_ctx *ctx);
 char *_get_pci_path_clnt();
 
 ivshmem_setup_desc *_clnt_mgr_get_shm(int clnt_pid, int clientd_mq_id);
+void clnt_mgr_free_shm(int clnt_pid, int clientd_mq_id);
 
 uintptr_t shm_get_writeaddr_clnt(ivshmem_clnt_ctx *ctx);
 uintptr_t shm_get_readaddr_clnt(ivshmem_clnt_ctx *ctx);

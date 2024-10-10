@@ -218,7 +218,7 @@ void __attribute__((constructor)) init_rpc(void)
     int_result result_2;
     char *printmessage_1_arg1 = "hello";
 
-    LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+    LOGE(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     //init_log(LOG_LEVEL, __FILE__);
 
     pthread_rwlock_init(&access_sem, NULL); // to allow read/write access to client.
@@ -298,8 +298,15 @@ void __attribute__((destructor)) deinit_rpc(void)
         }
 
         // unmap pci BAR
-        munmap(ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_proc_size);
+        if (ivshmem_ctx) {
+            printf("unmapping\n");
+            munmap(ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_proc_size);
 
+            // free from clnt_mgr
+            printf("free clnt mgr alloc\n");
+            clnt_mgr_free_shm(ivshmem_ctx->pid, ivshmem_ctx->clnt_mgr_mq);
+            printf("free clnt mgr alloc done\n");
+        }
 
         kernel_infos_free(kernel_infos.elements, kernel_infos.length);
         list_free(&kernel_infos);
@@ -390,9 +397,9 @@ void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress
 {
     enum clnt_stat retval_1;
     int result;
-    LOGE(LOG_DEBUG, "__cudaRegisterVar(fatCubinHandle=%p, hostVar=%p, deviceAddress=%p, "
-           "deviceName=%s, ext=%d, size=%zu, constant=%d, global=%d)\n",
-           fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
+    // LOGE(LOG_DEBUG, "__cudaRegisterVar(fatCubinHandle=%p, hostVar=%p, deviceAddress=%p, "
+    //        "deviceName=%s, ext=%d, size=%zu, constant=%d, global=%d)\n",
+    //        fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
     FUNC_BEGIN 
     retval_1 = rpc_register_var_1((ptr)fatCubinHandle, (ptr)hostVar, (ptr)deviceAddress, (char*)deviceName, ext, size, constant, global,
                                        &result, clnt);
@@ -410,11 +417,11 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
     ptr_result result;
     enum clnt_stat retval_1;
 
-    LOGE(LOG_DEBUG, "__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, "
-           "deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], "
-           "gDim=[%p], wSize=%p)\n",
-           fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid,
-           bid, bDim, gDim, wSize);
+    // LOGE(LOG_DEBUG, "__cudaRegisterFunction(fatCubinHandle=%p, hostFun=%p, devFunc=%s, "
+    //        "deviceName=%s, thread_limit=%d, tid=[%p], bid=[%p], bDim=[%p], "
+    //        "gDim=[%p], wSize=%p)\n",
+    //        fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit, tid,
+    //        bid, bDim, gDim, wSize);
 
     kernel_info_t *info = utils_search_info(&kernel_infos, (char *)deviceName);
     if (info == NULL) {

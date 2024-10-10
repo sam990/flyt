@@ -64,7 +64,11 @@ fn main() {
         });
 
         s.spawn(|| {
-            client_mgr.handle_ivshmem();
+            client_mgr.ivshmem_setup();
+        });
+
+        s.spawn(|| {
+            client_mgr.ivshmem_destroy();
         });
         
     });

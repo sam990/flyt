@@ -19,6 +19,7 @@ struct IvshmemCtx {
     pid: i64,
     shm_offset: u64,
     shm_sz: u64,
+    in_use: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -255,15 +256,23 @@ impl VCudaClientManager {
             // if shm enable, create ivshmem_ctx struct
             // Important: Ctx must be created before sending the response.
             if shm_enable == 1 {
-                let _ctx = IvshmemCtx {
+                // get available block
+                let mut shm_offset = self.alloc_shm();
+                if shm_offset == None {
+                    // No reusable blocks, create new
+                    shm_offset = Some(ivshmem_avail_offset.load(Ordering::SeqCst));
+
+                    // increment self.ivshmem_avail_offset by proc_be_sz
+                    ivshmem_avail_offset.fetch_add(PROC_SHM_SIZE, Ordering::SeqCst);
+                }
+
+                let mut _ctx = IvshmemCtx {
                     pid: client_pid as i64,
-                    shm_offset: ivshmem_avail_offset.load(Ordering::SeqCst),
+                    shm_offset: shm_offset.unwrap(),
                     shm_sz: PROC_SHM_SIZE,
+                    in_use: true,
                 };
                 client_msg_id.clnt_shm_ctx = Some(_ctx);
-
-                // increment self.ivshmem_avail_offset by proc_be_sz
-                ivshmem_avail_offset.fetch_add(PROC_SHM_SIZE, Ordering::SeqCst);
             }
             self.add_client(client_msg_id);
 
@@ -297,11 +306,62 @@ impl VCudaClientManager {
         None
     }
 
-    pub fn handle_ivshmem(&self) {
+    pub(self) fn alloc_shm(&self) -> Option<u64> {
+        let clients_guard: RwLockReadGuard<Vec<ClientMessageTypeId>> = self.clients.read().unwrap();
+
+        for client in clients_guard.iter() {
+            if !client.clnt_shm_ctx.unwrap().in_use {
+                return Some(client.clnt_shm_ctx.unwrap().shm_offset);
+            }
+        }
+
+        None
+    }
+
+    pub(self) fn free_alloc(&self, client_pid: i64) {
+        let clients_guard: RwLockReadGuard<Vec<ClientMessageTypeId>> = self.clients.read().unwrap();
+
+        for client in clients_guard.iter() {
+            if client.clnt_shm_ctx.unwrap().pid == client_pid {
+                client.clnt_shm_ctx.unwrap().in_use = false;
+                break;
+            }
+        }
+    }
+    
+    pub fn ivshmem_destroy(&self) {
+        log::debug!("In ivshmem destroy thread");
         let key = PathProjectIdKey::new(self.mqueue_path.clone(), PROJ_ID);
         let message_queue = MessageQueue::new(MessageQueueKey::PathKey(key)).create().init().unwrap();
 
+        loop {
+            let recv_bytes = message_queue.recv_type(3); // type 2 message belongs to ivshmem setup.
+            if recv_bytes.is_err() {
+                log::error!("Error receiving message from client");
+                continue;
+            }
+            let recv_bytes = recv_bytes.unwrap();
+            log::debug!("ivshmem-cmd-length... {}", recv_bytes.len());
+
+            let client_pid = Utils::convert_bytes_to_u32(&recv_bytes);
+            if client_pid.is_none() {
+                log::error!("Error converting bytes to u32");
+                continue;
+            }
+            let client_pid = client_pid.unwrap(); 
+            log::info!("Client sent ivshmem free request: {}", client_pid);
+
+            // find client, reset in_use
+            self.free_alloc(client_pid.into());
+
+        }
+    }
+
+    pub fn ivshmem_setup(&self) {
         log::info!("Flyt client manager listening for ivshmem requests...");
+
+        let key = PathProjectIdKey::new(self.mqueue_path.clone(), PROJ_ID);
+        let message_queue = MessageQueue::new(MessageQueueKey::PathKey(key)).create().init().unwrap();
 
         loop {
             let recv_bytes = message_queue.recv_type(2); // type 2 message belongs to ivshmem setup.
@@ -344,6 +404,6 @@ impl VCudaClientManager {
                 }
             }
         }
-    }
 
+    }
 }

@@ -15,7 +15,7 @@ if [ ! -d "$PYTORCH_DIR" ]; then
     exit 1
 fi
 
-SCRIPT_DIR=`pwd`
+CURRENT_DIR=`pwd`
 
 # set the environment variables
 source $CURRENT_DIR/build_env.sh
