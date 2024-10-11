@@ -44,7 +44,7 @@ cpu-client: libtirpc
 cpu: libtirpc cpu-server cpu-client
 	@echo -e "\033[36m----> Building cpu\033[0m"
 
-install-cpu-client: cpu-client bin/cricket-client.so
+install-cpu-client: bin/cricket-client.so
 	@echo -e "\033[36m----> Copying cpu-client to build/bin\033[0m"
 
 control-managers:
@@ -58,7 +58,7 @@ control-managers:
 install-cpu-server: bin/cricket-rpc-server
 	@echo -e "\033[36m----> Copying cpu-server to build/bin\033[0m"
 
-install-cpu: install-cpu-server install-cpu-client bin/libtirpc.so bin/libtirpc.so.3
+install-cpu: install-cpu-server install-cpu-client 
 	@echo -e "\033[36m----> Copying cpu binaries to build/bin\033[0m"
 
 install-tests: bin/tests
