@@ -140,6 +140,8 @@ int load_function_data(resource_mg_map_elem *elem, FILE *fp);
 
 int remove_client_by_pid(int pid);
 
+int dealloc_client_resources();
+
 
 #define GET_CLIENT(result) cricket_client *client = get_client(rqstp->rq_xprt->xp_fd); \
     if (client == NULL) { \

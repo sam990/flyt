@@ -228,17 +228,29 @@ impl ResourceManagerHandler {
                         continue;
                     }
                     let rpc_id = rpc_id.unwrap();
+                    
                     log::info!("Deallocating virt server: {}", rpc_id);
-                    let ret = self.virt_server_manager.remove_virt_server(rpc_id);
-                    match ret {
+                    let deallocated = self.virt_server_manager.dealloc_vserver(rpc_id);
+
+                    match deallocated {
                         Ok(_) => {
-                            log::info!("Virt server deallocated");
-                            stream_write!(writer, "200\nDone\n".to_string());
+                            let ret = self.virt_server_manager.remove_virt_server(rpc_id);
+                            match ret {
+                                Ok(_) => {
+                                    log::info!("Virt server deallocated");
+                                    stream_write!(writer, "200\nDone\n".to_string());
+                                }
+                                Err(e) => {
+                                    log::error!("Error deallocating virt server: {}", e);
+                                    stream_write!(writer, format!("500\n{}\n", e));
+                                }
+                            }
                         }
                         Err(e) => {
                             log::error!("Error deallocating virt server: {}", e);
                             stream_write!(writer, format!("500\n{}\n", e));
                         }
+                        
                     }
                 }
 
