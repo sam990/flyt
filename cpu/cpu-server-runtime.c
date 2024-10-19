@@ -478,7 +478,8 @@ bool_t cuda_set_device_flags_1_svc(int flags, int *result, struct svc_req *rqstp
     RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "cudaSetDevice");
-    *result = cudaSetDeviceFlags(flags);
+    // *result = cudaSetDeviceFlags(flags);
+    *result = cudaSuccess;
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -1231,7 +1232,9 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
         return 1;
     }
 
-    LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)",
+
+    LOGE(LOG_DEBUG, "cudaLaunchKernel(host_fun_ptr=%p, func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)",
+                    func,
                     func_ptr->addr,
                     cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z,
                     cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z,
@@ -1678,7 +1681,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     GSCHED_RETAIN;
     RECORD_API(size_t);
     RECORD_SINGLE_ARG(argp);
-    LOGE(LOG_DEBUG, "cudaMalloc(%d)", argp);
+    LOGE(LOG_DEBUG, "cudaMalloc(%zu)", argp);
 
     // client contains a currently empty gpu-memory map.
     // also contains an ivshmem areas map, but irrelevant rn.
@@ -1715,6 +1718,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
     size_t padded_size;
     result->err = dev_mem_alloc(&dev_mem_ptr, argp, 0, &padded_size);
     PRIMARY_CTX_RELEASE;
+    LOGE(LOG_DEBUG, "cudaMalloc(%d) -> %p; return: %d; padded size: %lu", argp, dev_mem_ptr, result->err, padded_size);
     // resource_mg_create(&rm_memory, (void *)result->ptr_result_u.ptr);
     if (result->err == cudaSuccess) {
         mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
@@ -1908,8 +1912,14 @@ bool_t cuda_mem_get_info_1_svc(dsz_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaMemGetInfo");
-    result->err = cudaMemGetInfo(&result->dsz_result_u.data.sz1,
-                             &result->dsz_result_u.data.sz2);
+
+    // result->err = cudaMemGetInfo(&result->dsz_result_u.data.sz1,
+    //                          &result->dsz_result_u.data.sz2);
+
+    result->dsz_result_u.data.sz1 = get_mem_free();
+    result->dsz_result_u.data.sz2 = get_mem_limit();
+    result->err = cudaSuccess;
+
     GSCHED_RELEASE;
     return 1;
 }
@@ -1967,7 +1977,7 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
       mem.mem_data_val,
       size,
       cudaMemcpyHostToDevice);
-      //printf("cudamemcpyH2D TCP done.\n");
+    LOGE(LOG_DEBUG, "cudaMemcpyHtoD result: %d", *result);
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(mem.mem_data_val);
 #endif
@@ -2286,6 +2296,7 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
       (void *)ptr,
       size,
       cudaMemcpyDeviceToHost);
+    LOGE(LOG_DEBUG, "cudaMemcpyDtoH result: %d", result->err);
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(result->mem_result_u.data.mem_data_val);
 #endif
