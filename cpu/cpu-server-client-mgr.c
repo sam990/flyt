@@ -87,6 +87,8 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
     // ivshmem added.
     if (_ctx) {
         client->ivshmem_ctx = _ctx;
+    } else {
+        client->ivshmem_ctx = NULL;
     }
 
     resource_mg_init(&client->gpu_mem, 0);
@@ -196,6 +198,7 @@ int remove_client_ptr(cricket_client* client) {
     
     // need to free gpu resources and custom streams
     freeResources(client);
+    printf("client res freed0\n");
     
 
     // free client
@@ -250,6 +253,7 @@ int remove_client_ptr(cricket_client* client) {
 
     pthread_mutex_unlock(&client_mgr_mutex);
     free(client);
+    printf("all freed\n");
     return 0;
 }
 
@@ -261,7 +265,9 @@ int remove_client(int xp_fd) {
     }
 
     // munmap 
-    munmap(client->ivshmem_ctx->shm_mmap, client->ivshmem_ctx->shm_proc_size);
+    if (client->ivshmem_ctx) {
+        munmap(client->ivshmem_ctx->shm_mmap, client->ivshmem_ctx->shm_proc_size);
+    }
 
     LOGE(LOG_INFO, "Client with xp_fd %d being removed", xp_fd);
     int ret = remove_client_ptr(client);

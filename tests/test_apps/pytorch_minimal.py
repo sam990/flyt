@@ -53,6 +53,7 @@ def trace_calls(frame, event, arg):
 
 
 # sys.settrace(trace_calls)
+torch.cuda.current_device()
 
 dtype = torch.float
 device = torch.device("cuda:0")
