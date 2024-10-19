@@ -476,7 +476,8 @@ bool_t cuda_set_device_flags_1_svc(int flags, int *result, struct svc_req *rqstp
     RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "cudaSetDevice");
-    *result = cudaSetDeviceFlags(flags);
+    // *result = cudaSetDeviceFlags(flags);
+    *result = cudaSuccess;
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -1907,8 +1908,14 @@ bool_t cuda_mem_get_info_1_svc(dsz_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaMemGetInfo");
-    result->err = cudaMemGetInfo(&result->dsz_result_u.data.sz1,
-                             &result->dsz_result_u.data.sz2);
+
+    // result->err = cudaMemGetInfo(&result->dsz_result_u.data.sz1,
+    //                          &result->dsz_result_u.data.sz2);
+
+    result->dsz_result_u.data.sz1 = get_mem_free();
+    result->dsz_result_u.data.sz2 = get_mem_limit();
+    result->err = cudaSuccess;
+
     GSCHED_RELEASE;
     return 1;
 }
