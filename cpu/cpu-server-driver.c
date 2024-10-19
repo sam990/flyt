@@ -13,6 +13,7 @@
 #include "api-recorder.h"
 #include "gsched.h"
 #include "cpu-server-resource-controller.h"
+#include "cpu-server-dev-mem.h"
 #include "cpu-server-client-mgr.h"
 
 #define GET_CLIENT_DRV(err) \
@@ -553,14 +554,19 @@ int server_driver_deinit(void)
 bool_t rpc_cudevicegetcount_1_svc(int_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
-    result->err = cuDeviceGetCount(&result->int_result_u.data);
+    // result->err = cuDeviceGetCount(&result->int_result_u.data);
+    // return 1 always
+    result->err = CUDA_SUCCESS;
+    result->int_result_u.data = 1;
     return 1;
 }
 
 bool_t rpc_cuinit_1_svc(int argp, int *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
-    *result = cuInit(argp);
+    // *result = cuInit(argp);
+    // dont do anything
+    *result = CUDA_SUCCESS;
     return 1;
 }
 
@@ -574,6 +580,11 @@ bool_t rpc_cudrivergetversion_1_svc(int_result *result, struct svc_req *rqstp)
 bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    if (ordinal != 0) {
+        result->err = CUDA_ERROR_INVALID_DEVICE;
+        return 1;
+    }
+
     GSCHED_RETAIN;
     result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
     GSCHED_RELEASE;
@@ -639,7 +650,9 @@ bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
 bool_t rpc_cuctxsetcurrent_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
-    *result = cuCtxSetCurrent((struct CUctx_st*)ptr);
+    // *result = cuCtxSetCurrent((struct CUctx_st*)ptr);
+    // do nothing
+    *result = CUDA_SUCCESS;
     return 1;
 }
 
@@ -648,7 +661,9 @@ bool_t rpc_cudeviceprimaryctxretain_1_svc(int dev, ptr_result *result,
                                           struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
-    result->err = cuDevicePrimaryCtxRetain((struct CUctx_st**)&result->ptr_result_u.ptr, dev);
+    // result->err = cuDevicePrimaryCtxRetain((struct CUctx_st**)&result->ptr_result_u.ptr, dev);
+    // do nothing
+    result->err = CUDA_SUCCESS;
     return 1;
 }
 
@@ -911,9 +926,33 @@ bool_t rpc_cugetexporttable_1_svc(char *rpc_uuid, ptr_result *result,
 bool_t rpc_cumemalloc_1_svc(uint64_t size, ptr_result *result,
                                      struct svc_req *rqstp)
 {
-    LOG(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
-    result->err = cuMemAlloc_v2((CUdeviceptr*)&result->ptr_result_u.ptr, (size_t)size);
+    LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_DRV(result->err);
+
+    if (!allow_mem_alloc(size)) {
+        LOGE(LOG_ERROR, "Memory allocation denied");
+        result->err = CUDA_ERROR_OUT_OF_MEMORY;
+        return 1;
+    }
+    PRIMARY_CTX_RETAIN;
+    void *dev_mem_ptr;
+    size_t padded_size;
+    result->err = dev_mem_alloc(&dev_mem_ptr, size, 0, &padded_size);
+    PRIMARY_CTX_RELEASE;
+
+    LOGE(LOG_DEBUG, "cuMemAlloc%d) -> %p; return: %d; padded size: %lu", size, dev_mem_ptr, result->err, padded_size);
+
+    if (result->err == cudaSuccess) {
+        mem_alloc_args_t *args = malloc(sizeof(mem_alloc_args_t));
+        args->type = MEM_ALLOC_TYPE_DEFAULT;
+        args->size = size;
+        args->padded_size = padded_size;
+
+        resource_mg_add_sorted(&client->gpu_mem, dev_mem_ptr, args);
+        result->ptr_result_u.ptr = (ptr)dev_mem_ptr;
+    }
+
     GSCHED_RELEASE;
     return 1;
 }
@@ -922,7 +961,10 @@ bool_t rpc_cuctxgetdevice_1_svc(int_result *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
-    result->err = cuCtxGetDevice((CUdevice*)&result->int_result_u.data);
+    // result->err = cuCtxGetDevice((CUdevice*)&result->int_result_u.data);
+    // return 0
+    result->int_result_u.data = 0;
+    result->err = CUDA_SUCCESS;
     GSCHED_RELEASE;
     return 1;
 }

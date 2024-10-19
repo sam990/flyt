@@ -127,6 +127,10 @@ int allow_mem_alloc(uint64_t size) {
     return 1;
 } 
 
+uint64_t get_mem_free() {
+    return mem_limit - get_gpu_memory_usage();
+}
+
 void inc_mem_usage(uint64_t size) {
     current_mm_usage += size;
 }

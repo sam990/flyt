@@ -31,6 +31,8 @@ void unset_primary_context();
 
 void set_exec_context();
 
+uint64_t get_mem_free();
+
 #define PRIMARY_CTX_RETAIN set_primary_context()
 #define PRIMARY_CTX_RELEASE unset_primary_context()
 
