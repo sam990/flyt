@@ -198,7 +198,7 @@ int remove_client_ptr(cricket_client* client) {
     
     // need to free gpu resources and custom streams
     freeResources(client);
-    printf("client res freed0\n");
+    //printf("client res freed0\n");
     
 
     // free client
@@ -253,7 +253,7 @@ int remove_client_ptr(cricket_client* client) {
 
     pthread_mutex_unlock(&client_mgr_mutex);
     free(client);
-    printf("all freed\n");
+    //printf("all freed\n");
     return 0;
 }
 
