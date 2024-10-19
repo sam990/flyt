@@ -20,6 +20,7 @@ impl FlytApiCommand {
     pub const SNODE_VIRTS_CHANGE_RESOURCES: &'static str = "SNODE_VIRTS_CHANGE_RESOURCES";
     pub const SNODE_VIRTS_CHECKPOINT: &'static str = "SNODE_VIRTS_CHECKPOINT";
     pub const SNODE_VIRTS_RESTORE: &'static str = "SNODE_VIRTS_RESTORE";
+    pub const SNODE_VIRTS_DEALLOC: &'static str = "SNODE_VIRTS_DEALLOC";
     pub const RMGR_SNODE_CHECKPOINT: &'static str = "RMGR_SNODE_CHECKPOINT";
     pub const RMGR_SNODE_RESTORE: &'static str = "RMGR_SNODE_RESTORE";
 }

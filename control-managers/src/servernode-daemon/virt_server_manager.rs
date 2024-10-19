@@ -74,7 +74,7 @@ impl VirtServerManager {
         // Construct the command and log all parts for debugging
         // // Store the path in a local variable
     let program_path = self.virt_server_program_path.as_str();
-    let mem_path = "valgrind --leak-check=full";
+    // let mem_path = "valgrind --leak-check=full";
 
     //let mut cmd = Command::new(mem_path);
         //.arg(program_path)
@@ -202,6 +202,24 @@ impl VirtServerManager {
 
         virt_server.num_sm_cores = new_num_sm_cores;
         self.update_virt_server(rpc_id, virt_server);
+        Ok(())
+    }
+
+    pub fn dealloc_vserver(&self, rpc_id: u64) -> Result<(),String> {
+        let virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
+
+        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_VIRTS_DEALLOC, "").as_bytes();
+        
+        self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
+
+        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(5)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+
+        let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
+
+        if recv_status != 200 {
+            return Err("Error deallocating virt server".to_string());
+        }
+        
         Ok(())
     }
     

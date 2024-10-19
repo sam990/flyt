@@ -172,11 +172,11 @@ int resource_mg_get_element_at(resource_mg *mg, bool_t new_res, size_t at, void*
 	    return val;
 
     pthread_mutex_lock(&mg->mutex);
-    if(new_res == TRUE) {
-	    val = list_at(&mg->new_res, at, element);
+    if(new_res && at < mg->new_res.length) {
+        val = list_at(&mg->new_res, at, element);
     }
-    else {
-	    val = list_at(&mg->map_res, at, element);
+    else if(!new_res && at < mg->map_res.length) {
+        val = list_at(&mg->map_res, at, element);
     }
     pthread_mutex_unlock(&mg->mutex);
 
