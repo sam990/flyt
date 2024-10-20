@@ -66,7 +66,9 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     if (ivshmem_ctx->shm_mmap == MAP_FAILED) {
         LOGE(LOG_ERROR, "Error receiving mapping region: %s", strerror(errno));
     }
-    // madvise(ivshmem_ctx->shm_mmap, _args->proc_be_sz, MADV_WILLNEED);
+    mlock(ivshmem_ctx->shm_mmap, _args->proc_be_sz);
+
+    madvise(ivshmem_ctx->shm_mmap, _args->proc_be_sz, MADV_WILLNEED);
     //assert();
     close(_pci_fd);
 
