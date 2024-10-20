@@ -1,3 +1,7 @@
+[submodule "submodules/libtirpc"]
+	path = submodules/libtirpc
+	url = https://github.com/m-santh/libtirpc.git
+    ignore = dirty	
 [submodule "submodules/patchelf"]
 	path = submodules/patchelf
 	url = https://github.com/NixOS/patchelf.git

@@ -218,7 +218,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     char *command = NULL;
     act.sa_handler = int_handler;
     printf("welcome to cricket!\n");
-    init_log(LOG_LEVEL, __FILE__);
+    // init_log(LOG_LEVEL, __FILE__);
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     sigaction(SIGINT, &act, NULL);
 

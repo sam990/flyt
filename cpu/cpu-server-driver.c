@@ -588,6 +588,7 @@ bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rq
     GSCHED_RETAIN;
     result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
     GSCHED_RELEASE;
+    
     return 1;
 }
 
