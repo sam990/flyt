@@ -47,20 +47,6 @@ void *get_random_array(long long size) {
     return arr;
 }
 
-void *get_basic_array(long long size) {
-    uint8_t *arr = (uint8_t *)malloc(size);
-
-    if (arr == NULL) {
-        fprintf(stderr, "Unable to allocate array on cpu\n");
-        return NULL;
-    }
-
-    for (long long i = 0; i < size; i++) {
-        arr[i] = 1;
-    }
-    return arr;
-}
-
 
 
 int main(int argc, char* argv[]) {
@@ -85,7 +71,6 @@ int main(int argc, char* argv[]) {
     }
 
     long *h_a = (long *)get_random_array(mem_bytes);
-    //long *h_a = (long *)get_basic_array(mem_bytes);
 
     long *h_x = (long *)calloc(mem_bytes, 1);
     long *h_y = (long *)calloc(mem_bytes, 1);
@@ -95,9 +80,7 @@ int main(int argc, char* argv[]) {
     long *d_b;
     long *d_c;
 
-    printf("b4 cuda sync\n");
     HANDLE_ERROR(cudaDeviceSynchronize());
-    printf("aft cuda sync\n");
     
     timespec ts_start, ts_end;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -107,16 +90,12 @@ int main(int argc, char* argv[]) {
     HANDLE_ERROR(cudaMalloc(&d_c, mem_bytes));
 
     HANDLE_ERROR(cudaMemset(d_c, 0, mem_bytes));
-    printf("b4 h2d 0\n");
     HANDLE_ERROR(cudaMemcpy(d_a, h_a, mem_bytes, cudaMemcpyHostToDevice));
     HANDLE_ERROR(cudaMemcpy(d_b, h_a, mem_bytes, cudaMemcpyHostToDevice));
-    printf("b4 h2d 1\n");
 
     cudaFuncAttributes attr;
-    int add1 = 0;
     cudaError_t retuAttr = cudaFuncGetAttributes(&attr, add);
 
- 
     printf("attr return val: %d\n", retuAttr);
     printf("Function Attributes:\n");
     printf("sharedSizeBytes: %zu\n", attr.sharedSizeBytes);
@@ -136,12 +115,8 @@ int main(int argc, char* argv[]) {
     printf("clusterSchedulingPolicyPreference: %d\n", attr.clusterSchedulingPolicyPreference);
     printf("nonPortableClusterSizeAllowed: %d\n", attr.nonPortableClusterSizeAllowed);
 
-    for (int i = 0; i < 16; i++) {
-        printf("reserved[%d]: %d\n", i, attr.reserved[i]);
-    }
 
     long long grid_size = num_threads >> 5;
-    printf("Grid size: %llu\n", grid_size);
     long long block_size = 32;
 
     add<<<grid_size,block_size>>>(num_iterations, d_a, d_b, d_c);
@@ -171,6 +146,7 @@ int main(int argc, char* argv[]) {
     free(h_x);
     free(h_y);
     free(h_z);
+
 
     return 0;
 }
