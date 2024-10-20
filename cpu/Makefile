@@ -54,7 +54,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-client-mgr.c \
 			 cpu-server-ivshmem.c \
 			 flyt-cr.c \
-			 cpu-server-dev-mem.c
+			 cpu-server-dev-mem.c \
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -79,7 +79,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-mgr-handler.c   \
 			 cpu-client-ivshmem.c       \
 			 resource-mg.c 				\
-			 msg-handler.c
+			 msg-handler.c				\
+			 cpu-common-stats.c
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c

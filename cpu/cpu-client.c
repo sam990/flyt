@@ -4,6 +4,7 @@
 #include <link.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 // For TCP socket
 #include <arpa/inet.h>
@@ -51,7 +52,16 @@ int ib_device = 0;
 
 #ifdef WITH_API_CNT
 extern void cpu_runtime_print_api_call_cnt(void);
+extern int register_func_cnt;
+extern int register_var_cnt;
 #endif // WITH_API_CNT
+
+struct rpc_times *times = NULL;
+struct rpc_cnt *calls = NULL;
+
+// timing
+struct timespec ts_start, ts_end;
+int t_memcpy_ms = 0;
 
 
 static void rpc_connect(server_info_t *server_info) // "server_ip, vers" - `vers` is assigned by the node manager.
@@ -266,6 +276,10 @@ void __attribute__((constructor)) init_rpc(void)
         exit(1);
     }
 
+    // init stats
+    calls = init_rpc_counts();
+    times = init_rpc_times();
+
     if (list_init(&kernel_infos, sizeof(kernel_info_t)) != 0) {
         LOGE(LOG_ERROR, "list init failed.");
     }
@@ -284,6 +298,10 @@ void __attribute__((constructor)) init_rpc(void)
         LOG(LOG_ERROR, "initilization of infiniband verbs failed.");
     }
 #endif // WITH_IB
+
+    // start time
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
 }
 void __attribute__((destructor)) deinit_rpc(void)
 {
@@ -296,6 +314,19 @@ void __attribute__((destructor)) deinit_rpc(void)
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
         }
+
+        // time in memcpy
+        printf("total memcpy time: %d\n", t_memcpy_ms);
+
+        // total execution time
+        clock_gettime(CLOCK_MONOTONIC, &ts_end);
+        int time_ms = (ts_end.tv_sec - ts_start.tv_sec) * 1000 + (ts_end.tv_nsec - ts_start.tv_nsec) / 1000000;
+        printf("total execution time: %d\n", time_ms);
+
+        // t(memcpy)/t(execution)
+        printf("memcpy ratio: %d\n", t_memcpy_ms/time_ms);
+
+        report_rpc_stats();
 
         // unmap pci BAR
         if (ivshmem_ctx) {
@@ -400,6 +431,9 @@ void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress
     // LOGE(LOG_DEBUG, "__cudaRegisterVar(fatCubinHandle=%p, hostVar=%p, deviceAddress=%p, "
     //        "deviceName=%s, ext=%d, size=%zu, constant=%d, global=%d)\n",
     //        fatCubinHandle, hostVar, deviceAddress, deviceName, ext, size, constant, global);
+        #ifdef WITH_API_CNT
+        register_var_cnt++;
+        #endif
     FUNC_BEGIN 
     retval_1 = rpc_register_var_1((ptr)fatCubinHandle, (ptr)hostVar, (ptr)deviceAddress, (char*)deviceName, ext, size, constant, global,
                                        &result, clnt);
@@ -431,6 +465,9 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
     } else {
         LOGE(LOG_DEBUG, "request to register known function: \"%s\"",
              deviceName);
+        #ifdef WITH_API_CNT
+        register_func_cnt++;
+        #endif
         FUNC_BEGIN 
         retval_1 = rpc_register_function_1((ptr)fatCubinHandle, (ptr)hostFun,
                                            deviceFun, (char*)deviceName, thread_limit,
@@ -476,6 +513,8 @@ void **__cudaRegisterFatBinary(void *fatCubin)
     FUNC_BEGIN 
     retval_1 = rpc_elf_load_1(rpc_fat, (ptr)result, &rpc_result, clnt);
     FUNC_END
+    TIMER_ADD_INCREMENT(rpc_elf_load_1);
+
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed.");
     }

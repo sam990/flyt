@@ -6,6 +6,7 @@
 #include <surface_types.h>
 #include <texture_types.h>
 #include <cuda_runtime_api.h>
+#include <time.h>
 
 //for strerror
 #include <string.h>
@@ -20,6 +21,7 @@
 #include "cpu-libwrap.h"
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
+
 #include "cpu-utils.h"
 #include "log.h"
 #include "oob.h"
@@ -35,11 +37,18 @@ int api_call_cnt = 0;
 int iv_memcpy_rpc_call_cnt = 0;
 int memcpy_call_cnt = 0;
 size_t memcpy_cnt = 0;
+
+int register_func_cnt = 0;
+int register_var_cnt = 0;
 void cpu_runtime_print_api_call_cnt(void)
 {
     printf("api-call-cnt: %d\n", api_call_cnt);
     printf("memcpy-api-calls: %d\n", memcpy_call_cnt);
     printf("Non-memcpy-api-calls: %d\n", api_call_cnt - memcpy_call_cnt);
+
+    printf("register func (kernel) calls: %d\n", register_func_cnt);
+    printf("register variable calls: %d\n", register_var_cnt);
+
     
     printf("ivshmem-memcpy-rpc-call-cnt: %d\n", iv_memcpy_rpc_call_cnt);
     printf("memcpy-sz: %ld\n", memcpy_cnt);
@@ -48,6 +57,9 @@ void cpu_runtime_print_api_call_cnt(void)
 }
 #endif //WITH_API_CNT
 
+// time
+extern int t_memcpy_ms;
+struct timespec memcpy_ts_start, memcpy_ts_end;
 
 cudaError_t cudaChooseDevice(int* device, const struct cudaDeviceProp* prop)
 {
@@ -1728,6 +1740,10 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
     memcpy_cnt += count;
     memcpy_call_cnt++;
 #endif //WITH_API_CNT
+    
+    // start time
+    clock_gettime(CLOCK_MONOTONIC, &memcpy_ts_start);
+
     int ret = 1;
     enum clnt_stat retval;
     if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
@@ -1951,6 +1967,11 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
             LOGE(LOG_ERROR, "unknown kind");
         }
     }
+
+    // end time
+    clock_gettime(CLOCK_MONOTONIC, &memcpy_ts_end);
+    int t_incr_ms = (memcpy_ts_end.tv_sec - memcpy_ts_start.tv_sec) * 1000 + (memcpy_ts_end.tv_nsec - memcpy_ts_start.tv_nsec) / 1000000;
+    t_memcpy_ms += t_incr_ms;
 
     cleanup:
         return ret;

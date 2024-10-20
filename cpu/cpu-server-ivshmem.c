@@ -33,7 +33,7 @@ ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt) {
     _ctx->shm_mmap = mmap(NULL, args_from_clnt.proc_be_sz, PROT_READ | PROT_WRITE, MAP_SHARED, _be_fd, pg_align_off);
     assert(_ctx->shm_mmap != MAP_FAILED);
     
-    mlock(_ctx->shm_mmap, args_from_clnt.proc_be_sz);
+    // mlock(_ctx->shm_mmap, args_from_clnt.proc_be_sz);
 
     //madvise(_ctx->shm_mmap, args_from_clnt.proc_be_sz, MADV_WILLNEED);
     close(_be_fd);
