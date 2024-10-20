@@ -877,15 +877,20 @@ cudaError_t cudaFuncGetAttributes(struct cudaFuncAttributes* attr, const void* f
     mem_result result;
     enum clnt_stat retval_1;
     FUNC_BEGIN 
-    retval_1 = cuda_func_get_attributes_1((ptr)func, &result, clnt);
+    // retval_1 = cuda_func_get_attributes_1((ptr)func, &result, clnt);
+    // this is temporary fix
+    retval_1 = RPC_SUCCESS;
+    attr->maxThreadsPerBlock = 1024;
+    result.err = 0;
+
     FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    if (result.err == 0) {
-        memcpy(attr, result.mem_result_u.data.mem_data_val,
-                     result.mem_result_u.data.mem_data_len);
-    }
+    // if (result.err == 0) {
+    //     memcpy(attr, result.mem_result_u.data.mem_data_val,
+    //                  result.mem_result_u.data.mem_data_len);
+    // }
     return result.err;
 }
 
