@@ -381,10 +381,10 @@ CUresult cuCtxGetCurrent(CUcontext *pctx)
 	enum clnt_stat retval;
     ptr_result result;
     retval = rpc_cuctxgetcurrent_1(&result, clnt);
-    printf("[rpc] %s(%p) = %d, result %p\n", __FUNCTION__, pctx, result.err,
+    LOGE(LOG_DEBUG, "[rpc] %s(%p) = %d, result %p\n", __FUNCTION__, pctx, result.err,
                                         result.ptr_result_u.ptr);
 	if (retval != RPC_SUCCESS) {
-		fprintf(stderr, "[rpc] %s failed.", __FUNCTION__);
+		LOGE(LOG_DEBUG, "[rpc] %s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
     *pctx = (CUcontext)result.ptr_result_u.ptr;
