@@ -17,6 +17,7 @@
 #define INIT_MODULE_SLOTS 8
 #define INIT_FUNCTION_SLOTS 128
 #define INIT_VAR_SLOTS 128
+#define INIT_EVENT_SLOTS 16
 
 enum MODULE_LOAD_TYPE {
     MODULE_LOAD_DATA = 0,
@@ -78,6 +79,11 @@ typedef struct __addr_data_pair {
     } reg_data;
 } addr_data_pair_t;
 
+typedef struct __event_args {
+    int flags;
+    bool_t time_recorded;
+} event_args_t;
+
 typedef struct __cricket_client {
     int pid;
     resource_mg gpu_mem;
@@ -86,6 +92,7 @@ typedef struct __cricket_client {
     resource_mg modules;
     resource_mg functions;
     resource_mg vars;
+    resource_map* events;
     // further can be added
 } cricket_client;
 
@@ -106,7 +113,7 @@ int move_restored_client(int pid, int xp_fd);
 
 cricket_client* get_client(int xp_fd);
 
-//cricket_client* get_client_by_pid(int pid);
+cricket_client* get_client_by_pid(int pid);
 
 int remove_client_ptr(cricket_client *client);
 
