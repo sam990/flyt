@@ -50,11 +50,6 @@ cudaError_t dev_mem_alloc(void **dev_ptr, size_t size, int va_specified, size_t 
     
     size_t padded_size = (((size - 1) / granularity) + 1) * granularity;
 
-    if (res != CUDA_SUCCESS) {
-        LOGE(LOG_WARNING, "%s: cuMemCreate error: %d", __FUNCTION__, res);
-        return cudaErrorMemoryAllocation;
-    }
-
     CUdeviceptr dptr;
 
     CUdeviceptr req_addr = *((CUdeviceptr *)dev_ptr);
