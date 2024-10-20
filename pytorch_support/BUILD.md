@@ -15,7 +15,7 @@ PYTORCH_CODE=`pwd`
 conda install cmake ninja
 pip install -r "$PYTORCH_CODE"/requirements.txt
 conda install intel::mkl-static intel::mkl-include
-conda install -c pytorch magma-cuda110 
+conda install -c pytorch magma-cuda121 
 ```
 3. Configure pytorch build and install
 ```bash

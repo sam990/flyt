@@ -77,6 +77,7 @@ cricket_client* create_client(int pid) {
 
     client->custom_streams = init_resource_map(INIT_STREAM_SLOTS);
     if (client->custom_streams == NULL) {
+        cudaStreamDestroy(client->default_stream);
         LOGE(LOG_ERROR, "Failed to initialize custom_streams resource map for new client");
         free(client);
         return NULL;
@@ -86,6 +87,21 @@ cricket_client* create_client(int pid) {
     resource_mg_init(&client->modules, 0);
     resource_mg_init(&client->functions, 0);
     resource_mg_init(&client->vars, 0);
+
+    client->events = init_resource_map(INIT_EVENT_SLOTS);
+    if (client->events == NULL) {
+        LOGE(LOG_ERROR, "Failed to initialize events resource map for new client");
+        cudaStreamDestroy(client->default_stream);
+        free_resource_map(client->custom_streams);
+        resource_mg_free(&client->gpu_mem);
+        resource_mg_free(&client->modules);
+        resource_mg_free(&client->functions);
+        resource_mg_free(&client->vars);
+        free(client);
+        return NULL;
+    }
+
+
     LOGE(LOG_INFO, "added client for pid %d\n", pid);
 
     return client;
@@ -188,11 +204,10 @@ int remove_client_ptr(cricket_client* client) {
     pthread_mutex_lock(&client->modules.map_res.mutex);
     for (size_t i = 0; i < client->modules.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->modules.map_res, i);
-	if(elem != NULL) {
+        if(elem != NULL) {
 
-            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-
-            free_module_data(pair);
+                addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+                free_module_data(pair);
 	}
     }
     pthread_mutex_unlock(&client->modules.map_res.mutex);
@@ -216,12 +231,11 @@ int remove_client_ptr(cricket_client* client) {
     pthread_mutex_lock(&client->functions.map_res.mutex);
     for (size_t i = 0; i < client->functions.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->functions.map_res, i);
-	if(elem != NULL) {
+        if(elem != NULL) {
 
-            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-        
-            free_function_data(pair);
-	}
+                addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+                free_function_data(pair);
+        }
     }
     pthread_mutex_unlock(&client->functions.map_res.mutex);
     pthread_mutex_unlock(&client->functions.mutex);
