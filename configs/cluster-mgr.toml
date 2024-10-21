@@ -1,0 +1,21 @@
+[vm-resource-db]
+host = "10.129.27.228"
+port = 27017
+user = "root"
+password = "example"
+dbname = "flyt"
+
+[ports]
+node = 12401
+client = 12402
+
+[virt-server-auto-deallocate]
+enabled = false
+grace-period = 60
+
+[ipc]
+mqueue-path = "/tmp/flyt-rmgr-queue"
+frontend-socket = "/tmp/flyt-frontend-socket"
+
+[migration]
+ckp-path = "/mnt/flytckp"
