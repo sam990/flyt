@@ -5,7 +5,7 @@ use std::{io::{BufReader, Read, Write}, time::Duration};
 pub struct IncResourcesResult {
     pub success: bool,
     pub sm_cores: u32,
-    pub memory: u32,
+    pub memory: u64,
     pub error: String,
     pub time_taken: Duration
 }

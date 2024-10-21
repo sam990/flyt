@@ -530,7 +530,7 @@ pub fn increase_resources(mut stream: UnixStream, vm_ip: &String, new_resources:
     }
 
     let sm_cores = response_parts[0].parse::<u32>().unwrap();
-    let memory = response_parts[1].parse::<u32>().unwrap();
+    let memory = response_parts[1].parse::<u64>().unwrap();
     let description = response_parts[2].to_string();
 
     
