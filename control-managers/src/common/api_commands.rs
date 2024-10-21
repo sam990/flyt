@@ -36,4 +36,5 @@ impl FrontEndCommand {
     pub const CHANGE_SM_CORES_AND_MEMORY: &'static str = "CHANGE_SM_CORES_AND_MEMORY";
     pub const MIGRATE_VIRT_SERVER: &'static str = "MIGRATE_VIRT_SERVER";
     pub const MIGRATE_VIRT_SERVER_AUTO: &'static str = "MIGRATE_VIRT_SERVER_AUTO";
+    pub const INCREASE_RESOURCES: &'static str = "INCREASE_RESOURCES";
 }

@@ -1,13 +1,12 @@
 #![allow(dead_code)]
 
 use std::{
-    io::Write,
-    os::unix::net::UnixStream,
+    io::Write, os::unix::net::UnixStream
 };
 
 use clap::{Parser, Subcommand};
 use comfy_table::Table;
-use common::{api_commands::FrontEndCommand, config::RMGR_CONFIG_PATH};
+use common::{api_commands::FrontEndCommand, config::RMGR_CONFIG_PATH, types::IncResourcesResult};
 
 use crate::common::utils::StreamUtils;
 
@@ -28,6 +27,12 @@ enum Commands {
     ListServernodes,
     ListVirtServers,
     ChangeConfig {
+        #[arg(short, long, help = "IP address of the VM to change resources for")]
+        ip: String,
+        #[clap(flatten)]
+        new_resources: NewResourcesOption,
+    },
+    IncResources {
         #[arg(short, long, help = "IP address of the VM to change resources for")]
         ip: String,
         #[clap(flatten)]
@@ -88,7 +93,7 @@ fn main() {
         Commands::ListVirtServers => list_virt_servers(stream),
         Commands::ChangeConfig { ip, mut new_resources } => {
             new_resources.memory = new_resources.memory.map(|x| x * 1024 * 1024);
-            change_resources(stream, ip, new_resources);
+            change_resources(stream, &ip, new_resources);
         }
         Commands::Migrate {
             ip,
@@ -107,6 +112,9 @@ fn main() {
         } => {
             let mem_bytes = memory * 1024 * 1024;
             migrate_vm_auto(stream, ip, sm_cores, mem_bytes);
+        },
+        Commands::IncResources { ip, new_resources } => {
+            increase_resources(stream, &ip, new_resources);
         }
     }
 }
@@ -410,7 +418,7 @@ fn list_virt_servers(mut stream: UnixStream) {
     println!("{}", table);
 }
 
-pub fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: NewResourcesOption) {
+pub fn change_resources(mut stream: UnixStream, vm_ip: &String, new_resources: NewResourcesOption) {
     let command = if new_resources.sm_cores.is_some() && new_resources.memory.is_some() {
         format!(
             "{}\n{},{},{}\n",
@@ -461,4 +469,77 @@ pub fn change_resources(mut stream: UnixStream, vm_ip: String, new_resources: Ne
 
     println!("{}: {}", response[0], response[1]);
     println!("Time taken: {:?}", time_end - time_begin);
+}
+
+
+pub fn increase_resources(mut stream: UnixStream, vm_ip: &String, new_resources: NewResourcesOption) -> IncResourcesResult {
+    let time_begin = std::time::Instant::now();
+
+    let sm_inc = new_resources.sm_cores.unwrap_or(0);
+    let mem_inc = new_resources.memory.unwrap_or(0);
+
+    match stream.write_all(
+        format!(
+            "{}\n{},{},{}\n",
+            FrontEndCommand::INCREASE_RESOURCES,
+            vm_ip,
+            sm_inc,
+            mem_inc
+        )
+        .as_bytes(),
+    ) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+            return IncResourcesResult{
+                error: format!("Error writing to stream: {}", e),
+                ..Default::default()
+            };
+        }
+    }
+
+    let mut reader = std::io::BufReader::new(stream);
+
+    let response = match StreamUtils::read_response(&mut reader, 2) {
+        Ok(response) => response,
+        Err(e) => {
+            log::error!("Error reading response: {}", e);
+            return IncResourcesResult{
+                error: format!("Error reading response: {}", e),
+                ..Default::default()
+            };
+        }
+    };
+
+    let time_end = std::time::Instant::now();
+
+    println!("Time taken: {:?}", time_end - time_begin);
+
+    let time_taken = time_end - time_begin;
+
+    println!("{}: {}", response[0], response[1]);
+
+    let response_parts = response[1].split(',').collect::<Vec<&str>>();
+
+    if response_parts.len() != 3 {
+        log::error!("Invalid response: {}", response[1]);
+        return IncResourcesResult{
+            error: format!("Invalid response: {}", response[1]),
+            ..Default::default()
+        };
+    }
+
+    let sm_cores = response_parts[0].parse::<u32>().unwrap();
+    let memory = response_parts[1].parse::<u32>().unwrap();
+    let description = response_parts[2].to_string();
+
+    
+    return IncResourcesResult{
+        success: response[0] == "200",
+        sm_cores,
+        memory,
+        error: description,
+        time_taken: time_taken
+    };
+
 }

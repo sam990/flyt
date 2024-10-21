@@ -1,5 +1,26 @@
-use std::io::{BufReader, Read, Write};
+use std::{io::{BufReader, Read, Write}, time::Duration};
 
+
+#[derive(Debug, Clone)]
+pub struct IncResourcesResult {
+    pub success: bool,
+    pub sm_cores: u32,
+    pub memory: u32,
+    pub error: String,
+    pub time_taken: Duration
+}
+
+impl Default for IncResourcesResult {
+    fn default() -> Self {
+        Self {
+            success: false,
+            sm_cores: 0,
+            memory: 0,
+            error: String::new(),
+            time_taken: Duration::new(0, 0)
+        }
+    }
+}
 
 
 #[derive(Debug, Clone, Copy)]

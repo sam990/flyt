@@ -64,7 +64,7 @@ void* increase_provisioning(void * arg) {
     // Set server address
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr("10.129.27.234");
+    servaddr.sin_addr.s_addr = inet_addr("10.129.27.228");
     servaddr.sin_port = htons(32578);
 
     // Connect to server
