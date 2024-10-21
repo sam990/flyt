@@ -77,6 +77,8 @@ void* increase_provisioning(void * arg) {
     // Perform operations on the socket
     write(sockfd, data , 1);
 
+    printf("Sent data to flytctl\n");
+
     read(sockfd, data, 1);
 
     if (data[0] == 0) {
