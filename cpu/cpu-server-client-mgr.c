@@ -101,6 +101,7 @@ cricket_client* create_client(int pid) {
         return NULL;
     }
 
+    client->malloc_idx = 0;
 
     LOGE(LOG_INFO, "added client for pid %d\n", pid);
 

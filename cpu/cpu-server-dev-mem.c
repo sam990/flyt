@@ -105,6 +105,9 @@ cudaError_t dev_mem_alloc(void **dev_ptr, size_t size, int va_specified, size_t 
     *((CUdeviceptr *)dev_ptr) = dptr;
     *padded_size_out = padded_size;
 
+    
+
+
     return cudaSuccess;
 
 }

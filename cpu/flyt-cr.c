@@ -22,6 +22,11 @@
 #include "flyt-cr.h"
 #include <dirent.h>
 
+typedef struct __temp_sort_mem_alloc {
+    void *dev_ptr;
+    mem_alloc_args_t *alloc_args;
+} temp_sort_mem_alloc;
+
 int dump_memory(char *filename, resource_mg *gpu_mem) {
     FILE *fp = fopen(filename, "wb");
 
@@ -32,6 +37,36 @@ int dump_memory(char *filename, resource_mg *gpu_mem) {
 
     uint64_t len = gpu_mem->map_res.length;
 
+    resource_mg mem_idx_ordered;
+
+    if (resource_mg_init(&mem_idx_ordered, 0) != 0) {
+        LOGE(LOG_ERROR, "Failed to initialize memory index ordered resource manager");
+        fclose(fp);
+        return -1;
+    }
+
+    for (uint64_t i = 0; i < len; i++) {
+        resource_mg_map_elem *elem = list_get(&gpu_mem->map_res, i);
+
+        if (elem == NULL) {
+            LOGE(LOG_ERROR, "Failed to get memory map element at index %lu", i);
+            fclose(fp);
+            return -1;
+        }
+
+        mem_alloc_args_t *alloc_args = (mem_alloc_args_t *)elem->cuda_address;
+        temp_sort_mem_alloc *alloc_args_temp = (temp_sort_mem_alloc *)malloc(sizeof(temp_sort_mem_alloc));
+        alloc_args_temp->dev_ptr = elem->client_address;
+        alloc_args_temp->alloc_args = alloc_args;
+
+        if (resource_mg_add_sorted(&mem_idx_ordered, alloc_args->idx, alloc_args_temp) != 0) {
+            LOGE(LOG_ERROR, "Failed to add memory map element to memory index ordered resource manager");
+            fclose(fp);
+            return -1;
+        }
+    }
+
+
     LOGE(LOG_DEBUG, "Dumping memory for %lu elements", len);
 
     fwrite(&len, sizeof(uint64_t), 1, fp);
@@ -39,26 +74,31 @@ int dump_memory(char *filename, resource_mg *gpu_mem) {
     for (uint64_t i = 0; i < len; i++) {
 
         resource_mg_map_elem *elem;
+        
 
-        if (resource_mg_get_element_at(gpu_mem, 0, i, (void **)&elem) != 0) {
+        if (resource_mg_get_element_at(&mem_idx_ordered, 0, i, (void **)&elem) != 0) {
             LOGE(LOG_ERROR, "Failed to get memory map element at index %lu", i);
             fclose(fp);
             return -1;
         }
 
+        temp_sort_mem_alloc *alloc_args_temp = (temp_sort_mem_alloc *)elem->cuda_address;
+        void *dev_ptr = alloc_args_temp->dev_ptr;
+        mem_alloc_args_t *alloc_args = alloc_args_temp->alloc_args;
+        
+        free(alloc_args_temp);
+
         LOGE(LOG_DEBUG, "Dumping memory for element %lu", i);
-        LOGE(LOG_DEBUG, "Client address: %p", elem->client_address);
-        LOGE(LOG_DEBUG, "CUDA address: %p", elem->cuda_address);
+        LOGE(LOG_DEBUG, "Client address: %p", dev_ptr);
 
-        mem_alloc_args_t *alloc_args = (mem_alloc_args_t *)elem->cuda_address;
-
-        LOGE(LOG_DEBUG, "Size: %lu", alloc_args->size);
 
         if (alloc_args == NULL) {
             LOGE(LOG_ERROR, "Failed to get memory allocation arguments");
             fclose(fp);
             return -1;
         }
+
+        LOGE(LOG_DEBUG, "Size: %lu", alloc_args->size);
 
         uint8_t *data = (uint8_t *)malloc(alloc_args->size);
 
@@ -68,14 +108,14 @@ int dump_memory(char *filename, resource_mg *gpu_mem) {
             return -1;
         }
 
-        if (cudaMemcpy(data, elem->client_address, alloc_args->size, cudaMemcpyDeviceToHost) != cudaSuccess) {
+        if (cudaMemcpy(data, dev_ptr, alloc_args->size, cudaMemcpyDeviceToHost) != cudaSuccess) {
             LOGE(LOG_ERROR, "Failed to copy data from device to host");
             free(data);
             fclose(fp);
             return -1;
         }
         
-        fwrite(&(elem->client_address), sizeof(void*), 1, fp);
+        fwrite(&(dev_ptr), sizeof(void*), 1, fp);
         fwrite(alloc_args, sizeof(mem_alloc_args_t), 1, fp);
         fwrite(data, alloc_args->size, 1, fp);
         free(data);

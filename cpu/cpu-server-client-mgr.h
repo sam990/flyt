@@ -47,6 +47,7 @@ typedef struct __mem_alloc_args {
     size_t pitch;
     long long arg6; 
     size_t padded_size;
+    size_t idx;
 } mem_alloc_args_t;
 
 typedef struct __var_register_args {
@@ -93,6 +94,7 @@ typedef struct __cricket_client {
     resource_mg functions;
     resource_mg vars;
     resource_map* events;
+    size_t malloc_idx;
     // further can be added
 } cricket_client;
 

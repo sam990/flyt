@@ -1862,6 +1862,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
         args->type = MEM_ALLOC_TYPE_DEFAULT;
         args->size = argp;
         args->padded_size = padded_size;
+        args->idx = client->malloc_idx++;
 
         resource_mg_add_sorted(&client->gpu_mem, dev_mem_ptr, args);
         result->ptr_result_u.ptr = (ptr)dev_mem_ptr;
@@ -1911,6 +1912,7 @@ bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_resu
         args->pitch = pptr.pitch;
         args->size = depth*height*pptr.pitch;
         args->padded_size = padded_out;
+        args->idx = client->malloc_idx++;
         resource_mg_add_sorted(&client->gpu_mem, (void *)result->pptr_result_u.ptr.ptr, args);
     }
 
@@ -2017,6 +2019,7 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
         args->pitch = result->ptrsz_result_u.data.s;
         args->size = result->ptrsz_result_u.data.s*height;
         args->padded_size = padded_out;
+        args->idx = client->malloc_idx++;
         resource_mg_add_sorted(&client->gpu_mem, (void *)result->ptrsz_result_u.data.p, args);
     }
 
