@@ -329,7 +329,7 @@ cricket_client* get_next_restored_client(cricket_client_iter* iter) {
     }
 
     resource_mg_map_elem *elem;
-    if(resource_mg_get_element_at(&restored_clients, TRUE, *iter, (void **)&elem) != 0) {
+    if(resource_mg_get_element_at(&restored_clients, FALSE, *iter, (void **)&elem) != 0) {
 	    return NULL;
     }
     *iter += 1;
