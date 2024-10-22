@@ -280,6 +280,8 @@ int flyt_restore_memory(char *memory_file, resource_mg *gpu_mem) {
         return -1;
     }
 
+    gpu_mem->map_res.length = num_mem_blocks;
+
 
     PRIMARY_CTX_RETAIN;
 
@@ -343,6 +345,7 @@ int flyt_restore_memory(char *memory_file, resource_mg *gpu_mem) {
         elem->cuda_address = alloc_args;
     }
 
+
     PRIMARY_CTX_RELEASE;
 
     fclose(fp);
@@ -374,6 +377,7 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
         fclose(fp);
         return -1;
     }
+    modules->map_res.length = num_modules;
 
     for (uint64_t i = 0; i < num_modules; i++) {
         resource_mg_map_elem *elem = list_get(&modules->map_res, i);
@@ -385,7 +389,7 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
         }
     }
 
-    modules->map_res.length = num_modules;
+    
 
     fclose(fp);
     return 0;
@@ -416,6 +420,7 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
         fclose(fp);
         return -1;
     }
+    functions->map_res.length = num_functions;
 
     for (uint64_t i = 0; i < num_functions; i++) {
         resource_mg_map_elem *elem = list_get(&functions->map_res, i);
@@ -427,7 +432,7 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
         }
     }
 
-    functions->map_res.length = num_functions;
+    
    
     fclose(fp);
     return 0;
@@ -457,6 +462,8 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
         return -1;
     }
 
+    vars->map_res.length = num_vars;
+
 
     for (uint64_t i = 0; i < num_vars; i++) {
         resource_mg_map_elem *elem = list_get(&vars->map_res, i);
@@ -468,7 +475,7 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
         }
     }
 
-    vars->map_res.length = num_vars;
+    
 
     fclose(fp);
     return 0;
