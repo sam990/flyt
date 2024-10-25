@@ -282,6 +282,55 @@ impl ResourceManagerHandler {
                     }
                 }
 
+                FlytApiCommand::SNODE_SEND_METRICS_THROUGHPUT => {
+                    log::info!("Got send metrics throughput command");
+
+                    let rpc_id = stream_read_line!(reader).parse::<u64>();
+                    if rpc_id.is_err() {
+                        log::error!("Invalid rpc_id: {:?}", rpc_id);
+                        stream_write!(writer, "400\nInvalid rpc_id\n".to_string());
+                        continue;
+                    }
+
+                    let rpc_id = rpc_id.unwrap();
+
+                    log::info!("getting throughput metrics from virt server: {}", rpc_id);
+                    let ret = self.virt_server_manager.get_virt_server_metrics_throughput(rpc_id);
+                    match ret {
+                        Ok(result) => {
+                            log::info!("Get Virt server metrics: {:?}", result);
+                            stream_write!(writer, format!("200\n{:?}\n", result));
+                        }
+                        Err(e) => {
+                            log::error!("Error Get virt server metrics: {}", e);
+                        }
+                    }
+                }
+                FlytApiCommand::SNODE_SEND_METRICS_UTILIZATION => {
+                    log::info!("Got send metrics utilization command");
+
+                    let rpc_id = stream_read_line!(reader).parse::<u64>();
+                    if rpc_id.is_err() {
+                        log::error!("Invalid rpc_id: {:?}", rpc_id);
+                        stream_write!(writer, "400\nInvalid rpc_id\n".to_string());
+                        continue;
+                    }
+
+                    let rpc_id = rpc_id.unwrap();
+
+                    log::info!("getting utilization from virt server: {}", rpc_id);
+                    let metrics = self.virt_server_manager.get_virt_server_metrics_utilization(rpc_id);
+                    match metrics {
+                        Ok(result) => {
+                            log::info!("Get Virt server metrics: {:?}", result);
+                            stream_write!(writer, format!("200\n{:?}\n", result));
+                        }
+                        Err(e) => {
+                            log::error!("Error Get virt server metrics: {}", e);
+                        }
+                    }
+                }
+
                 _ => {
                     log::error!("Unknown command: {}", buf);
                 }

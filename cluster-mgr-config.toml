@@ -18,4 +18,8 @@ mqueue-path = "/tmp/flyt-rmgr-queue"
 frontend-socket = "/tmp/flyt-frontend-socket"
 
 [migration]
-ckp-path = "/tmp/flyt-ckp-path"
+ckp-path = "/mnt/flytckp"
+
+[metrics]
+port = 12403
+interval = 3

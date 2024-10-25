@@ -17,6 +17,7 @@ pub struct FlytClientNode {
     pub ipaddr: String,
     pub stream: Arc<RwLock<Option<StreamEnds<TcpStream>>>>,
     pub virt_server: Option<Arc<RwLock<VirtServer>>>,
+    pub is_migrating: RwLock<bool>,
     pub is_active: RwLock<bool>,
 }
 
@@ -26,6 +27,7 @@ impl Clone for FlytClientNode {
             ipaddr: self.ipaddr.clone(),
             stream: self.stream.clone(),
             virt_server: self.virt_server.clone(),
+            is_migrating: RwLock::new(false),
             is_active: RwLock::new(*self.is_active.read().unwrap()),
         }
     }
@@ -301,6 +303,7 @@ impl<'a> FlytClientManager<'a> {
                             ipaddr: client_ip.clone(),
                             stream: Arc::new(RwLock::new(Some(StreamEnds{writer: stream, reader}))),
                             virt_server: Some(virt_server.clone()),
+                            is_migrating: RwLock::new(false),
                             is_active: RwLock::new(true),
                         };
                         let client_stream_clone = client.stream.clone();
@@ -361,6 +364,10 @@ impl<'a> FlytClientManager<'a> {
         if *client.is_active.read().unwrap() {
             log::info!("Client is active, cannot deallocate resources");
             return Err("Client is active".to_string());
+        }
+        if *client.is_migrating.read().unwrap() {
+            log::info!("Client is migrating, cannot deallocate resources");
+            return Err("Client is migrating".to_string());
         }
 
 

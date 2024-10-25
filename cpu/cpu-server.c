@@ -31,6 +31,10 @@
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-client-mgr.h"
 
+#include <execinfo.h>
+// metrics
+#include "metrics/profiler.h"
+
 INIT_SOCKTYPE
 
 int connection_is_local = 0;
@@ -46,11 +50,30 @@ unsigned long prog=0, vers=0;
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
+/*
 void int_handler(int signal) {
     if (socktype == UNIX) {
         unlink(CD_SOCKET_PATH);
     }
     LOG(LOG_INFO, "have a nice day!\n");
+    svc_exit();
+}
+*/
+void int_handler(int sig) {
+    printf("Received signal %d\n", sig);
+    void *array[20];
+    size_t size;
+
+    if (socktype == UNIX) {
+        unlink(CD_SOCKET_PATH);
+    }
+    LOG(LOG_INFO, "have a nice day!\n");
+    // Get void*'s for all entries on the stack
+    size = backtrace(array, 20);
+
+    // Print all the frames to stderr
+    fprintf(stderr, "Error: signal %d:\n", sig);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
     svc_exit();
 }
 
@@ -209,7 +232,12 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     printf("welcome to cricket!\n");
     init_log(LOG_LEVEL, __FILE__);
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+    //sigaction(SIGINT, &act, NULL);
     sigaction(SIGINT, &act, NULL);
+    sigaction(SIGPIPE, &act, NULL);
+    sigaction(SIGABRT, &act, NULL);
+    sigaction(SIGSEGV, &act, NULL);
+    sigaction(SIGBUS, &act, NULL);
 
     #ifdef WITH_IB
     char client[256];
@@ -232,6 +260,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
 
     #endif //WITH_IB
 
+    InitializeInjection();
 
     if (getenv("CRICKET_DISABLE_RPC")) {
         LOG(LOG_INFO, "RPC server was disable by setting CRICKET_DISABLE_RPC");
@@ -329,6 +358,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         goto cleanup4;
     }
 
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (server_runtime_init(restore, gpu_id) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup3;

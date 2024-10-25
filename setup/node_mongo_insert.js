@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 const config = {
-    host: "localhost",
+    host: "10.129.131.167",
     port: 27017,
     user: "adminUser",
     password: "flyt",
@@ -19,12 +19,12 @@ async function main() {
         const collection = database.collection("vm_required_resources");
 
 	// Define the filter and the update operation
-        const filter = { vm_ip: "10.129.26.124" }; // Criteria to find the document
+        const filter = { vm_ip: "10.129.28.230" }; // Criteria to find the document
 	var doc = {
-	    vm_ip: "10.129.26.124",
-	    host_ip: "10.129.27.234",
-	    compute_units: 64,
-	    memory: 8196
+	    vm_ip: "10.129.28.230",
+	    host_ip: "10.129.2.22",
+	    compute_units: 20,
+	    memory: 819
 	};
         const update = {
             $set: doc

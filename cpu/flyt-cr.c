@@ -59,6 +59,27 @@ int dump_memory(char *filename, resource_map *gpu_mem) {
     return 0;
 }
 
+int dump_streams(char *filename, resource_map *custom_streams) {
+    FILE *fp = fopen(filename, "wb");
+
+    if (fp == NULL) {
+        LOGE(LOG_ERROR, "Failed to open file %s for writing", filename);
+        return -1;
+    }
+
+    fwrite(custom_streams, sizeof(resource_map), 1, fp);
+    fwrite(custom_streams->list, sizeof(resource_map_item), custom_streams->length, fp);
+
+    for (uint64_t i = 1; i < custom_streams->tail_idx; i++) {
+        if (custom_streams->list[i].present) {
+            
+            fwrite(custom_streams->list[i].args, sizeof(stream_create_args_t), 1, fp);
+        }
+    }
+    fclose(fp);
+    return 0;
+}
+
 
 int dump_modules(char *filename, resource_mg* modules) {
     
@@ -166,11 +187,14 @@ int flyt_create_checkpoint(char *basepath) {
 
         sprintf(client_path, "%s/%d", basepath, client->pid);
 
-        if (mkdir(client_path, 0777) == -1) {
-            LOGE(LOG_ERROR, "Error creating client directory %s: %s", client_path, strerror(errno));
-            free(client_path);
-            return -1;
-        }
+	/* Check if path exists, if not, create */
+	if (access(client_path, F_OK) != 0) {
+            if (mkdir(client_path, 0777) == -1) {
+                LOGE(LOG_ERROR, "Error creating client directory %s: %s", client_path, strerror(errno));
+                free(client_path);
+                return -1;
+            }
+	}
 
         char *filename = malloc(strlen(client_path) + 32);
         if (filename == NULL) {
@@ -181,6 +205,14 @@ int flyt_create_checkpoint(char *basepath) {
 
         sprintf(filename, "%s/gpu_mem", client_path);
         if (dump_memory(filename, client->gpu_mem) != 0) {
+            LOGE(LOG_ERROR, "Failed to dump memory for client %d", client->pid);
+            free(client_path);
+            free(filename);
+            return -1;
+        }
+
+        sprintf(filename, "%s/custom_streams", client_path);
+        if (dump_streams(filename, client->custom_streams) != 0) {
             LOGE(LOG_ERROR, "Failed to dump memory for client %d", client->pid);
             free(client_path);
             free(filename);
@@ -307,6 +339,71 @@ int flyt_restore_memory(char *memory_file, resource_map *gpu_mem) {
             }
 
             free(data);
+        }
+    }
+
+    PRIMARY_CTX_RELEASE;
+
+    fclose(fp);
+    return 0;
+}
+
+int flyt_restore_streams(char *stream_file, resource_map *custom_streams) {
+    FILE *fp = fopen(stream_file, "rb");
+
+    if (fp == NULL) {
+        LOGE(LOG_ERROR, "Failed to open file %s for reading", stream_file);
+        return -1;
+    }
+
+
+    size_t readsz;
+
+    free(custom_streams->list);
+
+    readsz = fread(custom_streams, sizeof(resource_map), 1, fp);
+
+    if (readsz != 1) {
+        fclose(fp);
+        LOGE(LOG_ERROR, "Failed to read stream map from file");
+        return -1;
+    }
+
+    custom_streams->list = malloc(sizeof(resource_map_item) * custom_streams->length);
+
+    if (custom_streams->list == NULL) {
+        LOGE(LOG_ERROR, "Failed to allocate memory for stream map");
+        fclose(fp);
+        return -1;
+    }
+
+    readsz = fread(custom_streams->list, sizeof(resource_map_item), custom_streams->length, fp);
+
+    if (readsz != custom_streams->length) {
+        fclose(fp);
+        LOGE(LOG_ERROR, "Failed to read stream map from file");
+        return -1;
+    }
+
+    PRIMARY_CTX_RETAIN;
+
+    for (uint64_t i = 1; i < custom_streams->tail_idx; i++) {
+        if (custom_streams->list[i].present) {
+            custom_streams->list[i].args = malloc(sizeof(stream_create_args_t));
+            
+            if (custom_streams->list[i].args == NULL) {
+                LOGE(LOG_ERROR, "Failed to allocate memory for streams args");
+                fclose(fp);
+                return -1;
+            }
+
+            readsz = fread(custom_streams->list[i].args, sizeof(stream_create_args_t), 1, fp);
+            if (readsz != 1) {
+                LOGE(LOG_ERROR, "Failed to read stream args from file");
+                fclose(fp);
+                return -1;
+            }
+
         }
     }
 
@@ -506,6 +603,9 @@ int flyt_restore_checkpoint(char *basepath) {
 
             sprintf(filename, "%s/vars", client_path);
             ret |= flyt_restore_vars(filename, &client->vars);
+
+            sprintf(filename, "%s/custom_streams", client_path);
+            ret |= flyt_restore_streams(filename, client->custom_streams);
 
             sprintf(filename, "%s/gpu_mem", client_path);
             ret |= flyt_restore_memory(filename, client->gpu_mem);

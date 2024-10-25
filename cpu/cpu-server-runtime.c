@@ -42,6 +42,8 @@
 #include "cpu-server-client-mgr.h"
 
 
+// metrics
+//#include "metrics/profiler.h"
 
 typedef struct host_alloc_info {
     size_t idx;
@@ -76,19 +78,22 @@ int server_runtime_init(int restore, int gpu_id)
         ret &= 1;
     }
     if (!restore) {
-        ret &= resource_mg_init(&rm_events, 1);
+        //ret &= resource_mg_init(&rm_events, 1);
         ret &= resource_mg_init(&rm_arrays, 1);
         ret &= cusolver_init(1, NULL, NULL);
         ret &= cublas_init(1, NULL);
 	    ret &= cublaslt_init(1, NULL);
     } else {
-        ret &= resource_mg_init(&rm_events, 0);
+        //ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
         ret &= resource_mg_init(&rm_kernels, 0);
         ret &= cusolver_init(0, NULL, NULL);
         ret &= cublas_init(0, NULL);
 	    ret &= cublaslt_init(0, NULL);
     }
+
+    // metrics
+    //InitializeInjection();
     
     // Make sure runtime API is initialized
     // If we don't do this and use the driver API, it might be unintialized
@@ -104,7 +109,7 @@ int server_runtime_init(int restore, int gpu_id)
 
 int server_runtime_deinit(void)
 {
-    resource_mg_free(&rm_events);
+    //resource_mg_free(&rm_events);
     resource_mg_free(&rm_arrays);
     resource_mg_free(&rm_kernels);
     cusolver_deinit();
@@ -419,7 +424,29 @@ bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetDeviceCount");
-    result->int_result_u.data = 1;
+    /* TODO: Delete */
+    /* MPS compatible */
+   
+#define AFFINITY 
+#ifdef AFFINITY
+    set_exec_context();
+    CUexecAffinityParam affinityPrm;
+    CUresult res = cuCtxGetExecAffinity(&affinityPrm, CU_EXEC_AFFINITY_TYPE_SM_COUNT);
+    if (res != CUDA_SUCCESS) {
+	char *err_string;
+	cuGetErrorString(res, &(err_string));
+        LOGE(LOG_ERROR, "cuCtxGetExecAffinity failed with %s.\n", err_string);
+        result->int_result_u.data = 0;
+    }
+    else {
+        result->int_result_u.data = affinityPrm.param.smCount.val;
+    }
+#else
+    
+    extern uint32_t new_num_sm_cores;
+    result->int_result_u.data = (int)new_num_sm_cores;
+#endif
+
     result->err = cudaSuccess;
     GSCHED_RELEASE;
     return 1;
@@ -635,7 +662,7 @@ bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
         stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
         args->type = STREAM_CREATE_TYPE_DEFAULT;
 
-        LOGE(LOG_DEBUG, "stream %p created", newStream);
+        LOGE(LOG_INFO, "stream %p created", newStream);
 
         if (resource_map_add(client->custom_streams, (void*)newStream, args, (void**)&result->ptr_result_u.ptr) != 0) {
             LOGE(LOG_ERROR, "error adding stream to resource manager");
@@ -827,7 +854,7 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rq
     GSCHED_RETAIN;
     RECORD_API(uint64_t);
     RECORD_SINGLE_ARG(stream);
-    LOGE(LOG_DEBUG, "cudaStreamSynchronize");
+    LOGE(LOG_INFO, "cudaStreamSynchronize %p", stream);
 
     cudaStream_t stream_ptr;
     
@@ -835,7 +862,10 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rq
     GET_STREAM(stream_ptr, stream, *result)
 
 
+    LOGE(LOG_INFO, "cudaStreamSynchronize %p", stream_ptr);
     *result = cudaStreamSynchronize(stream_ptr);
+    update_client_metric_throughput(client, 0);
+    update_client_metric_utilization();
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -857,12 +887,8 @@ bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, int *resul
 
 
     cudaEvent_t event_ptr;
-    if (resource_mg_get(&rm_events, (void*)event, (void**)&event_ptr) != 0) {
-        LOGE(LOG_ERROR, "error getting event");
-        *result = cudaErrorInvalidValue;
-        GSCHED_RELEASE;
-        return 1;
-    }
+
+    GET_EVENT(event_ptr, event, *result)
 
     *result = cudaStreamWaitEvent(
       stream_ptr,
@@ -893,9 +919,18 @@ bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
     GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaEventCreate");
-    result->err = cudaEventCreate((struct CUevent_st**)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
+
+    cudaEvent_t event_ptr;
+    result->err = cudaEventCreate(&event_ptr);
+
+    if(result->err == cudaSuccess) {
+	    /*
+        if (resource_map_add(client->gpu_events, (void*)event_ptr, NULL, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error adding event to resource manager");
+            result->err = cudaErrorInvalidValue;
+            cudaEventDestroy(event_ptr);
+	}
+	*/
     }
     RECORD_RESULT(ptr_result_u, *result);
     GSCHED_RELEASE;
@@ -1174,6 +1209,7 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
     cudaStream_t stream_ptr;
     GET_STREAM(stream_ptr, stream, *result)
 
+
     *result = cudaLaunchCooperativeKernel(
       func_ptr,
       cuda_gridDim,
@@ -1182,6 +1218,8 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
       sharedMem,
       stream_ptr);
     RECORD_RESULT(integer, *result);
+    update_client_metric_throughput(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
+    update_client_metric_utilization();
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel result: %d", *result);
     GSCHED_RELEASE;
     return 1;
@@ -1228,6 +1266,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
         return 1;
     }
 
+
     LOGE(LOG_DEBUG, "cudaLaunchKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)",
                     func_ptr->addr,
                     cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z,
@@ -1255,8 +1294,11 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     //   cuda_args,
     //   sharedMem,
     //   resource_mg_get(&rm_streams, (void*)stream));
+
     free(cuda_args);
     RECORD_RESULT(integer, *result);
+    update_client_metric_throughput(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
+    update_client_metric_utilization();
     LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
     GSCHED_RELEASE;
     return 1;
@@ -1795,6 +1837,7 @@ bool_t cuda_malloc_3d_array_1_svc(cuda_channel_format_desc desc, size_t depth, s
         result->err = cudaErrorMemoryAllocation;
     }
     resource_mg_create(&rm_arrays, (void*)result->ptr_result_u.ptr);
+    //resource_map_add(client->gpu_mem, (void*)pptr.ptr, args, (void**)&(result->pptr_result_u.ptr.ptr));
 
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;

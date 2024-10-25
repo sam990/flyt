@@ -1,0 +1,87 @@
+
+
+Wed Sep  4 18:30:51 2024
+Command line: TestDisk
+
+TestDisk 7.1, Data Recovery Utility, July 2019
+Christophe GRENIER <grenier@cgsecurity.org>
+https://www.cgsecurity.org
+OS: Linux, kernel 5.4.0-189-generic (#209-Ubuntu SMP Fri Jun 7 14:05:13 UTC 2024) x86_64
+Compiler: GCC 9.2
+ext2fs lib: 1.45.5, ntfs lib: libntfs-3g, reiserfs lib: none, ewf lib: none, curses lib: ncurses 6.1
+Warning: can't get size for Disk /dev/mapper/control - 0 B - 0 sectors, sector size=512
+Warning: can't get size for Disk /dev/loop5 - 0 B - 0 sectors, sector size=512
+Warning: can't get size for Disk /dev/loop6 - 0 B - 0 sectors, sector size=512
+Warning: can't get size for Disk /dev/loop7 - 0 B - 0 sectors, sector size=512
+Hard disk list
+Disk /dev/vda - 107 GB / 100 GiB - CHS 208050 16 63, sector size=512
+Disk /dev/loop0 - 67 MB / 63 MiB - 130960 sectors (RO), sector size=512
+Disk /dev/loop1 - 67 MB / 63 MiB - 130960 sectors (RO), sector size=512
+Disk /dev/loop2 - 40 MB / 38 MiB - 79520 sectors (RO), sector size=512
+Disk /dev/loop3 - 96 MB / 91 MiB - 188072 sectors (RO), sector size=512
+Disk /dev/loop4 - 40 MB / 38 MiB - 79328 sectors (RO), sector size=512
+
+Partition table type (auto): EFI GPT
+Disk /dev/vda - 107 GB / 100 GiB
+Partition table type: EFI GPT
+
+Interface Advanced
+hdr_size=92
+hdr_lba_self=1
+hdr_lba_alt=209715199 (expected 209715199)
+hdr_lba_start=34
+hdr_lba_end=209715166
+hdr_lba_table=2
+hdr_entries=128
+hdr_entsz=128
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+ 1 P Unknown                     2048       4095       2048
+ 2 P Linux filesys. data         4096  209715166  209711071
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+Image created successfully.
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+disk_image write() failed: No space left on device
+No space left for the file image.
+21686148 6449 6e6f 74 4e 65 65 64 45 46 49
+
+
+dir_partition inode=2
+ 2 P Linux filesys. data         4096  209715166  209711071
+Directory /
+       2 drwxr-xr-x     0      0      4096  3-Jun-2024 18:17 .
+       2 drwxr-xr-x     0      0      4096  3-Jun-2024 18:17 ..
+      11 drwx------     0      0     16384  7-Feb-2024 19:43 lost+found
+      12 lrwxrwxrwx     0      0         7 15-Mar-2023 04:11 bin
+      13 lrwxrwxrwx     0      0         7 15-Mar-2023 04:11 lib
+      14 lrwxrwxrwx     0      0         9 15-Mar-2023 04:11 lib32
+      15 lrwxrwxrwx     0      0         9 15-Mar-2023 04:11 lib64
+      16 lrwxrwxrwx     0      0        10 15-Mar-2023 04:11 libx32
+      17 lrwxrwxrwx     0      0         8 15-Mar-2023 04:11 sbin
+ 2883585 drwxr-xr-x     0      0      4096 21-Jul-2024 06:07 boot
+X3014657 drwxrwxr-x  1000   1000      4096 30-Jul-2024 01:00 cdrom
+  131073 drwxr-xr-x     0      0      4096 15-Mar-2023 04:13 dev
+ 1441793 drwxr-xr-x     0      0     12288  5-Aug-2024 21:23 etc
+ 2359297 drwxr-xr-x     0      0      4096  7-Feb-2024 19:58 home
+  262145 drwxr-xr-x     0      0      4096 15-Mar-2023 04:11 media
+  917505 drwxr-xr-x     0      0      4096 15-Mar-2023 04:11 mnt
+ 2490369 drwxr-xr-x     0      0      4096  8-Feb-2024 05:20 opt
+ 1048577 drwxr-xr-x     0      0      4096 15-Apr-2020 16:39 proc
+ 3145729 drwx------     0      0      4096  5-Aug-2024 21:40 root
+ 1703937 drwxr-xr-x     0      0      4096 15-Mar-2023 04:14 run
+ 1179649 drwxr-xr-x     0      0      4096 15-Mar-2023 04:14 snap
+ 2752513 drwxr-xr-x     0      0      4096 15-Mar-2023 04:11 srv
+ 1835009 drwxr-xr-x     0      0      4096 15-Apr-2020 16:39 sys
+  524289 drwxrwxrwt     0      0    163840  4-Sep-2024 18:43 tmp
+  786433 drwxr-xr-x     0      0      4096 15-Mar-2023 04:12 usr
+ 1310721 drwxr-xr-x     0      0      4096 15-Mar-2023 04:13 var
+      18 -rw-------     0      0 4294967296  7-Feb-2024 19:45 swap.img
+X     19 -rw-------     0      0         0  3-Jun-2024 18:17 .ismount-test-file
+
+dir_partiti
