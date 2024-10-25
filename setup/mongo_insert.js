@@ -1,24 +1,28 @@
-db = connect("mongodb://localhost:27017/flyt");
+use mongodb::{bson::doc, options::ClientOptions, Client, Collection};
+use serde::{Deserialize, Serialize};
+use tokio;
 
-const existingDoc = db.vm_required_resources.findOne({ vm_ip: "10.129.26.124" });
+db = connect("mongodb://10.129.131.167:27017/flyt");
+
+const existingDoc = db.vm_required_resources.findOne({ vm_ip: "10.129.28.230" });
 if (existingDoc) {
     db.vm_required_resources.updateOne(
-        { vm_ip: "10.129.26.124" },
+        { vm_ip: "10.129.28.230" },
         {
             $set: {
-                host_ip: "10.129.27.234",
-                compute_units: 10,
-                memory: 250
+                host_ip: "10.129.2.22",
+                compute_units: 20,
+                memory: 850
             }
         }
     );
     print("updated document into vm_required_resources");
 } else {
     db.vm_required_resources.insertOne({
-        vm_ip: "10.129.26.124",
-        host_ip: "10.129.27.234",
-        compute_units: 10,
-        memory: 250
+        vm_ip: "10.129.28.230",
+        host_ip: "10.129.2.22",
+        compute_units: 20,
+        memory: 850
     });
     print("Inserted document into vm_required_resources");
 }

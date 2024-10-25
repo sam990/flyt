@@ -52,3 +52,25 @@ size_t get_gpu_memory_usage() {
     LOGE(LOG_ERROR, "Failed to find process info");
     return 0;
 }
+
+// Metric measurement utilisation
+void get_client_metric_utilisation(double *sm_wraps_active, double *sm_cycles_executed, double *sm_cycles_active) {
+	/* Initialize to zero */
+	*sm_wraps_active = 0;
+	*sm_cycles_executed = 0;
+	*sm_cycles_active = 0;
+
+	if (device == NULL) {
+                LOGE(LOG_ERROR, "metric utilisation called with device as NULL");
+		return ;
+	}
+	nvmlUtilization_t utilisation;
+	nvmlReturn_t result;
+
+	result = nvmlDeviceGetUtilizationRates(device, &utilisation);
+	if (result != NVML_SUCCESS) {
+	    LOGE(LOG_ERROR, "Failed to get UtilisationRates : %s", nvmlErrorString(result));
+	    return ;
+	}
+}
+

@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 const config = {
-    host: "localhost",
+    host: "10.129.131.167",
     port: 27017,
     user: "adminUser",
     password: "flyt",
@@ -20,7 +20,7 @@ async function main() {
         const collection = database.collection("vm_required_resources");
 
         // Find a document
-        const vm_ip = "10.129.26.124";
+        const vm_ip = "10.129.28.230";
         const document = await collection.findOne({ vm_ip: vm_ip });
         if (document) {
             document.memory *= 1024 * 1024; // Convert memory from GB to MB if needed

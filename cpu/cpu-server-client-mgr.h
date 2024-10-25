@@ -14,6 +14,8 @@
 
 
 
+// Number of metrics to capture
+#define CUPTI_NUM_METRICS 8
 
 enum MODULE_LOAD_TYPE {
     MODULE_LOAD_DATA = 0,
@@ -32,6 +34,7 @@ enum MEM_ALLOC_TYPE {
     MEM_ALLOC_TYPE_DEFAULT = 0,
     MEM_ALLOC_TYPE_3D = 1,
     MEM_ALLOC_TYPE_PITCH = 2,
+    MEM_ALLOC_TYPE_3D_ARRAY = 3,
 };
 
 typedef struct __mem_alloc_args {
@@ -64,8 +67,6 @@ typedef struct __stream_create_args {
     int priority;
 } stream_create_args_t;
 
-
-
 typedef struct __addr_data_pair {
     void* addr;
     struct {
@@ -77,9 +78,10 @@ typedef struct __addr_data_pair {
 
 typedef struct __cricket_client {
     int pid;
-    resource_map* gpu_mem;
     void* default_stream;
+    resource_map* gpu_mem;
     resource_map* custom_streams;
+    resource_map* gpu_events;
     resource_mg modules;
     resource_mg functions;
     resource_mg vars;
@@ -158,6 +160,16 @@ int remove_client_by_pid(int pid);
         return 1; \
     } else { \
         stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream); \
+    }
+
+#define GET_EVENT(event_ptr, event, result) \
+    if (!resource_map_contains(client->gpu_events, (void*)event)) { \
+        LOGE(LOG_ERROR, "event not found in gpu events"); \
+        result = cudaErrorInvalidValue; \
+        GSCHED_RELEASE; \
+        return 1; \
+    } else { \
+        event_ptr = resource_map_get_addr(client->gpu_events, (void*)event); \
     }
 
 #define GET_MEMORY(mem_ptr, client_addr, result) \

@@ -129,7 +129,8 @@ void resource_map_unset(resource_map* map, void* client_addr) {
 
     map->list[idx].mapped_addr = (void*)map->free_ptr_idx;
     map->list[idx].present = 0;
-    free(map->list[idx].args);
+    if(map->list[idx].args != NULL)
+    	free(map->list[idx].args);
     map->free_ptr_idx = idx;
     pthread_mutex_unlock(&map->mutex);
 }

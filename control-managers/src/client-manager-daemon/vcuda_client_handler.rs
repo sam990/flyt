@@ -31,6 +31,7 @@ impl VCudaClientManager {
 
         let key = PathProjectIdKey::new(mqueue_path.to_string(), PROJ_ID);
         let message_queue = MessageQueue::new(MessageQueueKey::PathKey(key)).create().init().unwrap();
+        log::debug!("key used by client: {} {} {}", message_queue.key, mqueue_path.to_string(), PROJ_ID);
         
         VCudaClientManager {
             clients: RwLock::new(Vec::new()),
@@ -62,7 +63,7 @@ impl VCudaClientManager {
                 continue;
             }
 
-            let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(2));
+            let recv_bytes = self.message_queue.recv_type_timed(client.recv_id, Duration::from_secs(8));
             if recv_bytes.is_err() {
                 log::error!("Error receiving response from client: {}", client.send_id);
                 continue;

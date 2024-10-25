@@ -1,0 +1,23 @@
+CUDA_SRC = /usr/local/cuda
+INCLUDES = -I$(CUDA_SRC)/include -I../include -I../include/profilerhost_util -I../include/c_util
+LIBS += -L $(CUDA_SRC)/lib64 -lcuda -lnvperf_host -lnvperf_target
+LIBEXT = a
+OBJ = o
+LIBPREFIX = lib
+CC = g++
+AR = ar
+
+$(LIBPREFIX)profilerHostUtil.$(LIBEXT): List.$(OBJ) Metric.$(OBJ) Eval.$(OBJ)
+	$(AR) rcs $@ $^ 
+
+List.$(OBJ): List.cpp
+	$(CC) $(NVCC_COMPILER) -c $(NVCC_FLAGS) $(INCLUDES) $<
+
+Metric.$(OBJ): Metric.cpp
+	$(CC) $(NVCC_COMPILER) -c $(NVCC_FLAGS) $(INCLUDES) $<
+
+Eval.$(OBJ): Eval.cpp
+	$(CC) $(NVCC_COMPILER) -c $(NVCC_FLAGS) $(INCLUDES) $<
+
+clean:
+	rm -f $(LIBPREFIX)profilerHostUtil.$(LIBEXT) List.$(OBJ) Metric.$(OBJ) Eval.$(OBJ)

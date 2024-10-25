@@ -74,7 +74,7 @@ impl VirtServerManager {
         // Construct the command and log all parts for debugging
         // // Store the path in a local variable
     let program_path = self.virt_server_program_path.as_str();
-    let mem_path = "valgrind --leak-check=full";
+    //let mem_path = "valgrind --leak-check=full";
 
     //let mut cmd = Command::new(mem_path);
         //.arg(program_path)
@@ -172,6 +172,54 @@ impl VirtServerManager {
         }
         
         Ok(())
+    }
+
+    pub fn get_virt_server_metrics_throughput(&self, rpc_id: u64) -> Result<Vec<u32>, String>  {
+        log::debug!("server_metrics_throughput: rpc_id: {}", rpc_id);
+
+        //return self.get_virt_server_metrics_utilization(rpc_id);
+        
+        let virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
+
+        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_SEND_METRICS_THROUGHPUT, "").as_bytes();
+
+        self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
+
+        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+
+        let recv_size = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
+        log::info!("metrics received size {}", recv_size);
+        let mut results = Vec::with_capacity(recv_size.try_into().unwrap());
+        for _i in 0..recv_size {
+            let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+            let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
+            log::info!("metrics data received {}", recv_status);
+            results.push(recv_status);
+        }
+
+        Ok(results)
+    }
+
+    pub fn get_virt_server_metrics_utilization(&self, rpc_id: u64) -> Result<Vec<u32>, String>  {
+        log::debug!("server_metrics_utilization: rpc_id: {}", rpc_id);
+        
+        let virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
+
+        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_SEND_METRICS_UTILIZATION, "").as_bytes();
+
+        self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
+
+        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+        let recv_size = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting size bytes to u32")?;
+
+        let mut results = Vec::with_capacity(recv_size.try_into().unwrap());
+        for _i in 0..recv_size {
+            let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+            let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
+            results.push(recv_status);
+        }
+
+        Ok(results)
     }
 
     pub fn remove_virt_server(&self, rpc_id: u64) -> Result<(),String> {

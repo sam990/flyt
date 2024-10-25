@@ -13,7 +13,7 @@ struct Config {
 impl Config {
     fn new() -> Self {
         Self {
-            host: "localhost".to_string(),
+            host: "10.129.131.167".to_string(),
             port: 27017,
             user: "adminUser".to_string(),
             //password: "flyt".to_string(),
@@ -98,8 +98,8 @@ impl VMResourcesGetter {
 #[tokio::main]
 async fn main() -> AnyResult<()> {
     let vm_getter = VMResourcesGetter::new();
-    let vm_ip_to_find = "10.129.26.124".to_string();
-    let vm_ip_to_insert = "10.129.26.124".to_string();
+    let vm_ip_to_find = "10.129.28.230".to_string();
+    let vm_ip_to_insert = "10.129.28.230".to_string();
     let host_ip_to_insert = "10.129.27.234".to_string();
 
     if let Some(vm_resources) = vm_getter.get_vm_required_resources(&vm_ip_to_find).await {

@@ -28,21 +28,43 @@ macro_rules! get_writer {
     };
 }
 
-
 macro_rules! stream_write {
-    ($stream: expr, $data: expr) => {
+    // Match for the case where you need to return None
+    ($stream:expr, $data:expr, None) => {{
         match $stream.write_all($data.as_bytes()) {
-            Ok(_) => {}
+            Ok(_) => {},
+            Err(e) => {
+                log::error!("Error writing to stream: {}", e);
+                return None;
+            }
+        }
+    }};
+    
+    // Default case: return an error message
+    ($stream:expr, $data:expr) => {{
+        match $stream.write_all($data.as_bytes()) {
+            Ok(_) => {},
             Err(e) => {
                 log::error!("Error writing to stream: {}", e);
                 return Err(format!("Error writing to stream: {}", e));
             }
         }
-    };
+    }};
 }
 
 macro_rules! stream_read_line {
-    ($stream: expr) => {
+    // Match for the case where you need to return None
+    ($stream:expr, None) => {{
+        match StreamUtils::read_line(&mut $stream) {
+            Ok(data) => data,
+            Err(e) => {
+                log::error!("Error reading from stream: {}", e);
+                return None;
+            }
+        }
+    }};
+    // Default case: return a specific error value
+    ($stream:expr) => {{
         match StreamUtils::read_line(&mut $stream) {
             Ok(data) => data,
             Err(e) => {
@@ -50,7 +72,7 @@ macro_rules! stream_read_line {
                 return Err(format!("Error reading from stream: {}", e));
             }
         }
-    };
+    }};
 }
 
 macro_rules! stream_read_response {
@@ -65,9 +87,17 @@ macro_rules! stream_read_response {
     };
 }
 
+const DEFAULT_ADD_LOAD: i32 = 5;
+
+fn split_u32(value: u32) -> (u16, u16) {
+    let lower = (value & 0xFFFF) as u16;      // Extract the lower 16 bits
+    let upper = (value >> 16) as u16;         // Extract the upper 16 bits
+    (lower, upper)
+}
+
 pub struct ServerNodesManager<'a> {
     server_nodes: Mutex<HashMap<String, ServerNode>>,
-    vm_resource_getter: &'a VMResourcesGetter,
+    pub vm_resource_getter: &'a VMResourcesGetter,
 }
 
 impl<'a> ServerNodesManager<'a> {
@@ -162,6 +192,8 @@ impl<'a> ServerNodesManager<'a> {
                 gpus: Vec::new(),
                 stream: Arc::new(RwLock::new(StreamEnds{writer: stream, reader })),
                 virt_servers: Vec::new(),
+                metrics: None,
+                add_load: DEFAULT_ADD_LOAD,
             };
         
             self.add_server_node(server_node);
@@ -210,16 +242,17 @@ impl<'a> ServerNodesManager<'a> {
                 compute_power: gpu_info[4].parse::<u64>().unwrap(),
                 ..Default::default()
             }));
+            log::info!("Server node gpu string: {}", gpu_info_str);
             gpus.push(gpu);
         }
 
         server_node.gpus = gpus;
         self.update_server_node(server_node);
-        log::info!("Server node gpus updated: {}", server_node_ip);
+        log::info!("Server node gpus updated: {}", server_node_ip );
         Ok(())
     }
 
-    fn get_free_gpu(&self, required_resources: &VMResources) -> Option<(String, u64)> {
+    pub fn get_free_gpu(&self, required_resources: &VMResources) -> Option<(String, u64)> {
         let host_server_node = self.get_server_node(&required_resources.host_ip);
         
         if host_server_node.is_some() {
@@ -284,6 +317,8 @@ impl<'a> ServerNodesManager<'a> {
         
         let server_node = self.get_server_node(&snode_ip);
 
+        // For all server nodes, get the heartbeat metrics.
+        // Compute scale up or down and take action.
         if server_node.is_none() {
             log::error!("Server node not found: {}", snode_ip);
             return Err("Server node not found".to_string());
@@ -328,6 +363,7 @@ impl<'a> ServerNodesManager<'a> {
             compute_units,
             memory,
             rpc_id: virt_server_rpc_id,
+            actual_units: compute_units,
             gpu: target_gpu.clone(),
         }));
 
@@ -561,6 +597,11 @@ impl<'a> ServerNodesManager<'a> {
 
         let mut vm_required_resources = vm_required_resources.unwrap();
         
+        if vm_required_resources.compute_units  == new_sm_cores {
+            log::error!("VM resources not changed: {}", new_sm_cores);
+            return Err("No change in VM resources ".to_string());
+        }
+
         vm_required_resources.compute_units = new_sm_cores;
         vm_required_resources.memory = new_mem;
 
@@ -572,6 +613,12 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         let (target_server_ip, target_gpu_id) = target_gpu.unwrap();
+
+        let snode_ip = client_mgr.get_client(client_ip).unwrap().virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
+        if target_server_ip == snode_ip {
+            log::error!("Migrating to same ip address: {}", target_server_ip);
+            return Err("No new GPU found".to_string());
+        }
 
         self.migrate_virt_server(client_mgr, client_ip, &target_server_ip, target_gpu_id, new_sm_cores, new_mem)
         
@@ -636,6 +683,20 @@ impl<'a> ServerNodesManager<'a> {
 
         let mut server_node = server_node.unwrap();
 
+        let mut total_actual_units = 0;
+
+        for virt_server in &server_node.virt_servers {
+            let virt_server_guard = virt_server.read().unwrap();  // Lock the RwLock for reading
+            if virt_server_guard.actual_units == 0 {
+                total_actual_units += virt_server_guard.compute_units;
+            }
+            else {
+                total_actual_units += virt_server_guard.actual_units;
+            }
+        }
+
+
+
         let target_vserver = server_node.virt_servers.iter_mut().find(|virt_server| virt_server.read().unwrap().rpc_id == rpc_id);
 
         if target_vserver.is_none() {
@@ -649,10 +710,16 @@ impl<'a> ServerNodesManager<'a> {
         let tgpu = target_vserver_write_guard.gpu.clone();
         let mut gpu = tgpu.write().unwrap();
 
+        // Calculate the difference between GPU compute_units and total_actual_units
+        let available_units = gpu.compute_units as i32  + target_vserver_write_guard.actual_units as i32 - total_actual_units as i32;
+
         let compute_units_diff = compute_units - target_vserver_write_guard.compute_units;
         let memory_diff = memory - target_vserver_write_guard.memory;
 
-        if compute_units_diff + gpu.allocated_compute_units > gpu.compute_units|| memory_diff + gpu.allocated_memory > gpu.memory {
+        //if compute_units_diff + gpu.allocated_compute_units > gpu.compute_units|| memory_diff + gpu.allocated_memory > gpu.memory {
+        //if ((compute_units as i32) > available_units) || (memory_diff + gpu.allocated_memory > gpu.memory)  {
+        // with overprovision
+        if (compute_units > gpu.compute_units) || (memory_diff + gpu.allocated_memory > gpu.memory)  {
             log::error!("Not enough resources to allocate compute_units: {}, memory: {}", compute_units, memory);
             log::error!("Available compute_units: {}, memory: {}", gpu.compute_units - gpu.allocated_compute_units, gpu.memory - gpu.allocated_memory);
             log::error!("Current compute_units: {}, memory: {}", target_vserver_write_guard.compute_units, target_vserver_write_guard.memory);
@@ -679,6 +746,59 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     
 
+    }
+
+    pub fn get_server_node_metrics(&self, server_node_ip: &String , rpc_id: u64) -> Option<Vec<u32>> {
+
+        log::info!("Getting metrics for servernode: {}", server_node_ip);
+
+        // Check if the server node exists
+        if !self.exists(server_node_ip) {
+            log::error!("Server node not found: {}", server_node_ip);
+            return None;
+        }
+
+        let server_node = match self.get_server_node(server_node_ip) {
+            Some(node) => node,
+            None => {
+                log::error!("Failed to retrieve server node: {}", server_node_ip);
+                return None;
+            }
+        };
+
+        let mut results = Vec::with_capacity(3); // usage, call-rate, avg-latency Throughput, threads rate, wrap %, avg cycle activity, total instructions executed
+
+        // Send throughput metrics request
+        stream_write!(get_writer!(server_node), format!("{}\n{}\n", FlytApiCommand::SNODE_SEND_METRICS_THROUGHPUT, rpc_id), None);
+
+        let status = stream_read_line!(get_reader!(server_node), None);
+        log::info!("throughput status : {}", status);
+
+        if status != "200" {
+            let err_msg = stream_read_line!(get_reader!(server_node), None);
+            log::error!("RMGR_SNODE_SEND_METRIC_THROUGHPUT failed, Status: {}\n{}", status, err_msg);
+            return None;
+        }
+        
+        let metrics = stream_read_line!(get_reader!(server_node), None);
+        // Step 1: Remove the square brackets
+        let trimmed_str = metrics.trim_matches(|c| c == '[' || c == ']');
+
+        // Step 2: Split the string by commas and collect the values into a vector
+        let values: Vec<u32> = trimmed_str
+            .split(',')
+            .map(|s| s.trim().parse().expect("Failed to parse value"))
+            .collect();
+    
+        // Step 3: Extract the values into individual variables (assuming exactly 3 values)
+        if values.len() == 3 {
+            results.extend_from_slice(&values);
+            log::info!("Utilization values extracted: {}, {}, {}", values[0], values[1], values[2]);
+        } else {
+            log::error!("RMGR_SNODE_SEND_METRIC_UTILIZATION, expected 3 values but got: {}\n", values.len());
+            return None;
+        }
+        return Some(results); // Return the results vector wrapped in Some
     }
 
 }

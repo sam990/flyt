@@ -50,10 +50,12 @@ static void* cpu_client_mgr_handler(void* arg) {
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_PAUSE, 64) == 0) {
+            LOGE(LOG_INFO, "received VCUDA_PAUSE cmd:before sem_lock");
             pthread_rwlock_wrlock(&access_sem);
             struct msgbuf_uint32 resp;
             resp.mtype = send_type;
             resp.data = htonl(200);
+            LOGE(LOG_INFO, "received VCUDA_PAUSE cmd:after sem_lock");
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
         else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_RESUME, 64) == 0) {

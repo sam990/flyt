@@ -24,6 +24,7 @@ pub struct GPU {
     pub gpu_id: u64,
     pub allocated_memory: u64,
     pub allocated_compute_units: u32,
+    pub actual_allocated_units: u32,
 }
 
 impl Default for GPU {
@@ -36,26 +37,61 @@ impl Default for GPU {
             gpu_id: 0,
             allocated_memory: 0,
             allocated_compute_units: 0,
+            actual_allocated_units : 0,
         }
     }
 }
 
-#[derive(Debug)]
+const DEFAULT_ADD_LOAD: i32 = 5;
+
 pub struct ServerNode {
     pub ipaddr: String,
     pub gpus: Vec<Arc<RwLock<GPU>>>,
     pub stream: Arc<RwLock<StreamEnds<TcpStream>>>,
     pub virt_servers: Vec<Arc<RwLock<VirtServer>>>,
+    pub metrics: Option<Vec<u32>>,
+    pub add_load: i32,
 }
 
 impl Clone for ServerNode {
+    // Constructor method to create a new ServerNode
     fn clone(&self) -> Self {
         ServerNode {
             ipaddr: self.ipaddr.clone(),
             gpus: self.gpus.clone(),
             stream: self.stream.clone(),
-            virt_servers: self.virt_servers.clone()
+            virt_servers: self.virt_servers.clone(),
+            metrics: self.metrics.clone(),
+            add_load: self.add_load,
         }
+    }
+}
+
+impl ServerNode {
+    // Constructor method to create a new ServerNode
+    pub fn new(
+        ipaddr: String,
+        gpus: Vec<Arc<RwLock<GPU>>>,
+        stream: Arc<RwLock<StreamEnds<TcpStream>>>,
+        virt_servers: Vec<Arc<RwLock<VirtServer>>>,
+    ) -> Self {
+        ServerNode {
+            ipaddr,
+            gpus,
+            stream,
+            virt_servers,
+            metrics: None, // Default to None
+            add_load: DEFAULT_ADD_LOAD, // Use default value
+        }
+    }
+
+    // Method to reset add_load to default value
+    pub fn reset_add_load(&mut self) {
+        self.add_load = DEFAULT_ADD_LOAD;
+    }
+
+    pub fn get_default_load() -> i32 {
+        return DEFAULT_ADD_LOAD;
     }
 }
 
@@ -65,6 +101,7 @@ pub struct VirtServer {
     pub compute_units: u32,
     pub memory: u64,
     pub rpc_id: u64,
+    pub actual_units: u32,
     pub gpu: Arc<RwLock<GPU>>,
 }
 
@@ -162,4 +199,11 @@ pub fn get_ports() -> (u16, u16) {
     let node_port = config.get("ports").unwrap().get("node").unwrap().as_integer().unwrap() as u16;
     let client_port = config.get("ports").unwrap().get("client").unwrap().as_integer().unwrap() as u16;
     (node_port, client_port)
+}
+
+pub fn get_metrics_port() -> (u16, u16) {
+    let config: Table = Utils::load_config_file(RMGR_CONFIG_PATH);
+    let metric_port = config.get("metrics").unwrap().get("port").unwrap().as_integer().unwrap() as u16;
+    let metric_interval = config.get("metrics").unwrap().get("interval").unwrap().as_integer().unwrap() as u16;
+    (metric_port, metric_interval)
 }

@@ -6998,39 +6998,3 @@ Result: 270589272548
 +00:00:57.863674 [32mDEBUG[0m: __cudaUnregisterFatBinary(fatCubinHandle=0x55b0fd8df820)	in [4mcpu-client.c:440[0m
 +00:00:57.873823 [34mINFO[0m:	api-call-cnt: 15
 +00:00:57.873836 [34mINFO[0m:	memcpy-cnt: -2147483648
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version
-CUDA error: CUDA driver version is insufficient for CUDA runtime version

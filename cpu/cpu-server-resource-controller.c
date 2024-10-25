@@ -19,6 +19,7 @@ static uint64_t mem_limit = 0;
 static uint64_t current_mm_usage = 0;
 
 static volatile uint32_t new_num_sm_cores = 0;
+volatile uint32_t cur_num_sm_cores = 0;
 static volatile uint64_t new_mem = 0;
 static volatile int change_resource_flag = 0;
 
@@ -74,7 +75,14 @@ int change_sm_cores(uint32_t nm_sm_cores) {
     affinity_param.type = CU_EXEC_AFFINITY_TYPE_SM_COUNT;
     affinity_param.param.smCount.val = nm_sm_cores;
 
-    res2 = cuCtxCreate_v3(&newContext, &affinity_param, 1,  0, active_device);
+    int affinitySupported = 0;
+    res2 = cuDeviceGetExecAffinitySupport(&affinitySupported, CU_EXEC_AFFINITY_TYPE_SM_COUNT, active_device);
+    LOGE(LOG_INFO, "GPU affinitySupport: %d", affinitySupported);
+
+    if (affinitySupported != 0) 
+    	res2 = cuCtxCreate_v3(&newContext, &affinity_param, 1,  0, active_device);
+    else 
+    	res2 = cuCtxCreate(&newContext, 0, active_device);
 
     if (res2 != CUDA_SUCCESS) {
         const char *errStr;
@@ -150,6 +158,7 @@ void check_and_change_resource(void) {
 
     if (new_num_sm_cores != 0) {
         change_sm_cores(new_num_sm_cores);
+        cur_num_sm_cores = new_num_sm_cores;
         new_num_sm_cores = 0;
     }
 
@@ -201,6 +210,13 @@ int init_resource_controller(uint32_t num_sm_cores, uint64_t mem) {
         LOGE(LOG_ERROR, "Failed to get primary context: %s", errStr);
         return -1;
     }
+
+    /*
+    if(set_new_config(num_sm_cores, mem) != 0) {
+        LOGE(LOG_ERROR, "Failed to set new sm cores configuration");
+        return -1;
+    }
+    */
 
     if (change_sm_cores(num_sm_cores) != 0) {
         LOGE(LOG_ERROR, "Failed to set sm cores configuration");
