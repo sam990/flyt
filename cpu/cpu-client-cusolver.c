@@ -12,7 +12,6 @@
 #include "cpu-libwrap.h"
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
-
 #include "cpu-utils.h"
 #include "log.h"
 
@@ -28,9 +27,9 @@ cusolverStatus_t cusolverDnCreate(cusolverDnHandle_t* handle)
 #endif //WITH_API_CNT
     ptr_result result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cusolverdncreate_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -46,9 +45,9 @@ cusolverStatus_t cusolverDnDestroy(cusolverDnHandle_t handle)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cusolverdndestroy_1((ptr)handle, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -61,9 +60,9 @@ cusolverStatus_t cusolverDnSetStream(cusolverDnHandle_t handle, cudaStream_t str
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cusolverdnsetstream_1((ptr)handle, (ptr)streamId, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -934,9 +933,9 @@ cusolverStatus_t cusolverDnDgetrf_bufferSize(
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cusolverdndgetrf_buffersize_1((ptr)handle, m, n, (ptr)A, lda, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -988,9 +987,9 @@ cusolverStatus_t cusolverDnDgetrf(
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cusolverdndgetrf_1((ptr)handle, m, n, (ptr)A, lda, (ptr)Workspace, (ptr)devIpiv, (ptr)devInfo, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -1086,9 +1085,9 @@ cusolverStatus_t cusolverDnDgetrs(
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cusolverdndgetrs_1((ptr)handle, (int)trans, n, nrhs, (ptr)A, lda, (ptr)devIpiv, (ptr)B, ldb, (ptr)devInfo, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }

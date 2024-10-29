@@ -14,6 +14,7 @@
 #include <sys/mman.h>
 
 #include "cpu-common.h"
+
 #include "cpu-libwrap.h"
 #include "cpu-utils.h"
 #include "cpu_rpc_prot.h"
@@ -56,8 +57,8 @@ extern int register_func_cnt;
 extern int register_var_cnt;
 #endif // WITH_API_CNT
 
-struct rpc_times *times = NULL;
-struct rpc_cnt *calls = NULL;
+struct rpc_times *times__flyt = NULL; // name collision with pytorch times
+struct rpc_cnt *counts__flyt = NULL;
 
 // timing
 struct timespec ts_start, ts_end;
@@ -182,9 +183,9 @@ void resume_connection(void)
 //     int result_1;
 //     /*LOGE(LOG_INFO, "Trying connection...");
 //     char *printmessage_1_arg1 = "connection test";
-//     FUNC_BEGIN 
+//     FUNC_BEGIN(); 
 //     retval_1 = rpc_printmessage_1(printmessage_1_arg1, &result_1, clnt);
-//     FUNC_END
+//     FUNC_END();
 //     printf("return:%d\n", result_1);
 //     if (retval_1 == RPC_SUCCESS) {
 //         LOG(LOG_INFO, "connection still okay.");
@@ -193,9 +194,9 @@ void resume_connection(void)
 //     LOG(LOG_INFO, "connection dead. Reconnecting...");
 //     rpc_connect();
 //     LOG(LOG_INFO, "reconnected");
-//     FUNC_BEGIN 
+//     FUNC_BEGIN(); 
 //     retval_1 = cuda_device_synchronize_1(&result_1, clnt);
-//     FUNC_END
+//     FUNC_END();
 //     if (retval_1 != RPC_SUCCESS) {
 //         LOGE(LOG_ERROR, "error calling cudaDeviceSynchronize");
 //     }
@@ -229,7 +230,7 @@ void __attribute__((constructor)) init_rpc(void)
     char *printmessage_1_arg1 = "hello";
 
     LOGE(LOG_DBG(1), "log level is %d", LOG_LEVEL);
-    //init_log(LOG_LEVEL, __FILE__);
+    init_log(LOG_LEVEL, __FILE__);
 
     pthread_rwlock_init(&access_sem, NULL); // to allow read/write access to client.
 
@@ -262,10 +263,18 @@ void __attribute__((constructor)) init_rpc(void)
 
     initialized = 1;
 
+    counts__flyt = init_rpc_counts();
+    times__flyt = init_rpc_times();
+
     /// Now we can communicate ivshmem params to the server.
-    FUNC_BEGIN 
+    Timer t1;
+    FUNC_BEGIN(t1); 
     retval_1 = rpc_init_1(clnt_pid, _svc_args, &result_1,  clnt);
-    FUNC_END
+    printf("times: %p\n", times__flyt);
+    printf("counts: %p\n", counts__flyt);
+
+    FUNC_END();
+    TIMER_ADD_INCREMENT(t1, rpc_init_1);
 
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror(clnt, "call failed");
@@ -275,10 +284,6 @@ void __attribute__((constructor)) init_rpc(void)
         LOGE(LOG_ERROR, "cricket initialisation failed");
         exit(1);
     }
-
-    // init stats
-    calls = init_rpc_counts();
-    times = init_rpc_times();
 
     if (list_init(&kernel_infos, sizeof(kernel_info_t)) != 0) {
         LOGE(LOG_ERROR, "list init failed.");
@@ -308,24 +313,23 @@ void __attribute__((destructor)) deinit_rpc(void)
     enum clnt_stat retval_1;
     int result;
     if (initialized) {
-        FUNC_BEGIN 
+        FUNC_BEGIN(); 
         retval_1 = rpc_deinit_1(&result, clnt);
-        FUNC_END
+        FUNC_END();
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
         }
 
-        // time in memcpy
-        printf("total memcpy time: %d\n", t_memcpy_ms);
-
         // total execution time
         clock_gettime(CLOCK_MONOTONIC, &ts_end);
-        int time_ms = (ts_end.tv_sec - ts_start.tv_sec) * 1000 + (ts_end.tv_nsec - ts_start.tv_nsec) / 1000000;
-        printf("total execution time: %d\n", time_ms);
+        double time_ms = (ts_end.tv_sec - ts_start.tv_sec) * 1000 + (ts_end.tv_nsec - ts_start.tv_nsec) / 1000000;
+        
+        printf("total execution time: %02fs\n", time_ms/1000.0);
+        double rpc_ovh = calc_total_rpc_time(); // ms
 
-        // t(memcpy)/t(execution)
-        printf("memcpy ratio: %d\n", t_memcpy_ms/time_ms);
-
+        printf("Flyt Virtualisation overhead: %0.4fs\n", rpc_ovh/1000.0);
+        printf("(Likely) Pytorch overhead: %0.4fs\n", (time_ms - rpc_ovh)/1000.0);
+        printf("total memcpy time: %02fms\n", (times__flyt->cudaMemcpyD2H + times__flyt->cudaMemcpyH2D + times__flyt->cudaMemcpyD2D)/1000000000);
         report_rpc_stats();
 
         // unmap pci BAR
@@ -342,7 +346,7 @@ void __attribute__((destructor)) deinit_rpc(void)
         kernel_infos_free(kernel_infos.elements, kernel_infos.length);
         list_free(&kernel_infos);
 #ifdef WITH_API_CNT
-        cpu_runtime_print_api_call_cnt();
+        //cpu_runtime_print_api_call_cnt();
 #endif // WITH_API_CNT
     }
 
@@ -434,10 +438,12 @@ void __cudaRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress
         #ifdef WITH_API_CNT
         register_var_cnt++;
         #endif
-    FUNC_BEGIN 
+    Timer t1;
+    FUNC_BEGIN(t1); 
     retval_1 = rpc_register_var_1((ptr)fatCubinHandle, (ptr)hostVar, (ptr)deviceAddress, (char*)deviceName, ext, size, constant, global,
                                        &result, clnt);
-    FUNC_END
+    FUNC_END();
+    TIMER_ADD_INCREMENT(t1, rpc_register_var_1);
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed.");
     }
@@ -468,11 +474,14 @@ void __cudaRegisterFunction(void **fatCubinHandle, const char *hostFun,
         #ifdef WITH_API_CNT
         register_func_cnt++;
         #endif
-        FUNC_BEGIN 
+        Timer t1;
+        FUNC_BEGIN(t1); 
         retval_1 = rpc_register_function_1((ptr)fatCubinHandle, (ptr)hostFun,
                                            deviceFun, (char*)deviceName, thread_limit,
                                            &result, clnt);
-        FUNC_END
+        FUNC_END();
+        TIMER_ADD_INCREMENT(t1, rpc_register_function_1);
+
         if (retval_1 != RPC_SUCCESS) {
             LOGE(LOG_ERROR, "call failed.");
             exit(1);
@@ -510,10 +519,12 @@ void **__cudaRegisterFatBinary(void *fatCubin)
     // CUDA registers an atexit handler for fatbin cleanup that accesses
     // the fatbin data structure. Let's allocate some zeroes to avoid segfaults.
     result = (void**)calloc(1, 0x58);
-    FUNC_BEGIN 
+
+    Timer t1;
+    FUNC_BEGIN(t1);
     retval_1 = rpc_elf_load_1(rpc_fat, (ptr)result, &rpc_result, clnt);
-    FUNC_END
-    TIMER_ADD_INCREMENT(rpc_elf_load_1);
+    FUNC_END();
+    TIMER_ADD_INCREMENT(t1, rpc_elf_load_1);
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "call failed.");
@@ -523,6 +534,7 @@ void **__cudaRegisterFatBinary(void *fatCubin)
         return NULL;
     }
     LOG(LOG_DEBUG, "fatbin loaded to %p", result);
+
     // we return a bunch of zeroes to avoid segfaults. The memory is
     // mapped by the modules resource 
     return result;

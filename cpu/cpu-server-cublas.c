@@ -19,8 +19,6 @@
 #include "cpu-server-client-mgr.h"
 #include "gsched.h"
 
-
-
 int cublas_init(int bypass, resource_mg *memory)
 {
     int ret = 0;

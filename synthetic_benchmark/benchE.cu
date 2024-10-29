@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
     printf("b4 h2d 1\n");
 
     long long grid_size = num_threads >> 5;
-    printf("Grid size: %llu\n", grid_size);
+    //printf("Grid size: %llu\n", grid_size);
     long long block_size = 32;
 
     add<<<grid_size,block_size>>>(num_iterations, d_a, d_b, d_c);

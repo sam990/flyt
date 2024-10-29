@@ -158,7 +158,11 @@ CUresult cuDeviceGet(CUdevice* device, int ordinal)
 {
 	enum clnt_stat retval;
     int_result result;
+    Timer t1;
+    FUNC_BEGIN(t1);
     retval = rpc_cudeviceget_1(ordinal, &result, clnt);
+    FUNC_END();
+    TIMER_ADD_INCREMENT(t1, rpc_cudeviceget_1);
     printf("[rpc] %s = %d, result %d\n", __FUNCTION__, result.err,
                                         result.int_result_u.data);
 	if (retval != RPC_SUCCESS) {
@@ -347,10 +351,14 @@ CUresult cuDevicePrimaryCtxGetState(CUdevice dev, unsigned int* flags, int* acti
         LOGE(LOG_ERROR, "%s flags or active is NULL.", __FUNCTION__);
         return CUDA_ERROR_INVALID_VALUE;
     }
+    Timer t1;
+    FUNC_BEGIN(t1);
     retval = rpc_cudeviceprimaryctxgetstate_1(dev, &result, clnt);
     LOGE(LOG_DEBUG, "%s = %d, results %d %d", __FUNCTION__, result.err,
                                         result.dint_result_u.data.i1,
                                         result.dint_result_u.data.i2);
+    FUNC_END(t1);
+    TIMER_ADD_INCREMENT(t1, rpc_cudeviceprimaryctxgetstate_1);
 	if (retval != RPC_SUCCESS) {
 		LOGE(LOG_ERROR, "%s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
@@ -380,9 +388,13 @@ CUresult cuCtxGetCurrent(CUcontext *pctx)
 {
 	enum clnt_stat retval;
     ptr_result result;
+    Timer t1;
+    FUNC_BEGIN(t1);
     retval = rpc_cuctxgetcurrent_1(&result, clnt);
     // LOGE(LOG_DEBUG, "[rpc] %s(%p) = %d, result %p\n", __FUNCTION__, pctx, result.err,
     //                                     result.ptr_result_u.ptr);
+    FUNC_END();
+    TIMER_ADD_INCREMENT(t1, rpc_cuctxgetcurrent_1);
 	if (retval != RPC_SUCCESS) {
 		LOGE(LOG_DEBUG, "[rpc] %s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
@@ -901,6 +913,7 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
 
     if (strcmp("cuGetProcAddress", symbol) == 0 && cudaVersion >= 12000) {
         *pfn = elf2_symbol_address("cuGetProcAddress_v2");
+        printf("cuGetProcAddress is at %p\n", *pfn);
         if (symbolStatus != NULL) {
             *symbolStatus = CU_GET_PROC_ADDRESS_SUCCESS;
         }
@@ -908,6 +921,7 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
     }
 
     *pfn = elf2_symbol_address(symbol);
+    printf("%s is at %p\n", symbol, *pfn);
     if (*pfn == NULL) {
         LOGE(LOG_WARNING, "symbol %s not found.", symbol);
         if (symbolStatus != NULL) {

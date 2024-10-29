@@ -5,6 +5,7 @@
 #include "cpu-libwrap.h"
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
+
 #include "cpu-utils.h"
 #include "log.h"
 
@@ -19,9 +20,9 @@ size_t cudnnGetVersion(void)
 #endif //WITH_API_CNT
     size_t result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetversion_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -35,9 +36,9 @@ size_t cudnnGetMaxDeviceVersion(void)
 #endif //WITH_API_CNT
     size_t result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetmaxdeviceversion_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -51,9 +52,9 @@ size_t cudnnGetCudartVersion(void)
 #endif //WITH_API_CNT
     size_t result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetcudartversion_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -68,9 +69,9 @@ const char *cudnnGetErrorString(cudnnStatus_t status)
     static char str[128];
     char *result = NULL;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngeterrorstring_1((int)status, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -88,9 +89,9 @@ cudnnStatus_t cudnnQueryRuntimeError(cudnnHandle_t handle, cudnnStatus_t* rstatu
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnqueryruntimeerror_1((ptr)handle, (int)mode, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -114,9 +115,9 @@ cudnnStatus_t cudnnGetProperty(libraryPropertyType type, int * value)
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetproperty_1((int)type, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -139,9 +140,9 @@ cudnnStatus_t cudnnCreate(cudnnHandle_t* handle)
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnncreate_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -160,9 +161,9 @@ cudnnStatus_t cudnnDestroy(cudnnHandle_t handle)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnndestroy_1((ptr)handle, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -179,9 +180,9 @@ cudnnStatus_t cudnnSetStream(cudnnHandle_t handle, cudaStream_t streamId)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetstream_1((ptr)handle, (ptr)streamId, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -202,9 +203,9 @@ cudnnStatus_t cudnnGetStream(cudnnHandle_t handle, cudaStream_t * streamId)
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetstream_1((ptr)handle, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -227,9 +228,9 @@ cudnnStatus_t cudnnCreateTensorDescriptor(cudnnTensorDescriptor_t * tensorDesc)
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnncreatetensordescriptor_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -248,13 +249,13 @@ cudnnStatus_t cudnnSetTensor4dDescriptor(cudnnTensorDescriptor_t tensorDesc, cud
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsettensor4ddescriptor_1(
         (ptr)tensorDesc,
         (int)format,
         (int)dataType,
         n, c, h, w, &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -272,12 +273,12 @@ cudnnStatus_t cudnnSetTensor4dDescriptorEx(cudnnTensorDescriptor_t tensorDesc, c
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsettensor4ddescriptorex_1(
         (ptr)tensorDesc,
         (int)dataType,
         n, c, h, w, nStride, cStride, hStride, wStride, &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -299,11 +300,11 @@ cudnnStatus_t cudnnGetTensor4dDescriptor(const cudnnTensorDescriptor_t tensorDes
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngettensor4ddescriptor_1(
         (ptr)tensorDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -339,13 +340,13 @@ cudnnStatus_t cudnnSetTensorNdDescriptor(cudnnTensorDescriptor_t tensorDesc, cud
         .mem_data_len = nbDims * sizeof(int),
         .mem_data_val = (char*)strideA
     };
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsettensornddescriptor_1(
         (ptr)tensorDesc,
         (int)dataType,
         (int)nbDims,
         rpc_dimA, rpc_strideA, &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -367,14 +368,14 @@ cudnnStatus_t cudnnSetTensorNdDescriptorEx(cudnnTensorDescriptor_t tensorDesc, c
         .mem_data_len = nbDims * sizeof(int),
         .mem_data_val = (char*)dimA
     };
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsettensornddescriptorex_1(
         (ptr)tensorDesc,
         (int)format,
         (int)dataType,
         (int)nbDims,
         rpc_dimA, &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -398,12 +399,12 @@ cudnnStatus_t cudnnGetTensorNdDescriptor(const cudnnTensorDescriptor_t tensorDes
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngettensornddescriptor_1(
         (ptr)tensorDesc,
         nbDimsRequested,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -435,11 +436,11 @@ cudnnStatus_t cudnnGetTensorSizeInBytes(const cudnnTensorDescriptor_t tensorDesc
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngettensorsizeinbytes_1(
         (ptr)tensorDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -459,11 +460,11 @@ cudnnStatus_t cudnnDestroyTensorDescriptor(cudnnTensorDescriptor_t tensorDesc)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnndestroytensordescriptor_1(
         (ptr)tensorDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -490,7 +491,7 @@ cudnnStatus_t cudnnTransformTensor(cudnnHandle_t handle, const void * alpha, con
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnntransformtensor_1(
         (ptr)handle,
         rpc_alpha,
@@ -500,7 +501,7 @@ cudnnStatus_t cudnnTransformTensor(cudnnHandle_t handle, const void * alpha, con
         (ptr)yDesc,
         (ptr)y,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -522,7 +523,7 @@ cudnnStatus_t cudnnAddTensor(cudnnHandle_t handle, const void * alpha, const cud
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnaddtensor_1(
         (ptr)handle,
         rpc_alpha,
@@ -532,7 +533,7 @@ cudnnStatus_t cudnnAddTensor(cudnnHandle_t handle, const void * alpha, const cud
         (ptr)cDesc,
         (ptr)C,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -568,9 +569,9 @@ cudnnStatus_t cudnnCreateFilterDescriptor(cudnnFilterDescriptor_t * filterDesc)
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnncreatefilterdescriptor_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -589,13 +590,13 @@ cudnnStatus_t cudnnSetFilter4dDescriptor(cudnnFilterDescriptor_t filterDesc, cud
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetfilter4ddescriptor_1(
         (ptr)filterDesc,
         (int)dataType,
         (int)format,
         k, c, h, w, &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -617,11 +618,11 @@ cudnnStatus_t cudnnGetFilter4dDescriptor(const cudnnFilterDescriptor_t filterDes
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetfilter4ddescriptor_1(
         (ptr)filterDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -650,14 +651,14 @@ cudnnStatus_t cudnnSetFilterNdDescriptor(cudnnFilterDescriptor_t filterDesc, cud
         .mem_data_len = nbDims * sizeof(int),
         .mem_data_val = (char*)filterDimA
     };
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetfilternddescriptor_1(
         (ptr)filterDesc,
         (int)dataType,
         (int)format,
         (int)nbDims,
         rpc_filterDimA, &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -681,12 +682,12 @@ cudnnStatus_t cudnnGetFilterNdDescriptor(const cudnnFilterDescriptor_t filterDes
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetfilternddescriptor_1(
         (ptr)filterDesc,
         nbDimsRequested,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -718,11 +719,11 @@ cudnnStatus_t cudnnGetFilterSizeInBytes(const cudnnFilterDescriptor_t filterDesc
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetfiltersizeinbytes_1(
         (ptr)filterDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -745,7 +746,7 @@ cudnnStatus_t cudnnTransformFilter(cudnnHandle_t handle, const cudnnTensorTransf
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnntransformfilter_1(
         (ptr)handle,
         (ptr)transDesc,
@@ -756,7 +757,7 @@ cudnnStatus_t cudnnTransformFilter(cudnnHandle_t handle, const cudnnTensorTransf
         (ptr)destDesc,
         (ptr)destData,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -774,11 +775,11 @@ cudnnStatus_t cudnnDestroyFilterDescriptor(cudnnFilterDescriptor_t filterDesc)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnndestroyfilterdescriptor_1(
         (ptr)filterDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -799,7 +800,7 @@ cudnnStatus_t cudnnSoftmaxForward(cudnnHandle_t handle, cudnnSoftmaxAlgorithm_t 
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsoftmaxforward_1(
         (ptr)handle,
         (int)algo,
@@ -811,7 +812,7 @@ cudnnStatus_t cudnnSoftmaxForward(cudnnHandle_t handle, cudnnSoftmaxAlgorithm_t 
         (ptr)yDesc,
         (ptr)y,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -832,9 +833,9 @@ cudnnStatus_t cudnnCreatePoolingDescriptor(cudnnPoolingDescriptor_t *poolingDesc
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnncreatepoolingdescriptor_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -853,7 +854,7 @@ cudnnStatus_t cudnnSetPooling2dDescriptor(cudnnPoolingDescriptor_t poolingDesc, 
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetpooling2ddescriptor_1(
         (ptr)poolingDesc,
         (int)mode,
@@ -865,7 +866,7 @@ cudnnStatus_t cudnnSetPooling2dDescriptor(cudnnPoolingDescriptor_t poolingDesc, 
         verticalStride,
         horizontalStride,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -887,11 +888,11 @@ cudnnStatus_t cudnnGetPooling2dDescriptor(const cudnnPoolingDescriptor_t pooling
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetpooling2ddescriptor_1(
         (ptr)poolingDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -930,7 +931,7 @@ cudnnStatus_t cudnnSetPoolingNdDescriptor(cudnnPoolingDescriptor_t poolingDesc, 
         .mem_data_len = nbDims * sizeof(int),
         .mem_data_val = (char*)strideA
     };
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetpoolingnddescriptor_1(
         (ptr)poolingDesc,
         (int)mode,
@@ -940,7 +941,7 @@ cudnnStatus_t cudnnSetPoolingNdDescriptor(cudnnPoolingDescriptor_t poolingDesc, 
         rpc_paddingA,
         rpc_strideA,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -964,12 +965,12 @@ cudnnStatus_t cudnnGetPoolingNdDescriptor(const cudnnPoolingDescriptor_t pooling
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetpoolingnddescriptor_1(
         (ptr)poolingDesc,
         nbDimsRequested,
         &result, clnt);
-    FUNC_END 
+    FUNC_END(); 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1005,13 +1006,13 @@ cudnnStatus_t cudnnGetPoolingNdForwardOutputDim(const cudnnPoolingDescriptor_t p
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetpoolingndforwardoutputdim_1(
         (ptr)poolingDesc,
         (ptr)inputTensorDesc,
         nbDims,
         &result, clnt);
-    FUNC_END 
+    FUNC_END(); 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1033,12 +1034,12 @@ cudnnStatus_t cudnnGetPooling2dForwardOutputDim(const cudnnPoolingDescriptor_t p
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetpooling2dforwardoutputdim_1(
         (ptr)poolingDesc,
         (ptr)inputTensorDesc,
         &result, clnt);
-    FUNC_END 
+    FUNC_END(); 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1060,11 +1061,11 @@ cudnnStatus_t cudnnDestroyPoolingDescriptor(cudnnPoolingDescriptor_t poolingDesc
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnndestroypoolingdescriptor_1(
         (ptr)poolingDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1085,7 +1086,7 @@ cudnnStatus_t cudnnPoolingForward(cudnnHandle_t handle, const cudnnPoolingDescri
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnpoolingforward_1(
         (ptr)handle,
         (ptr)poolingDesc,
@@ -1096,7 +1097,7 @@ cudnnStatus_t cudnnPoolingForward(cudnnHandle_t handle, const cudnnPoolingDescri
         (ptr)yDesc,
         (ptr)y,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1117,9 +1118,9 @@ cudnnStatus_t cudnnCreateActivationDescriptor(cudnnActivationDescriptor_t * acti
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnncreateactivationdescriptor_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1138,14 +1139,14 @@ cudnnStatus_t cudnnSetActivationDescriptor(cudnnActivationDescriptor_t activatio
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetactivationdescriptor_1(
         (ptr)activationDesc,
         (int)mode,
         (int)reluNanOpt,
         coef,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1167,11 +1168,11 @@ cudnnStatus_t cudnnGetActivationDescriptor(const cudnnActivationDescriptor_t act
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetactivationdescriptor_1(
         (ptr)activationDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1193,12 +1194,12 @@ cudnnStatus_t cudnnSetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t 
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetactivationdescriptorswishbeta_1(
         (ptr)activationDesc,
         swish_beta,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1220,11 +1221,11 @@ cudnnStatus_t cudnnGetActivationDescriptorSwishBeta(cudnnActivationDescriptor_t 
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetactivationdescriptorswishbeta_1(
         (ptr)activationDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1244,11 +1245,11 @@ cudnnStatus_t cudnnDestroyActivationDescriptor(cudnnActivationDescriptor_t activ
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnndestroyactivationdescriptor_1(
         (ptr)activationDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1269,7 +1270,7 @@ cudnnStatus_t cudnnActivationForward(cudnnHandle_t handle, cudnnActivationDescri
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnactivationforward_1(
         (ptr)handle,
         (ptr)activationDesc,
@@ -1280,7 +1281,7 @@ cudnnStatus_t cudnnActivationForward(cudnnHandle_t handle, cudnnActivationDescri
         (ptr)yDesc,
         (ptr)y,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1301,9 +1302,9 @@ cudnnStatus_t cudnnCreateLRNDescriptor(cudnnLRNDescriptor_t * normDesc)
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnncreatelrndescriptor_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1322,7 +1323,7 @@ cudnnStatus_t cudnnSetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned lrnN
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetlrndescriptor_1(
         (ptr)normDesc,
         (int)lrnN,
@@ -1330,7 +1331,7 @@ cudnnStatus_t cudnnSetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned lrnN
         lrnBeta,
         lrnK,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1352,11 +1353,11 @@ cudnnStatus_t cudnnGetLRNDescriptor(cudnnLRNDescriptor_t normDesc, unsigned * lr
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetlrndescriptor_1(
         (ptr)normDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1379,11 +1380,11 @@ cudnnStatus_t cudnnDestroyLRNDescriptor(cudnnLRNDescriptor_t lrnDesc)
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnndestroylrndescriptor_1(
         (ptr)lrnDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1404,7 +1405,7 @@ cudnnStatus_t cudnnLRNCrossChannelForward(cudnnHandle_t handle, cudnnLRNDescript
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnlrncrosschannelforward_1(
         (ptr)handle,
         (ptr)normDesc,
@@ -1416,7 +1417,7 @@ cudnnStatus_t cudnnLRNCrossChannelForward(cudnnHandle_t handle, cudnnLRNDescript
         (ptr)yDesc,
         (ptr)y,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1474,9 +1475,9 @@ cudnnStatus_t cudnnCreateConvolutionDescriptor(cudnnConvolutionDescriptor_t* con
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnncreateconvolutiondescriptor_1(&result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1495,11 +1496,11 @@ cudnnStatus_t cudnnDestroyConvolutionDescriptor(cudnnConvolutionDescriptor_t con
 #endif //WITH_API_CNT
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnndestroyconvolutiondescriptor_1(
         (ptr)convDesc,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1524,12 +1525,12 @@ cudnnStatus_t cudnnSetConvolutionMathType(cudnnConvolutionDescriptor_t convDesc,
 
     int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetconvolutionmathtype_1(
         (ptr)convDesc,
         mathType,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1548,12 +1549,12 @@ cudnnStatus_t cudnnSetConvolutionGroupCount(cudnnConvolutionDescriptor_t convDes
 
         int result;
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetconvolutiongroupcount_1(
         (ptr)convDesc,
         groupCount,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1584,7 +1585,7 @@ cudnnStatus_t cudnnSetConvolutionNdDescriptor(cudnnConvolutionDescriptor_t convD
         .mem_data_len = arrayLength * sizeof(int),
         .mem_data_val = (char*)dilationA
     };
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnsetconvolutionnddescriptor_1(
         (ptr)convDesc,
         arrayLength,
@@ -1594,7 +1595,7 @@ cudnnStatus_t cudnnSetConvolutionNdDescriptor(cudnnConvolutionDescriptor_t convD
         mode,
         computeType,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
@@ -1620,14 +1621,14 @@ cudnnStatus_t cudnnGetConvolutionNdForwardOutputDim(const cudnnConvolutionDescri
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetconvolutionndforwardoutputdim_1(
         (ptr)convDesc,
         (ptr)inputTensorDesc,
         (ptr)filterDesc,
         nbDims,
         &result, clnt);
-    FUNC_END 
+    FUNC_END(); 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1652,7 +1653,7 @@ cudnnStatus_t cudnnGetConvolutionForwardAlgorithm_v7(cudnnHandle_t handle,  cons
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetconvolutionforwardalgorithm_v7_1(
         (ptr)handle,
         (ptr)srcDesc,
@@ -1661,7 +1662,7 @@ cudnnStatus_t cudnnGetConvolutionForwardAlgorithm_v7(cudnnHandle_t handle,  cons
         (ptr)destDesc,
         requestedAlgoCount,
         &result, clnt);
-    FUNC_END 
+    FUNC_END(); 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1692,7 +1693,7 @@ cudnnStatus_t cudnnFindConvolutionForwardAlgorithm( cudnnHandle_t handle,  const
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnfindconvolutionforwardalgorithm_1(
         (ptr)handle,
         (ptr)xDesc,
@@ -1701,7 +1702,7 @@ cudnnStatus_t cudnnFindConvolutionForwardAlgorithm( cudnnHandle_t handle,  const
         (ptr)yDesc,
         requestedAlgoCount,
         &result, clnt);
-    FUNC_END 
+    FUNC_END(); 
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1735,7 +1736,7 @@ cudnnStatus_t cudnnGetConvolutionForwardWorkspaceSize( cudnnHandle_t handle,  co
         LOGE(LOG_ERROR, "%s failed (value is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnngetconvolutionforwardworkspacesize_1(
         (ptr)handle,
         (ptr)xDesc,
@@ -1744,7 +1745,7 @@ cudnnStatus_t cudnnGetConvolutionForwardWorkspaceSize( cudnnHandle_t handle,  co
         (ptr)yDesc,
         algo,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1766,7 +1767,7 @@ cudnnStatus_t cudnnConvolutionForward(cudnnHandle_t handle,  const void* alpha, 
     //TODO: Check if we have a float instead of always sending doubles
     cudnn_scaling_t rpc_alpha = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)alpha)};
     cudnn_scaling_t rpc_beta = {.dataType = CUDNN_DATA_DOUBLE, .cudnn_scaling_t_u.d = *((double*)beta)};
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnconvolutionforward_1(
         (ptr)handle,
         rpc_alpha,
@@ -1782,7 +1783,7 @@ cudnnStatus_t cudnnConvolutionForward(cudnnHandle_t handle,  const void* alpha, 
         (ptr)yDesc,
         (ptr)y,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1815,11 +1816,11 @@ cudnnStatus_t cudnnBackendCreateDescriptor(cudnnBackendDescriptorType_t descript
         LOGE(LOG_ERROR, "%s failed (descriptor is NULL)", __FUNCTION__);
         return CUDNN_STATUS_BAD_PARAM;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnbackendcreatedescriptor_1(
         (int)descriptorType,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1840,9 +1841,9 @@ cudnnStatus_t cudnnBackendDestroyDescriptor(cudnnBackendDescriptor_t descriptor)
     int result;
     enum clnt_stat retval_1;
     LOGE(LOG_DEBUG, "%s(%p)", __FUNCTION__, descriptor);
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnbackenddestroydescriptor_1((ptr)descriptor, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1860,9 +1861,9 @@ cudnnStatus_t cudnnBackendInitialize(cudnnBackendDescriptor_t descriptor)
     int result;
     enum clnt_stat retval_1;
     LOGE(LOG_DEBUG, "%s(%p)", __FUNCTION__, descriptor);
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnbackendinitialize_1((ptr)descriptor, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1880,9 +1881,9 @@ cudnnStatus_t cudnnBackendFinalize(cudnnBackendDescriptor_t descriptor)
     int result;
     enum clnt_stat retval_1;
     LOGE(LOG_DEBUG, "%s(%p)", __FUNCTION__, descriptor);
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnbackendfinalize_1((ptr)descriptor, &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1944,7 +1945,7 @@ cudnnStatus_t cudnnBackendSetAttribute(cudnnBackendDescriptor_t descriptor,
         .mem_data_val = (char *)arrayOfElements
     };
     enum clnt_stat retval_1;
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnbackendsetattribute_1(
         (ptr)descriptor,
         (int)attributeName,
@@ -1952,7 +1953,7 @@ cudnnStatus_t cudnnBackendSetAttribute(cudnnBackendDescriptor_t descriptor,
         elementCount,
         data,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -1981,14 +1982,14 @@ cudnnStatus_t cudnnBackendGetAttribute(cudnnBackendDescriptor_t const descriptor
         LOGE(LOG_ERROR, "%s failed (malloc failed)", __FUNCTION__);
         return CUDNN_STATUS_ALLOC_FAILED;
     }
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnbackendgetattribute_1(
         (ptr)descriptor,
         (int)attributeName,
         (int)attributeType,
         requestedElementCount,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
@@ -2017,13 +2018,13 @@ cudnnStatus_t cudnnBackendExecute(cudnnHandle_t handle, cudnnBackendDescriptor_t
     int result;
     enum clnt_stat retval_1;
     LOGE(LOG_DEBUG, "%s(%p, %p, %p)", __FUNCTION__, handle, executionPlan, variantPack);
-    FUNC_BEGIN 
+    FUNC_BEGIN(); 
     retval_1 = rpc_cudnnbackendexecute_1(
         (ptr)handle,
         (ptr)executionPlan,
         (ptr)variantPack,
         &result, clnt);
-    FUNC_END
+    FUNC_END();
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);
     }
