@@ -10,13 +10,14 @@
 #include "cpu-server-client-mgr.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu_rpc_prot.h"
+#include "cpu-server-dev-mem.h"
 
 #define STR_DUMP_SIZE 128
 
 static pthread_mutex_t client_mgr_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-//static resource_mg pid_to_xp_fd;
+static resource_mg pid_to_xp_fd;
 static resource_mg xp_fd_to_client;
 static resource_mg restored_clients;
 
@@ -358,22 +359,22 @@ static int freeResources(cricket_client* client);
 
 int init_cpu_server_client_mgr() {
     int ret = 0;
-    /*
+
     ret = resource_mg_init(&pid_to_xp_fd, 0);
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to initialize pid_to_xp_fd resource manager");
         return ret;
     }
-    */
+
     ret = resource_mg_init(&xp_fd_to_client, 0);
     if (ret != 0) {
-        //resource_mg_free(&pid_to_xp_fd);
+        resource_mg_free(&pid_to_xp_fd);
         LOGE(LOG_ERROR, "Failed to initialize xp_fd_to_client resource manager");
         return ret;
     }
     ret = resource_mg_init(&restored_clients, 0);
     if (ret != 0) {
-        //resource_mg_free(&pid_to_xp_fd);
+        resource_mg_free(&pid_to_xp_fd);
         resource_mg_free(&xp_fd_to_client);
         LOGE(LOG_ERROR, "Failed to initialize restored_clients resource manager");
         return ret;
@@ -383,7 +384,7 @@ int init_cpu_server_client_mgr() {
 }
 
 void free_cpu_server_client_mgr() {
-    //resource_mg_free(&pid_to_xp_fd);
+    resource_mg_free(&pid_to_xp_fd);
     resource_mg_free(&xp_fd_to_client);
     resource_mg_free(&restored_clients);
 }
@@ -396,26 +397,21 @@ cricket_client* create_client(int pid) {
         return NULL;
     }
     client->pid = pid;
-    client->gpu_mem = init_resource_map(INIT_MEM_SLOTS);
-    if (client->gpu_mem == NULL) {
-        LOGE(LOG_ERROR, "Failed to initialize gpu_mem resource map for new client");
-        free(client);
-        return NULL;
-    }
+
+    
     client->default_stream = NULL; // create a default stream
 
     cudaError_t err = cudaStreamCreateWithFlags((cudaStream_t *)&client->default_stream, cudaStreamNonBlocking);
     if (err != cudaSuccess) {
         LOGE(LOG_ERROR, "Failed to create default stream for new client: %s", cudaGetErrorString(err));
-        free_resource_map(client->gpu_mem);
         free(client);
         return NULL;
     }
 
     client->custom_streams = init_resource_map(INIT_STREAM_SLOTS);
     if (client->custom_streams == NULL) {
+        cudaStreamDestroy(client->default_stream);
         LOGE(LOG_ERROR, "Failed to initialize custom_streams resource map for new client");
-        free_resource_map(client->gpu_mem);
         free(client);
         return NULL;
     }
@@ -428,10 +424,26 @@ cricket_client* create_client(int pid) {
         free(client);
         return NULL;
     }
-
+    resource_mg_init(&client->gpu_mem, 0);
     resource_mg_init(&client->modules, 0);
     resource_mg_init(&client->functions, 0);
     resource_mg_init(&client->vars, 0);
+
+    client->events = init_resource_map(INIT_EVENT_SLOTS);
+    if (client->events == NULL) {
+        LOGE(LOG_ERROR, "Failed to initialize events resource map for new client");
+        cudaStreamDestroy(client->default_stream);
+        free_resource_map(client->custom_streams);
+        resource_mg_free(&client->gpu_mem);
+        resource_mg_free(&client->modules);
+        resource_mg_free(&client->functions);
+        resource_mg_free(&client->vars);
+        free(client);
+        return NULL;
+    }
+
+    client->malloc_idx = 0;
+
     LOGE(LOG_INFO, "added client for pid %d\n", pid);
 
     return client;
@@ -448,14 +460,12 @@ int add_new_client(int pid, int xp_fd) {
 
     pthread_mutex_lock(&client_mgr_mutex);
 
-    //int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)pid, (void *)(long)xp_fd);
-    //ret |= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
-    int ret = resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
-
+    int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)pid, (void *)(long)xp_fd);
+    ret |= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
 
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to add new client to resource managers");
-        free_resource_map(client->gpu_mem);
+        resource_mg_free(&client->gpu_mem);
         free_resource_map(client->custom_streams);
         free_resource_map(client->gpu_events);
         resource_mg_free(&client->modules);
@@ -485,9 +495,8 @@ int move_restored_client(int pid, int xp_fd) {
     }
 
     pthread_mutex_lock(&client_mgr_mutex);
-    //int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)client->pid, (void *)(long)xp_fd);
-    //ret &= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
-    int ret = resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
+    int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)client->pid, (void *)(long)xp_fd);
+    ret &= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
     pthread_mutex_unlock(&client_mgr_mutex);
 
     if (ret != 0) {
@@ -508,17 +517,13 @@ inline cricket_client* get_client(int xp_fd) {
 	return ret;
 }
 
-/*
-inline cricket_client* get_client_by_pid(int pid) {
+cricket_client* get_client_by_pid(int pid) {
     int xp_fd = (int)(long)resource_mg_get_default(&pid_to_xp_fd, (void *)(long)pid, (void*)-1ll);
     if (xp_fd == -1) {
         return NULL;
     }
     return get_client(xp_fd);
 }
-*/
-
-
 
 int remove_client_ptr(cricket_client* client) {
     if (client == NULL) {
@@ -528,14 +533,14 @@ int remove_client_ptr(cricket_client* client) {
 
     pthread_mutex_lock(&client_mgr_mutex);
     LOGE(LOG_INFO, "removing client ptr from %d \n", client->pid);
-    //resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid);
+    resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid);
     
     // need to free gpu resources and custom streams
     freeResources(client);
     
 
     // free client
-    free_resource_map(client->gpu_mem);
+    resource_mg_free(&client->gpu_mem);
     free_resource_map(client->custom_streams);
     free_resource_map(client->gpu_events);
 
@@ -546,10 +551,8 @@ int remove_client_ptr(cricket_client* client) {
     while(resource_mg_get_element_at(&client->modules, FALSE, i, (void **)&elem) == 0) {
         i++;
 	if(elem != NULL) {
-
-            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-
-            free_module_data(pair);
+                addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+                free_module_data(pair);
 	}
     }
     //pthread_mutex_unlock(&client->modules.map_res.mutex);
@@ -578,11 +581,9 @@ int remove_client_ptr(cricket_client* client) {
     while(resource_mg_get_element_at(&client->functions, FALSE, i, (void **)&elem) == 0) {
         i++;
 	if(elem != NULL) {
-
-            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-        
-            free_function_data(pair);
-	}
+                addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+                free_function_data(pair);
+        }
     }
     //pthread_mutex_unlock(&client->functions.map_res.mutex);
     //pthread_mutex_unlock(&client->functions.mutex);
@@ -617,19 +618,16 @@ int remove_client(int xp_fd) {
 static int freeResources(cricket_client* client) {
     PRIMARY_CTX_RETAIN;
     
-    resource_map_iter *mem_iter = resource_map_init_iter(client->gpu_mem);
+    
+    resource_mg_map_elem *map_elem;
 
-    if (mem_iter == NULL) {
-        LOGE(LOG_ERROR, "Failed to initialize gpu_mem resource map iterator");
-        return -1;
+    for (size_t i = 0; i < client->gpu_mem.map_res.length; i++) {
+        resource_mg_get_element_at(&client->gpu_mem, FALSE, i, (void **)&map_elem);
+
+        mem_alloc_args_t *mem_args = (mem_alloc_args_t *)map_elem->cuda_address;
+        free_dev_mem(map_elem->client_address, mem_args->padded_size);
     }
 
-    uint64_t mem_idx;
-    while ((mem_idx = resource_map_iter_next(mem_iter)) != 0) {
-        cudaFree(resource_map_get_addr(client->gpu_mem, (void *)mem_idx));
-    }
-
-    resource_map_free_iter(mem_iter);
 
 
     resource_map_iter *event_itr = resource_map_init_iter(client->gpu_events);
@@ -681,7 +679,7 @@ cricket_client* get_next_client(cricket_client_iter* iter) {
 
     resource_mg_map_elem *elem;
     if(resource_mg_get_element_at(&xp_fd_to_client, FALSE, *iter, (void **)&elem) != 0) {
-            LOGE(LOG_ERROR, "get_next_client resource mgt_get_element returned NULL ");
+            LOGE(LOG_INFO, "get_next_client resource mgt_get_element returned NULL ");
 	    return NULL;
     }
     *iter += 1;
@@ -1057,5 +1055,18 @@ int load_function_data(resource_mg_map_elem *elem, FILE *fp) {
             LOGE(LOG_ERROR, "Invalid function data type: %d", pair->reg_data.type);
             return -1;
     }
+    return 0;
+}
+
+
+int dealloc_client_resources() {
+    cricket_client_iter iter = get_client_iter();
+
+    cricket_client* client;
+
+    while ((client = get_next_client(&iter)) != NULL) {
+        freeResources(client);
+    }
+
     return 0;
 }

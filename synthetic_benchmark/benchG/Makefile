@@ -20,6 +20,8 @@ CIVETWEB_LIB = libcivetweb.a
 CFLAGS = -I$(TOP)/include $(COPT) -g -O0
 LIBS = -lpthread
 
+NVCC_FLAGS = -arch sm_86
+
 include $(TOP)/resources/Makefile.in-os
 
 ifeq ($(TARGET_OS),LINUX) 
@@ -29,7 +31,7 @@ endif
 all: $(PROG)
 
 $(PROG): $(CIVETWEB_LIB) $(SRC) $(FUNC_LIB_SRC) $(DEP_HEADERS)
-	nvcc -o $@ $(CFLAGS) $(LDFLAGS) $(SRC) $(FUNC_LIB_SRC) $(CIVETWEB_LIB) $(LIBS) -cudart=shared
+	nvcc -o $@ $(CFLAGS) $(NVCC_FLAGS) $(LDFLAGS) $(SRC) $(FUNC_LIB_SRC) $(CIVETWEB_LIB) $(LIBS) -cudart=shared
 
 $(CIVETWEB_LIB):
 	$(MAKE) -C $(TOP) clean lib

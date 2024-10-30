@@ -89,6 +89,9 @@ impl <'a> FrontendHandler<'a> {
             FrontEndCommand::MIGRATE_VIRT_SERVER_AUTO => {
                 self.migrate_vm_auto(stream, reader);
             }
+            FrontEndCommand::INCREASE_RESOURCES => {
+                self.increase_resources(stream, reader);
+            }
             _ => {
                 log::error!("Invalid command: {}", command);
             }
@@ -360,6 +363,62 @@ impl <'a> FrontendHandler<'a> {
             let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", ret.unwrap_err()));
         }
 
+    }
+
+
+    fn increase_resources(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>) {
+        let buffer = match StreamUtils::read_response(&mut reader, 1) {
+            Ok(buffer) => buffer,
+            Err(e) => {
+                log::error!("Error reading buffer: {}", e);
+                return;
+            }
+        };
+        let parts: Vec<&str> = buffer[0].split(',').collect();
+        if parts.len() != 3 {
+            log::error!("Invalid arguments for increase resource command: {:?}", parts);
+            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+            return;
+        }
+        let ipaddr = parts[0];
+        let sm_inc = parts[1].parse::<u32>().unwrap();
+        let mem_inc = parts[2].parse::<u64>().unwrap();
+
+        log::info!("Increasing resource for VM: {}, sm_inc: {}, mem_inc: {}", ipaddr, sm_inc, mem_inc);
+
+        let client = self.client_mgr.get_client(ipaddr);
+        if client.is_none() {
+            log::error!("Client VM {} not found", ipaddr);
+            let _ = StreamUtils::write_all(&mut stream, "500\nVM not found\n".to_string());
+            return;
+        }
+
+        let client = client.unwrap();
+        
+        if client.virt_server.is_none() {
+            log::error!("VM {} is not running on any server node", ipaddr);
+            let _ = StreamUtils::write_all(&mut stream, "500\nVM is not running on any server node\n".to_string());
+            return;
+        }
+
+        let (virt_server_ip, virt_server_rpc_id, cur_compute, cur_mem) = {
+            let virt_server = client.virt_server.as_ref().unwrap().read().unwrap();
+            (virt_server.ipaddr.clone(), virt_server.rpc_id, virt_server.compute_units, virt_server.memory)
+        };
+
+        let new_compute = cur_compute + sm_inc;
+        let new_mem = cur_mem + mem_inc;
+
+        let ret = self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_compute, new_mem);
+
+        if ret.is_ok() {
+            log::info!("Resource updated successfully");
+            let _ = StreamUtils::write_all(&mut stream, format!("200\n{},{},Resource updated successfully\n", new_compute, new_mem));
+        }
+        else {
+            log::error!("Error updating resource: {:?}", ret);
+            let _ = StreamUtils::write_all(&mut stream, format!("300\n{},{},{}\n", cur_compute, cur_mem, ret.unwrap_err()));
+        }
     }
     
 }

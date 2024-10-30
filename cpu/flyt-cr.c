@@ -17,11 +17,17 @@
 #include "list.h"
 #include "cpu-server-resource-controller.h"
 #include "cpu-server-driver.h"
+#include "cpu-server-dev-mem.h"
 
 #include "flyt-cr.h"
 #include <dirent.h>
 
-int dump_memory(char *filename, resource_map *gpu_mem) {
+typedef struct __temp_sort_mem_alloc {
+    void *dev_ptr;
+    mem_alloc_args_t *alloc_args;
+} temp_sort_mem_alloc;
+
+int dump_memory(char *filename, resource_mg *gpu_mem) {
     FILE *fp = fopen(filename, "wb");
 
     if (fp == NULL) {
@@ -29,32 +35,93 @@ int dump_memory(char *filename, resource_map *gpu_mem) {
         return -1;
     }
 
-    fwrite(gpu_mem, sizeof(resource_map), 1, fp);
-    fwrite(gpu_mem->list, sizeof(resource_map_item), gpu_mem->length, fp);
+    uint64_t len = gpu_mem->map_res.length;
 
-    for (uint64_t i = 1; i < gpu_mem->tail_idx; i++) {
-        if (gpu_mem->list[i].present) {
-            
-            mem_alloc_args_t *alloc_args = (mem_alloc_args_t *)gpu_mem->list[i].args;
-            // get the data from the device
-            uint8_t *data = (uint8_t *)malloc(alloc_args->size);
-            if (data == NULL) {
-                LOGE(LOG_ERROR, "Failed to allocate memory for data");
-                fclose(fp);
-                return -1;
-            }
+    resource_mg mem_idx_ordered;
 
-            if (cudaMemcpy(data, gpu_mem->list[i].mapped_addr, alloc_args->size, cudaMemcpyDeviceToHost) != cudaSuccess) {
-                LOGE(LOG_ERROR, "Failed to copy data from device to host");
-                free(data);
-                fclose(fp);
-                return -1;
-            }
-            fwrite(gpu_mem->list[i].args, sizeof(mem_alloc_args_t), 1, fp);
-            fwrite(data, alloc_args->size, 1, fp);
-            free(data);
+    if (resource_mg_init(&mem_idx_ordered, 0) != 0) {
+        LOGE(LOG_ERROR, "Failed to initialize memory index ordered resource manager");
+        fclose(fp);
+        return -1;
+    }
+
+    for (uint64_t i = 0; i < len; i++) {
+        resource_mg_map_elem *elem = list_get(&gpu_mem->map_res, i);
+
+        if (elem == NULL) {
+            LOGE(LOG_ERROR, "Failed to get memory map element at index %lu", i);
+            fclose(fp);
+            return -1;
+        }
+
+        mem_alloc_args_t *alloc_args = (mem_alloc_args_t *)elem->cuda_address;
+        temp_sort_mem_alloc *alloc_args_temp = (temp_sort_mem_alloc *)malloc(sizeof(temp_sort_mem_alloc));
+        alloc_args_temp->dev_ptr = elem->client_address;
+        alloc_args_temp->alloc_args = alloc_args;
+
+        if (resource_mg_add_sorted(&mem_idx_ordered, alloc_args->idx, alloc_args_temp) != 0) {
+            LOGE(LOG_ERROR, "Failed to add memory map element to memory index ordered resource manager");
+            fclose(fp);
+            return -1;
         }
     }
+
+
+    LOGE(LOG_DEBUG, "Dumping memory for %lu elements", len);
+
+    fwrite(&len, sizeof(uint64_t), 1, fp);
+
+    for (uint64_t i = 0; i < len; i++) {
+
+        resource_mg_map_elem *elem;
+        
+
+        if (resource_mg_get_element_at(&mem_idx_ordered, 0, i, (void **)&elem) != 0) {
+            LOGE(LOG_ERROR, "Failed to get memory map element at index %lu", i);
+            fclose(fp);
+            return -1;
+        }
+
+        temp_sort_mem_alloc *alloc_args_temp = (temp_sort_mem_alloc *)elem->cuda_address;
+        void *dev_ptr = alloc_args_temp->dev_ptr;
+        mem_alloc_args_t *alloc_args = alloc_args_temp->alloc_args;
+        
+        free(alloc_args_temp);
+
+        LOGE(LOG_DEBUG, "Dumping memory for element %lu", i);
+        LOGE(LOG_DEBUG, "Client address: %p", dev_ptr);
+
+
+        if (alloc_args == NULL) {
+            LOGE(LOG_ERROR, "Failed to get memory allocation arguments");
+            fclose(fp);
+            return -1;
+        }
+
+        LOGE(LOG_DEBUG, "Size: %lu", alloc_args->size);
+
+        uint8_t *data = (uint8_t *)malloc(alloc_args->size);
+
+        if (data == NULL) {
+            LOGE(LOG_ERROR, "Failed to allocate memory for data");
+            fclose(fp);
+            return -1;
+        }
+
+        if (cudaMemcpy(data, dev_ptr, alloc_args->size, cudaMemcpyDeviceToHost) != cudaSuccess) {
+            LOGE(LOG_ERROR, "Failed to copy data from device to host");
+            free(data);
+            fclose(fp);
+            return -1;
+        }
+        
+        fwrite(&(dev_ptr), sizeof(void*), 1, fp);
+        fwrite(alloc_args, sizeof(mem_alloc_args_t), 1, fp);
+        fwrite(data, alloc_args->size, 1, fp);
+        free(data);
+
+    }
+
     fclose(fp);
     return 0;
 }
@@ -179,6 +246,8 @@ int flyt_create_checkpoint(char *basepath) {
     cricket_client *client;
 
     while ((client = get_next_client(&iter)) != NULL) {
+        LOGE(LOG_DEBUG, "Creating checkpoint for client %d", client->pid);
+
         char *client_path = malloc(strlen(basepath) + 32);
         if (client_path == NULL) {
             LOGE(LOG_ERROR, "Failed to allocate memory for client path");
@@ -204,12 +273,14 @@ int flyt_create_checkpoint(char *basepath) {
         }
 
         sprintf(filename, "%s/gpu_mem", client_path);
-        if (dump_memory(filename, client->gpu_mem) != 0) {
+        if (dump_memory(filename, &client->gpu_mem) != 0) {
             LOGE(LOG_ERROR, "Failed to dump memory for client %d", client->pid);
             free(client_path);
             free(filename);
             return -1;
         }
+
+        LOGE(LOG_DEBUG, "Dumped memory for client %d", client->pid);
 
         sprintf(filename, "%s/custom_streams", client_path);
         if (dump_streams(filename, client->custom_streams) != 0) {
@@ -218,6 +289,7 @@ int flyt_create_checkpoint(char *basepath) {
             free(filename);
             return -1;
         }
+        LOGE(LOG_DEBUG, "Dumped streams for client %d", client->pid);
 
         sprintf(filename, "%s/modules", client_path);
         if (dump_modules(filename, &client->modules) != 0) {
@@ -226,6 +298,8 @@ int flyt_create_checkpoint(char *basepath) {
             free(filename);
             return -1;
         }
+
+        LOGE(LOG_DEBUG, "Dumped modules for client %d", client->pid);
 
         sprintf(filename, "%s/functions", client_path);
         if (dump_functions(filename, &client->functions) != 0) {
@@ -243,6 +317,8 @@ int flyt_create_checkpoint(char *basepath) {
             return -1;
         }
 
+        LOGE(LOG_DEBUG, "Dumped functions for client %d", client->pid);
+
         free(client_path);
         free(filename);
 
@@ -251,7 +327,7 @@ int flyt_create_checkpoint(char *basepath) {
     return 0;
 }
 
-int flyt_restore_memory(char *memory_file, resource_map *gpu_mem) {
+int flyt_restore_memory(char *memory_file, resource_mg *gpu_mem) {
     FILE *fp = fopen(memory_file, "rb");
 
     if (fp == NULL) {
@@ -261,86 +337,87 @@ int flyt_restore_memory(char *memory_file, resource_map *gpu_mem) {
 
 
     size_t readsz;
+    uint64_t num_mem_blocks;
 
-    free(gpu_mem->list);
-
-    readsz = fread(gpu_mem, sizeof(resource_map), 1, fp);
+    readsz = fread(&num_mem_blocks, sizeof(uint64_t), 1, fp);
 
     if (readsz != 1) {
         fclose(fp);
-        LOGE(LOG_ERROR, "Failed to read memory map from file");
+        LOGE(LOG_ERROR, "Failed to read number of modules from file");
         return -1;
     }
 
-    gpu_mem->list = malloc(sizeof(resource_map_item) * gpu_mem->length);
-
-    if (gpu_mem->list == NULL) {
-        LOGE(LOG_ERROR, "Failed to allocate memory for memory map");
+    if (list_resize(&gpu_mem->map_res, num_mem_blocks) != 0) {
+        LOGE(LOG_ERROR, "Failed to resize modules list");
         fclose(fp);
         return -1;
     }
 
-    readsz = fread(gpu_mem->list, sizeof(resource_map_item), gpu_mem->length, fp);
+    gpu_mem->map_res.length = num_mem_blocks;
 
-    if (readsz != gpu_mem->length) {
-        fclose(fp);
-        LOGE(LOG_ERROR, "Failed to read memory map from file");
-        return -1;
-    }
 
     PRIMARY_CTX_RETAIN;
 
-    for (uint64_t i = 1; i < gpu_mem->tail_idx; i++) {
-        if (gpu_mem->list[i].present) {
-            gpu_mem->list[i].args = malloc(sizeof(mem_alloc_args_t));
-            
-            if (gpu_mem->list[i].args == NULL) {
-                LOGE(LOG_ERROR, "Failed to allocate memory for memory args");
-                fclose(fp);
-                return -1;
-            }
+    for (uint64_t i = 0; i < num_mem_blocks; i++) {
+        uint64_t addr;
+        mem_alloc_args_t *alloc_args = (mem_alloc_args_t *)malloc(sizeof(mem_alloc_args_t));
 
-            readsz = fread(gpu_mem->list[i].args, sizeof(mem_alloc_args_t), 1, fp);
-            if (readsz != 1) {
-                LOGE(LOG_ERROR, "Failed to read memory args from file");
-                fclose(fp);
-                return -1;
-            }
+        readsz = fread(&addr, sizeof(uint64_t), 1, fp);
 
-            mem_alloc_args_t *alloc_args = (mem_alloc_args_t *)gpu_mem->list[i].args;
-            // get the data from the device
-            uint8_t *data = (uint8_t *)malloc(alloc_args->size);
-            if (data == NULL) {
-                LOGE(LOG_ERROR, "Failed to allocate memory for data");
-                fclose(fp);
-                return -1;
-            }
-
-            readsz = fread(data, alloc_args->size, 1, fp);
-
-            if (readsz != 1) {
-                free(data);
-                fclose(fp);
-                return -1;
-            }
-
-            if (cudaMalloc(&gpu_mem->list[i].mapped_addr, alloc_args->size) != cudaSuccess) {
-                LOGE(LOG_ERROR, "Failed to allocate memory on device");
-                free(data);
-                fclose(fp);
-                return -1;
-            }
-
-            if (cudaMemcpy(gpu_mem->list[i].mapped_addr, data, alloc_args->size, cudaMemcpyHostToDevice) != cudaSuccess) {
-                LOGE(LOG_ERROR, "Failed to copy data to device");
-                free(data);
-                fclose(fp);
-                return -1;
-            }
-
-            free(data);
+        if (readsz != 1) {
+            fclose(fp);
+            LOGE(LOG_ERROR, "Failed to read memory address from file");
+            free(alloc_args);
+            return -1;
         }
+
+        LOGE(LOG_DEBUG, "Restoring memory at address %p", (void *)addr);
+
+        readsz = fread(alloc_args, sizeof(mem_alloc_args_t), 1, fp);
+
+        if (readsz != 1) {
+            fclose(fp);
+            LOGE(LOG_ERROR, "Failed to read memory allocation arguments from file");
+            free(alloc_args);
+            return -1;
+        }
+
+        void *data = malloc(alloc_args->size);
+
+        readsz = fread(data, alloc_args->size, 1, fp);
+
+        if (readsz != 1) {
+            fclose(fp);
+            LOGE(LOG_ERROR, "Failed to read memory data from file");
+            free(alloc_args);
+            free(data);
+            return -1;
+        }
+        size_t padded_out;
+        if (dev_mem_alloc((void **)&addr, alloc_args->size, 1, &padded_out) != cudaSuccess) {
+            LOGE(LOG_ERROR, "Failed to allocate memory");
+            free(alloc_args);
+            free(data);
+            return -1;
+        }
+
+        if (cudaMemcpy((void *)addr, data, alloc_args->size, cudaMemcpyHostToDevice) != cudaSuccess) {
+            LOGE(LOG_ERROR, "Failed to copy data to device");
+            free_dev_mem((void *)addr, padded_out);
+            free(alloc_args);
+            free(data);
+            return -1;
+        }
+
+        alloc_args->padded_size = padded_out;
+
+        resource_mg_map_elem *elem;
+
+        resource_mg_get_element_at(gpu_mem, FALSE, i, (void **)&elem);
+        elem->client_address = (void *)addr;
+        elem->cuda_address = alloc_args;
     }
+
 
     PRIMARY_CTX_RELEASE;
 
@@ -438,6 +515,7 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
         fclose(fp);
         return -1;
     }
+    modules->map_res.length = num_modules;
 
     for (uint64_t i = 0; i < num_modules; i++) {
         resource_mg_map_elem *elem = list_get(&modules->map_res, i);
@@ -449,7 +527,7 @@ int flyt_restore_modules(char *modules_file, resource_mg *modules) {
         }
     }
 
-    modules->map_res.length = num_modules;
+    
 
     fclose(fp);
     return 0;
@@ -480,6 +558,7 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
         fclose(fp);
         return -1;
     }
+    functions->map_res.length = num_functions;
 
     for (uint64_t i = 0; i < num_functions; i++) {
         resource_mg_map_elem *elem = list_get(&functions->map_res, i);
@@ -491,7 +570,7 @@ int flyt_restore_functions(char *functions_file, resource_mg *functions) {
         }
     }
 
-    functions->map_res.length = num_functions;
+    
    
     fclose(fp);
     return 0;
@@ -521,6 +600,8 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
         return -1;
     }
 
+    vars->map_res.length = num_vars;
+
 
     for (uint64_t i = 0; i < num_vars; i++) {
         resource_mg_map_elem *elem = list_get(&vars->map_res, i);
@@ -532,7 +613,7 @@ int flyt_restore_vars(char *vars_file, resource_mg *vars) {
         }
     }
 
-    vars->map_res.length = num_vars;
+    
 
     fclose(fp);
     return 0;
@@ -608,7 +689,7 @@ int flyt_restore_checkpoint(char *basepath) {
             ret |= flyt_restore_streams(filename, client->custom_streams);
 
             sprintf(filename, "%s/gpu_mem", client_path);
-            ret |= flyt_restore_memory(filename, client->gpu_mem);
+            ret |= flyt_restore_memory(filename, &client->gpu_mem);
 
             if (ret != 0) {
                 LOGE(LOG_ERROR, "Failed to restore checkpoint for client %d", client_pid_int);

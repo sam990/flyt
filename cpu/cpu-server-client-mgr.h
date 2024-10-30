@@ -17,6 +17,7 @@
 #define INIT_MODULE_SLOTS 8
 #define INIT_FUNCTION_SLOTS 128
 #define INIT_VAR_SLOTS 128
+#define INIT_EVENT_SLOTS 16
 
 // Number of metrics to capture
 #define CUPTI_NUM_METRICS 8
@@ -49,6 +50,8 @@ typedef struct __mem_alloc_args {
     size_t width;
     size_t pitch;
     long long arg6; 
+    size_t padded_size;
+    size_t idx;
 } mem_alloc_args_t;
 
 typedef struct __var_register_args {
@@ -80,8 +83,14 @@ typedef struct __addr_data_pair {
     } reg_data;
 } addr_data_pair_t;
 
+typedef struct __event_args {
+    int flags;
+    bool_t time_recorded;
+} event_args_t;
+
 typedef struct __cricket_client {
     int pid;
+    resource_mg gpu_mem;
     void* default_stream;
     resource_map* gpu_mem;
     resource_map* custom_streams;
@@ -89,6 +98,8 @@ typedef struct __cricket_client {
     resource_mg modules;
     resource_mg functions;
     resource_mg vars;
+    resource_map* events;
+    size_t malloc_idx;
     // further can be added
 } cricket_client;
 
@@ -109,7 +120,7 @@ int move_restored_client(int pid, int xp_fd);
 
 cricket_client* get_client(int xp_fd);
 
-//cricket_client* get_client_by_pid(int pid);
+cricket_client* get_client_by_pid(int pid);
 
 int remove_client_ptr(cricket_client *client);
 
@@ -143,6 +154,7 @@ int load_function_data(resource_mg_map_elem *elem, FILE *fp);
 
 int remove_client_by_pid(int pid);
 
+int dealloc_client_resources();
 
 
 #define GET_CLIENT(result) cricket_client *client = get_client(rqstp->rq_xprt->xp_fd); \
@@ -152,7 +164,6 @@ int remove_client_by_pid(int pid);
         GSCHED_RELEASE; \
         return 1; \
     }
-
 
 #define GET_STREAM(stream_ptr, stream, result) \
     if (stream == 0) { \
@@ -184,6 +195,15 @@ int remove_client_by_pid(int pid);
         return 1; \
     } \
     mem_ptr = resource_map_get_addr(client->gpu_mem, (void*)client_addr);
+
+// #define GET_SPL_MEMORY(mem_ptr, client_addr, result) \
+//     if (!resource_map_contains(client->gpu_mem, (void*)client_addr)) { \
+//         LOGE(LOG_ERROR, "memory not found in gpu_mem"); \
+//         result = cudaErrorInvalidValue; \
+//         GSCHED_RELEASE; \
+//         return 1; \
+//     } \
+//     mem_ptr = resource_map_get_addr(client->gpu_mem, (void*)client_addr);
 
 #define GET_VARIABLE(var_ptr, client_addr, result) \
     if ((var_ptr = resource_mg_get_or_null(&client->vars, (void *)client_addr)) == NULL) { \
