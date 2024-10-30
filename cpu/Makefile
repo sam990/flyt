@@ -141,22 +141,14 @@ $(CLIENT_STATIC): $(OBJ_CLIENT)
 $(CLIENT) : $(OBJ_CLIENT) 
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(CLIENT_LD_FLAGS) 
 
-<<<<<<< HEAD
 $(SERVER_LIB) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o) $(METRICS)
-	$(LD) $(CC_FLAGS) -shared -o $@ $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)  $(SERVER_BIN_LD_FLAGS) $(SERVER_METRICS_FLAGS)
+	$(LD) $(CC_FLAGS) -shared -o $@ $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)  $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(SERVER_BIN_LD_FLAGS) $(SERVER_METRICS_FLAGS)
 
 $(METRICS) : 
 	cd $(METRICS_SRC) && $(MAKE)
 
 $(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o) $(METRICS)
-	$(LD) $(CC_FLAGS) -o $@ $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o) $(SERVER_BIN_LD_FLAGS) $(SERVER_METRICS_FLAGS)
-=======
-$(SERVER_LIB) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
-	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(SERVER_BIN_LD_FLAGS) 
-
-$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
-	$(LD) $(CC_FLAGS) -o $@ $^ $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(SERVER_BIN_LD_FLAGS) 
->>>>>>> origin/sameer-flyt
+	$(LD) $(CC_FLAGS) -o $@ $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o) $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(SERVER_BIN_LD_FLAGS) $(SERVER_METRICS_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
 	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
@@ -177,9 +169,5 @@ $(RPC_XDR) : $(RPC_DEF)
 	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
 
 clean:
-<<<<<<< HEAD
 	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC) $(METRICS)
 
-=======
-	rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC)
->>>>>>> origin/sameer-flyt
