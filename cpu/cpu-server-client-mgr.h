@@ -92,7 +92,7 @@ typedef struct __cricket_client {
     int pid;
     resource_mg gpu_mem;
     void* default_stream;
-    resource_map* gpu_mem;
+    //resource_map* gpu_mem;
     resource_map* custom_streams;
     resource_map* gpu_events;
     resource_mg modules;
@@ -187,6 +187,7 @@ int dealloc_client_resources();
         event_ptr = resource_map_get_addr(client->gpu_events, (void*)event); \
     }
 
+/*
 #define GET_MEMORY(mem_ptr, client_addr, result) \
     if (!resource_map_contains(client->gpu_mem, (void*)client_addr)) { \
         LOGE(LOG_ERROR, "memory not found in gpu_mem"); \
@@ -195,6 +196,7 @@ int dealloc_client_resources();
         return 1; \
     } \
     mem_ptr = resource_map_get_addr(client->gpu_mem, (void*)client_addr);
+    */
 
 // #define GET_SPL_MEMORY(mem_ptr, client_addr, result) \
 //     if (!resource_map_contains(client->gpu_mem, (void*)client_addr)) { \

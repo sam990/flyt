@@ -419,7 +419,7 @@ cricket_client* create_client(int pid) {
     client->gpu_events = init_resource_map(INIT_VAR_SLOTS);
     if (client->gpu_events == NULL) {
         LOGE(LOG_ERROR, "Failed to initialize custom_streams resource map for new client");
-        free_resource_map(client->gpu_mem);
+        //free_resource_map(client->gpu_mem);
         free_resource_map(client->custom_streams);
         free(client);
         return NULL;
