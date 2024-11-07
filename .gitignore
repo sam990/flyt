@@ -30,7 +30,6 @@ ckp
 tests/samples/matrixMul
 tests/samples/bandwidthTest
 tests/samples/nbody
-configs
 docs/ivshmem-channel-notes.self.md
 NOTES-armaan.md
 vm@*

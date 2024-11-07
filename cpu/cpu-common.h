@@ -54,6 +54,7 @@ struct rpc_times {
     double cudaMemcpyD2H;
     double cudaMemcpyD2D;
     double cuda_stream_synchronize_1;
+    double cuda_device_synchronize_1;
     double cuda_launch_kernel_1;
     double rpc_cuctxgetcurrent_1;
     double cublasCreate_v2;
@@ -93,6 +94,7 @@ struct rpc_cnt {
     double cudaMemcpyD2H;
     double cudaMemcpyD2D;
     double cuda_stream_synchronize_1;
+    double cuda_device_synchronize_1;
     double cuda_launch_kernel_1;
     double rpc_cuctxgetcurrent_1;
     double cublasCreate_v2;

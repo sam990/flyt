@@ -16,8 +16,27 @@
 #include <fcntl.h>
 #include <errno.h>
 #include "cpu-utils.h"
+#include <pthread.h>
 
 ivshmem_clnt_ctx *ivshmem_ctx = NULL; // default
+
+pthread_cond_t poll_cond_var = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t poll_mutex = PTHREAD_MUTEX_INITIALIZER;
+int got_response = 0;
+
+void *do_rpc_shm_poll(void *arg) {
+    while(1) {
+        if (*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 1) {
+            pthread_mutex_lock(&poll_mutex);
+            printf("got notif\n");
+            got_response = 1;
+            pthread_cond_signal(&poll_cond_var);
+            pthread_mutex_unlock(&poll_mutex);
+        }
+        printf("polling on client\n");
+        usleep(100000);
+    }
+}
 
 // enter only if shm_enabled.
 void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
@@ -35,21 +54,6 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     printf("check0\n");
     printf("len shm path: %d\n", strlen(shm_be_path));
     _args->f_be = shm_be_path;
-
-    // get ivshmem_args from client manager via mq
-    // currently hardcoded default.
-    // These can be stored in the MongoDB database initially
-    // and then transferred to the client manager.
-    // be_off can be updated by init_ivshmem_clnt
-    // --
-    // hardcoding offsets only works for single-proc, single-VM case.
-
-    // ivshmem_setup_desc _args = {
-    //     .iv_enable = 1, // shm_enabled, IN MONGO, come from init_client_mgr
-    //     .f_be = "/dev/shm/ivshmem-0-ub11.dat", // IN MONGO, come from init_client_mgr
-    //     .proc_be_sz = PROC_SHM_SIZE, // Get from clnt manager. NOT IN MONGO
-    //     .proc_be_off = 0 // get from clnt manager - start offset. NOT IN MONGO
-    // };
 
     // mmap pci bar
     char *pci_path = _get_pci_path_clnt();
@@ -84,6 +88,11 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     //LOGE(LOG_DEBUG, "created ivshmem ctx\n");
     printf("clnt ivshmem ctx created. mmap start VA: %p\nend VA: %p\n", ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_mmap + ivshmem_ctx->shm_proc_size);
 
+    // create poll thread and condition variable.
+    printf("starting poll\n");
+    pthread_t poll_tid;
+    pthread_create(&poll_tid, NULL, do_rpc_shm_poll, NULL);
+    pthread_detach(poll_tid);
 }
 
 void init_ivshmem_areas_clnt(ivshmem_clnt_ctx *ctx) {

@@ -56,6 +56,7 @@ double calc_total_rpc_time() {
     total_time += times__flyt->cudaMemcpyD2H / 1000000.0;
     total_time += times__flyt->cudaMemcpyD2D / 1000000.0;
     total_time += times__flyt->cuda_stream_synchronize_1 / 1000000.0;
+    //total_time += times__flyt->cuda_device_synchronize_1 / 1000000.0;
     total_time += times__flyt->cuda_launch_kernel_1 / 1000000.0;
     total_time += times__flyt->rpc_cuctxgetcurrent_1 / 1000000.0;
     total_time += times__flyt->cublasCreate_v2 / 1000000.0;
@@ -76,7 +77,7 @@ double calc_total_rpc_time() {
 }
 
 // Make this better later
-#define NUM_CUDA_API_FUNC_NAME_COUNT 35
+#define NUM_CUDA_API_FUNC_NAME_COUNT 36
 void report_rpc_stats() {
     printf("RPC Call Timing Report:\n");
     printf("-----------------------------------------\n");
@@ -100,6 +101,7 @@ void report_rpc_stats() {
     printf("%-40s | %10ld | %10.3f\n", "cudaMemcpyD2H", (long int)counts__flyt->cudaMemcpyD2H, times__flyt->cudaMemcpyD2H / 1000000.0);
     printf("%-40s | %10ld | %10.3f\n", "cudaMemcpyD2D", (long int)counts__flyt->cudaMemcpyD2D, times__flyt->cudaMemcpyD2D / 1000000.0);
     printf("%-40s | %10ld | %10.3f\n", "cuda_stream_synchronize_1", (long int)counts__flyt->cuda_stream_synchronize_1, times__flyt->cuda_stream_synchronize_1 / 1000000.0);
+    printf("%-40s | %10ld | %10.3f\n", "cuda_device_synchronize_1", (long int)counts__flyt->cuda_device_synchronize_1, times__flyt->cuda_device_synchronize_1 / 1000000.0);
     printf("%-40s | %10ld | %10.3f\n", "cuda_launch_kernel_1", (long int)counts__flyt->cuda_launch_kernel_1, times__flyt->cuda_launch_kernel_1 / 1000000.0);
     printf("%-40s | %10ld | %10.3f\n", "rpc_cuctxgetcurrent_1", (long int)counts__flyt->rpc_cuctxgetcurrent_1, times__flyt->rpc_cuctxgetcurrent_1 / 1000000.0);
     printf("%-40s | %10ld | %10.3f\n", "cublasCreate_v2", (long int)counts__flyt->cublasCreate_v2, times__flyt->cublasCreate_v2 / 1000000.0);

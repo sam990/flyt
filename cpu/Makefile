@@ -80,7 +80,8 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-ivshmem.c       \
 			 resource-mg.c 				\
 			 msg-handler.c				\
-			 cpu-common-stats.c
+			 cpu-common-stats.c			\
+			 cpu-client-runtime-rpc-shm.c
 
 ifdef WITH_IB
 SRC_SERVER += cpu-ib.c
@@ -101,7 +102,7 @@ LIB_FLAGS += -L$(CUDA_SRC)/lib64/stubs
 CC_FLAGS += -std=gnu11 $(INC_FLAGS)
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
-LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf 
+LD_FLAGS = $(LIB_FLAGS) -ltirpc -ldl -lcrypto -lelf -lpthread
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running

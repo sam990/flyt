@@ -98,6 +98,9 @@ int main(int argc, char* argv[]) {
     printf("b4 cuda sync\n");
     HANDLE_ERROR(cudaDeviceSynchronize());
     printf("aft cuda sync\n");
+
+    int deviceCount;
+    HANDLE_ERROR(cudaGetDeviceCount(&deviceCount));
     
     timespec ts_start, ts_end;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);

@@ -27,6 +27,7 @@
 #include "oob.h"
 #include "cpu-client-mt-memcpy.h"
 #include "cpu-client-ivshmem.h" // for ivshmem-ctx
+#include "cpu-client-runtime-rpc-shm.h"
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif //WITH_IB
@@ -322,11 +323,13 @@ cudaError_t cudaDeviceSynchronize(void)
     enum clnt_stat retval_1;
 
     struct timeval timeout = {.tv_sec = -1, .tv_usec = 0};
-    FUNC_BEGIN();
+    Timer t1;
+    FUNC_BEGIN(t1);
     retval_1 = (clnt_call (clnt, CUDA_DEVICE_SYNCHRONIZE, (xdrproc_t) xdr_void, (caddr_t) NULL,
 		    (xdrproc_t) xdr_int, (caddr_t) &result,
 		    timeout));
     FUNC_END();
+    TIMER_ADD_INCREMENT(t1, cuda_device_synchronize_1);
     return result;
 }
 
@@ -360,16 +363,27 @@ cudaError_t cudaGetDeviceCount(int* count)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
+
+    int retval = RPC_SHM_FAILURE;
+
     Timer t1;
     FUNC_BEGIN(t1); 
-    retval_1 = cuda_get_device_count_1(&result, clnt);
+    if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
+        printf("In shm cudagetdevicecount\n");
+        retval = rpc_shm_clnt_cuda_get_device_count_1(&result);    
+        if (retval != RPC_SHM_SUCCESS) {
+            clnt_perror (clnt, "shm call failed");
+        }
+    } else {
+        retval_1 = cuda_get_device_count_1(&result, clnt);
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+    }
     FUNC_END();
     TIMER_ADD_INCREMENT(t1, cuda_get_device_count_1);
-
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
-    printf("cudagetdevicecount worked\n%d", result.int_result_u.data);
+    //printf("cudagetdevicecount worked\n%d", result.int_result_u.data);
+    
     if (result.err == 0) {
         *count = result.int_result_u.data;
     }
@@ -403,18 +417,28 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
 #endif //WITH_API_CNT
     cuda_device_prop_result result;
     enum clnt_stat retval;
+
     if (prop == NULL) {
         LOGE(LOG_ERROR, "error: prop == NULL");
         return cudaErrorInvalidValue;
     }
+
     Timer t1;
     FUNC_BEGIN(t1);
-    retval = cuda_get_device_properties_1(device, &result, clnt);
+    if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
+        retval = rpc_shm_clnt_cuda_get_device_properties_1(&result, device);    
+        if (retval != RPC_SHM_SUCCESS) {
+            clnt_perror (clnt, "shm call failed");
+        }
+    } else {
+        retval = cuda_get_device_properties_1(device, &result, clnt);
+        if (retval != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }
+    }
     FUNC_END();
     TIMER_ADD_INCREMENT(t1, cuda_get_device_properties_1);
-    if (retval != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
-    }
+
     if (result.err != 0) {
         return result.err;
     }

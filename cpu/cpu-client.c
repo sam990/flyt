@@ -272,7 +272,6 @@ void __attribute__((constructor)) init_rpc(void)
     retval_1 = rpc_init_1(clnt_pid, _svc_args, &result_1,  clnt);
     printf("times: %p\n", times__flyt);
     printf("counts: %p\n", counts__flyt);
-
     FUNC_END();
     TIMER_ADD_INCREMENT(t1, rpc_init_1);
 
@@ -284,6 +283,8 @@ void __attribute__((constructor)) init_rpc(void)
         LOGE(LOG_ERROR, "cricket initialisation failed");
         exit(1);
     }
+
+    //pause();
 
     if (list_init(&kernel_infos, sizeof(kernel_info_t)) != 0) {
         LOGE(LOG_ERROR, "list init failed.");
@@ -328,8 +329,9 @@ void __attribute__((destructor)) deinit_rpc(void)
         double rpc_ovh = calc_total_rpc_time(); // ms
 
         printf("Flyt Virtualisation overhead: %0.4fs\n", rpc_ovh/1000.0);
-        printf("(Likely) Pytorch overhead: %0.4fs\n", (time_ms - rpc_ovh)/1000.0);
+        printf("Kernel Execution time: %0.4fs\n", times__flyt->cuda_device_synchronize_1/1000000000.0);
         printf("total memcpy time: %02fms\n", (times__flyt->cudaMemcpyD2H + times__flyt->cudaMemcpyH2D + times__flyt->cudaMemcpyD2D)/1000000000);
+        //printf("(Likely) Pytorch overhead: %0.4fs\n", (time_ms - rpc_ovh)/1000.0);
         report_rpc_stats();
 
         // unmap pci BAR
