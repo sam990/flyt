@@ -1,4 +1,7 @@
 use std::{collections::HashMap, fs::File, path::Path, process::{Child, Command}, sync::{Arc, Mutex}, time::Duration};
+use std::io;
+use std::ffi::CString;
+use libc::{ftok, msgget, IPC_CREAT, IPC_EXCL, IPC_PRIVATE, key_t};
 use ipc_rs::MessageQueue;
 use crate::common::{api_commands::FlytApiCommand, types::MqueueClientControlCommand, utils::Utils};
 
@@ -20,6 +23,7 @@ pub struct VirtServerManager {
     virts_servers: Mutex<HashMap<u64,VirtServer>>,
     message_queue: MessageQueue,
     virt_server_program_path: String,
+    virt_server_program_args: String,
     automode: u16,
 }
 
@@ -27,14 +31,49 @@ pub struct VirtServerManager {
 
 impl VirtServerManager {
 
-    pub fn new(mqueue_path: &str, virt_server_program_path: String, mode: u16) -> VirtServerManager {
+    pub fn new(mqueue_path: &str, virt_server_program_path: String, mode: u16, virt_server_program_args: String) -> VirtServerManager {
 
         if Path::new(mqueue_path).exists() == false {
             File::create(mqueue_path).unwrap();
         }
 
         let key = ipc_rs::PathProjectIdKey::new(mqueue_path.to_string(), PROJ_ID);
-        let message_queue = MessageQueue::new(ipc_rs::MessageQueueKey::PathKey(key)).create().init().unwrap();
+        let c_path = CString::new(mqueue_path).expect("Failed to convert to CString");
+        let key = unsafe { ftok(c_path.as_ptr(), PROJ_ID ) };
+        if key == -1 {
+            // Handle error if ftok failed
+            log::error!("Error creating key for node manager message queue: {}", io::Error::last_os_error());
+        }
+
+        let message_queue = MessageQueue::new(ipc_rs::MessageQueueKey::IntKey(key)).create().init().unwrap();
+
+        if message_queue.id == -1 {
+            log::error!("Error creating key for node manager message queue: {}", io::Error::last_os_error());
+        }
+
+        /*
+        // Generate a key using ftok
+        let c_path = CString::new(mqueue_path).expect("Failed to convert to CString");
+        let key = unsafe { ftok(c_path.as_ptr(), PROJ_ID ) };
+        if key == -1 {
+            // Handle error if ftok failed
+            log::error!("Error creating key for node manager message queue: {}", io::Error::last_os_error());
+        }
+
+        // Create a message queue with the generated key
+        let mqueue_id = unsafe { msgget(key, 0o666 | IPC_CREAT) };
+        if mqueue_id == -1 {
+            // Handle error if msgget failed
+            log::error!("Error creating node manager message queue: {}", io::Error::last_os_error());
+        }
+
+        if message_queue.id == i32::from(-1) {
+            message_queue.id = mqueue_id;
+        }
+        let mut message_queue = MessageQueue::new(key).create().init().unwrap();
+        */
+
+        log::info!("message path: {}, key: {} id: {} proj_id: {}", mqueue_path, message_queue.key, message_queue.id, PROJ_ID);
         
 
         VirtServerManager {
@@ -42,6 +81,7 @@ impl VirtServerManager {
             virts_servers: Mutex::new(HashMap::new()),
             message_queue: message_queue,
             virt_server_program_path,
+            virt_server_program_args,
             automode: mode
         }
     }
@@ -74,14 +114,24 @@ impl VirtServerManager {
         // Construct the command and log all parts for debugging
         // // Store the path in a local variable
     let program_path = self.virt_server_program_path.as_str();
+    let program_args = self.virt_server_program_args.as_str();
+    let parts: Vec<&str> = program_args.split(',').collect();
+
     //let mem_path = "valgrind --leak-check=full";
 
     //let mut cmd = Command::new(mem_path);
         //.arg(program_path)
     let mut cmd = Command::new(program_path);
         cmd.env("CUDA_VISIBLE_DEVICES", gpu_id.to_string())
-        .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1")
-        .arg(rpc_id.to_string())
+        .env("CUDA_MPS_ENABLE_PER_CTX_DEVICE_MULTIPROCESSOR_PARTITIONING", "1");
+
+         for (index, arg) in parts.iter().enumerate() {
+             if arg.is_empty() {
+                 continue;
+             }
+             cmd.arg(arg);
+         }
+        cmd.arg(rpc_id.to_string())
         .arg(gpu_id.to_string())
         .arg(num_sm_cores.to_string())
         .arg(gpu_memory.to_string())
@@ -106,7 +156,7 @@ impl VirtServerManager {
             .map_err(|e| format!("Error starting virt server: {}", e))?;
             */
 
-        let response = self.message_queue.recv_type_timed(recv_id, Duration::from_secs(5));
+        let response = self.message_queue.recv_type_timed(recv_id, Duration::from_secs(50));
         
         if response.is_err() {
             log::error!("Error receiving message from virt server: {}, Killing it.", response.err().unwrap());
@@ -245,6 +295,7 @@ impl VirtServerManager {
         let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
 
         if recv_status != 200 {
+            log::debug!("Error changing num sm cores status: {}", recv_status);
             return Err("Error changing num sm cores".to_string());
         }
 

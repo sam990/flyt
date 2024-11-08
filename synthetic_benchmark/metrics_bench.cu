@@ -47,7 +47,7 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
     cudaEvent_t startEvent, stopEvent;
     cudaError_t err;
 
-    FlytLogger *logger = new FlytLogger(pthread_self());
+    //FlytLogger *logger = new FlytLogger(pthread_self());
 
     // Allocate memory for device arrays
     long *d_a, *d_b, *d_c;
@@ -92,13 +92,17 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
         err = cudaGetLastError();
         if (err != cudaSuccess) {
             std::cerr << "CUDA add Error: " << cudaGetErrorString(err) << std::endl;
-            return ;
+	    //cudaStreamDestroy(stream);
+	    //cudaStreamCreate(&stream);
+            //return ;
         }
         cudaStreamSynchronize(stream); // Ensure the kernel launch is completed
         err = cudaGetLastError();
         if (err != cudaSuccess) {
             std::cerr << "CUDA sync Error: " << cudaGetErrorString(err) << std::endl;
-            return ;
+	    //cudaStreamDestroy(stream);
+	    //cudaStreamCreate(&stream);
+            //return ;
         }
 
 	auto end = std::chrono::high_resolution_clock::now();
@@ -114,7 +118,7 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
 
 	elapsedTime = (float) (1000 * diff.count());
 
-	logger->writelog("add", elapsedTime, 810, 780, 3);
+	//logger->writelog("add", elapsedTime, 810, 780, 3);
 	std::cout << "elapsedTime " << elapsedTime <<std::endl;
 	std::cout << "systemelapse " << diff.count() <<std::endl;
 

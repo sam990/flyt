@@ -20,6 +20,8 @@
 const char* CLIENTD_VCUDA_PAUSE = "CLIENTD_VCUDA_PAUSE";
 const char* CLIENTD_VCUDA_CHANGE_VIRT_SERVER = "CLIENTD_VCUDA_CHANGE_VIRT_SERVER";
 const char* CLIENTD_VCUDA_RESUME = "CLIENTD_VCUDA_RESUME";
+const char* CLIENTD_RMGR_CONNECT = "CLIENTD_RMGR_CONNECT";
+const char* CLIENTD_RMGR_DISCONNECT = "CLIENTD_RMGR_DISCONNECT";
 const char* PING = "PING";
 
 
@@ -43,13 +45,13 @@ static void* cpu_client_mgr_handler(void* arg) {
             LOGE(LOG_ERROR, "Error receiving message from client manager: %s", strerror(errno));
         }
 
-       if (strncmp(msg.msg.cmd, PING, 64) == 0) {
+       if (strncmp(msg.msg.cmd, PING, sizeof(msg.msg.cmd)) == 0) {
             struct msgbuf_uint32 resp;
             resp.mtype = send_type;
             resp.data = htonl(200);
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
-        else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_PAUSE, 64) == 0) {
+        else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_PAUSE, sizeof(msg.msg.cmd)) == 0) {
             LOGE(LOG_INFO, "received VCUDA_PAUSE cmd:before sem_lock");
             pthread_rwlock_wrlock(&access_sem);
             struct msgbuf_uint32 resp;
@@ -58,7 +60,7 @@ static void* cpu_client_mgr_handler(void* arg) {
             LOGE(LOG_INFO, "received VCUDA_PAUSE cmd:after sem_lock");
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
-        else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_RESUME, 64) == 0) {
+        else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_RESUME, sizeof(msg.msg.cmd)) == 0) {
             resume_connection();
             pthread_rwlock_unlock(&access_sem);
             struct msgbuf_uint32 resp;
@@ -66,7 +68,7 @@ static void* cpu_client_mgr_handler(void* arg) {
             resp.data = htonl(200);
             msgsnd(clientd_mqueue_id, &resp, sizeof(resp.data), 0);
         }
-        else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_CHANGE_VIRT_SERVER, 64) == 0) {
+        else if (strncmp(msg.msg.cmd, CLIENTD_VCUDA_CHANGE_VIRT_SERVER, sizeof(msg.msg.cmd)) == 0) {
             char *server_info = strdup(msg.msg.data);
             
             change_server(server_info);
@@ -96,13 +98,12 @@ char* get_virt_server_info(int mqueue_id, uint64_t recv_type) {
         return NULL;
     }
 
-    if (strncmp(msg.msg.cmd, "200", 64) == 0) {
+    if (strncmp(msg.msg.cmd, "200", sizeof(msg.msg.cmd)) == 0) {
         return strdup(msg.msg.data);
     }
 
     return NULL;
 }
-
 
 void init_handler_thread(int clientd_mqueue_id) {
     pthread_create(&handler_thread, NULL, cpu_client_mgr_handler, (void*)((long)clientd_mqueue_id));
@@ -114,7 +115,7 @@ void stop_client_mgr() {
 }
 
 char* init_client_mgr() {
-    LOGE(LOG_DEBUG, "Connecting to client manager");
+    LOGE(LOG_DEBUG, "My Connecting to client manager");
     if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
         mknod(CLIENTD_MQUEUE_PATH, S_IFREG | 0666, 0);
     }
@@ -133,16 +134,15 @@ char* init_client_mgr() {
         exit(EXIT_FAILURE);
     }
 
-    pid_t pid = getpid();
-
     uint64_t recv_id = msg_recv_id();
     uint64_t send_id = msg_send_id();
 
-    struct msgbuf_uint32 msg;
+    struct msgbuf msg;
     msg.mtype = 1;
-    msg.data = htonl(pid);
+    strncpy(msg.msg.cmd, CLIENTD_RMGR_CONNECT, sizeof(msg.msg.cmd));
+    sprintf(msg.msg.data, "%d", recv_id);
 
-    msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0);
+    msgsnd(clientd_mqueue_id, &msg, sizeof(msg.msg), 0);
 
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
     
@@ -153,4 +153,51 @@ char* init_client_mgr() {
     init_handler_thread(clientd_mqueue_id);
 
     return virt_server_info;
+}
+
+void deinit_client_mgr() {
+    LOGE(LOG_DEBUG, "Disconnecting client manager");
+    if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
+        mknod(CLIENTD_MQUEUE_PATH, S_IFREG | 0666, 0);
+    }
+
+    key_t key = ftok(CLIENTD_MQUEUE_PATH, PROJ_ID);
+    if (key == -1) {
+        LOGE(LOG_ERROR, "ftok ");
+	return;
+    }
+
+    LOGE(LOG_DEBUG, "msgqueue key: %d", key);
+
+    int clientd_mqueue_id = msgget(key, IPC_CREAT | 0666);
+    if (clientd_mqueue_id == -1) {
+        LOGE(LOG_ERROR, "msgget ");
+	return;
+    }
+
+    uint64_t recv_id = msg_recv_id();
+    uint64_t send_id = msg_send_id();
+
+    struct msgbuf msg;
+    msg.mtype = 1;
+    strncpy(msg.msg.cmd, CLIENTD_RMGR_DISCONNECT, sizeof(msg.msg.cmd));
+    sprintf(msg.msg.data, "%d", recv_id);
+
+    LOGE(LOG_DEBUG, "Sending Disconnect command to client manager");
+    msgsnd(clientd_mqueue_id, &msg, sizeof(msg.msg), 0);
+
+    struct msgbuf rsp;
+    int read = msgrcv(clientd_mqueue_id, &rsp, sizeof(mqueue_msg), 2, 0);
+    LOGE(LOG_DEBUG, "Got disconnect response from client manager");
+
+    if (read == -1) {
+        LOGE(LOG_ERROR, "Error receiving message from client manager: %s", strerror(errno));
+        return;
+    }
+    else if (strncmp("200", msg.msg.cmd, sizeof("200")) >= 0) {
+        LOGE(LOG_ERROR, "received wrong response command for disconnect request : %s", msg.msg.cmd);
+        return;
+    }
+    LOGE(LOG_INFO, "completed deinit request and response");
+    
 }

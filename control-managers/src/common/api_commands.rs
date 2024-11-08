@@ -9,6 +9,7 @@ impl FlytApiCommand {
     pub const CLIENTD_VCUDA_RESUME: &'static str = "CLIENTD_VCUDA_RESUME";
     pub const CLIENTD_RMGR_ZERO_VCUDA_CLIENTS: &'static str = "CLIENTD_RMGR_ZERO_VCUDA_CLIENTS";
     pub const CLIENTD_RMGR_CONNECT: &'static str = "CLIENTD_RMGR_CONNECT";
+    pub const CLIENTD_RMGR_DISCONNECT: &'static str = "CLIENTD_RMGR_DISCONNECT";
     pub const RMGR_CLIENTD_PAUSE: &'static str = "RMGR_CLIENTD_PAUSE";
     pub const RMGR_CLIENTD_RESUME: &'static str = "RMGR_CLIENTD_RESUME";
     pub const RMGR_CLIENTD_CHANGE_VIRT_SERVER: &'static str = "RMGR_CLIENTD_CHANGE_VIRT_SERVER";
@@ -47,4 +48,5 @@ impl FrontEndCommand {
     pub const MIGRATE_VIRT_SERVER: &'static str = "MIGRATE_VIRT_SERVER";
     pub const MIGRATE_VIRT_SERVER_AUTO: &'static str = "MIGRATE_VIRT_SERVER_AUTO";
     pub const INCREASE_RESOURCES: &'static str = "INCREASE_RESOURCES";
+    pub const DECREASE_RESOURCES: &'static str = "DECREASE_RESOURCES";
 }

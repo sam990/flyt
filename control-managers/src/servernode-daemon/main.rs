@@ -19,9 +19,9 @@ fn get_mqueue_path() -> String {
     config["ipc"]["mqueue-path"].as_str().unwrap().to_string()
 }
 
-fn get_virt_server_program_path() -> (String, u16) {
+fn get_virt_server_program_path() -> (String, u16, String) {
     let config = common::utils::Utils::load_config_file(SNODE_CONFIG_PATH);
-    (config["virt-server"]["program-path"].as_str().unwrap().to_string(), config["virt-server"]["thread-mode"].as_integer().unwrap() as u16)
+    (config["virt-server"]["program-path"].as_str().unwrap().to_string(), config["virt-server"]["thread-mode"].as_integer().unwrap() as u16, config["virt-server"]["program-args"].as_str().unwrap().to_string())
 }
 
 fn get_resource_mgr_address() -> (String, u16) {
@@ -35,8 +35,8 @@ fn main() {
 
     let gpu_manager = GPUManager::new();
 
-    let (server, automode) = get_virt_server_program_path();
-    let virt_server_manager = Arc::new(VirtServerManager::new(&get_mqueue_path(), server, automode));
+    let (server, automode, args) = get_virt_server_program_path();
+    let virt_server_manager = Arc::new(VirtServerManager::new(&get_mqueue_path(), server, automode, args));
     let mut resource_manager_handler = ResourceManagerHandler::new(virt_server_manager.clone(), gpu_manager);
     let (address, port) = get_resource_mgr_address();
 

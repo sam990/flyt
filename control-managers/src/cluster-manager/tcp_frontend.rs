@@ -16,7 +16,7 @@ fn get_stream() -> UnixStream {
 }
 
 fn main() {
-    let mut curr_sm_cores = 16;
+    let mut curr_sm_cores = 10;
     let mut migration_done = false;
     let migration_vm_mem = 8192 * 1024 * 1024;
 
@@ -37,7 +37,8 @@ fn main() {
 
                 let mgr_stream = get_stream();
 
-                let res = increase_resources(mgr_stream, &vm_ip, NewResourcesOption{ sm_cores: Some(INCREASE_SM_DELTA), memory: None });
+                //TODO: take client id. For now hardcoding to first client id
+                let res = increase_resources(mgr_stream, &vm_ip, 1, NewResourcesOption{ sm_cores: Some(INCREASE_SM_DELTA), memory: None }, false);
 
                 if res.success {
                     stream.write(&[0u8]).unwrap();
@@ -61,7 +62,7 @@ fn main() {
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
                     .as_micros();
-                if let Err(e) = writeln!(file, "{}: {},{},{},{},{},{}", current_time, vm_ip, res.success, res.sm_cores, res.memory, res.time_taken.as_micros(), res.error) {
+                if let Err(e) = writeln!(file, "{}: {},{},{},{},{},{},{}", current_time, vm_ip, 1, res.success, res.sm_cores, res.memory, res.time_taken.as_micros(), res.error) {
                     log::error!("Error writing to log file: {}", e);
                 }
 
@@ -69,27 +70,70 @@ fn main() {
             
             2u8 => {
                 println!("Received inc_cores_with_migration command");
+                /*
                 if migration_done && curr_sm_cores >= 64 {
                     println!("Cannot increment cores. Already at max capacity.");
                     stream.write(&[1u8]).unwrap();
                 } else if !migration_done && curr_sm_cores >= 48 {
+                    */
+                    let delta = 64 - curr_sm_cores;
                     curr_sm_cores = 64;
                     let mgr_stream = get_stream();
 
                     // migrate_vm(mgr_stream, vm_ip, migration_vm_ip.to_string(), 0, sm_cores, memory)
-                    migrate_vm_auto(mgr_stream, vm_ip, curr_sm_cores, migration_vm_mem);
-                    migration_done = true;
+                    // TODO: client-id hardcoded to 0`
+                    migrate_vm_auto(mgr_stream.try_clone().unwrap(), vm_ip.clone(), 1, curr_sm_cores, migration_vm_mem);
+                    let res = increase_resources(mgr_stream, &vm_ip, 1, NewResourcesOption{ sm_cores: Some(delta), memory: None }, true);
+                    //migration_done = true;
                     stream.write(&[0u8]).unwrap();
+                    /*
                 }
                 else {
                     println!("Incrementing cores...");
                     curr_sm_cores += 16;
                     let mgr_stream = get_stream();
 
-                    change_resources(mgr_stream, &vm_ip, NewResourcesOption{ sm_cores: Some(curr_sm_cores), memory: None });
+                    //TODO: client-id hardcoded to 0
+                    change_resources(mgr_stream, &vm_ip, 1, NewResourcesOption{ sm_cores: Some(curr_sm_cores), memory: None });
 
                     stream.write(&[0u8]).unwrap();
                 }
+                */
+            }
+            3u8 => {
+                println!("Received dec_cores command");             
+
+                let mgr_stream = get_stream();
+
+                //TODO: take client id. For now hardcoding to first client id
+                let res = increase_resources(mgr_stream, &vm_ip, 1, NewResourcesOption{ sm_cores: Some(INCREASE_SM_DELTA), memory: None }, true);
+
+                if res.success {
+                    stream.write(&[0u8]).unwrap();
+                } else {
+                    stream.write(&[1u8]).unwrap();
+                }
+
+                let mut file = match std::fs::OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open("resource_tracker.log")
+                {
+                    Ok(file) => file,
+                    Err(e) => {
+                        log::error!("Error opening log file: {}", e);
+                        return;
+                    }
+                };
+
+                let current_time = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_micros();
+                if let Err(e) = writeln!(file, "{}: {},{},{},{},{},{},{}", current_time, vm_ip, 1, res.success, res.sm_cores, res.memory, res.time_taken.as_micros(), res.error) {
+                    log::error!("Error writing to log file: {}", e);
+                }
+
             }
 
             _ => {

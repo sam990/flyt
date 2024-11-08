@@ -27,35 +27,51 @@ enum Commands {
     ListServernodes,
     ListVirtServers,
     ChangeConfig {
-        #[arg(short, long, help = "IP address of the VM to change resources for")]
+        #[arg(short, short, long, help = "IP address of the VM to change resources for")]
         ip: String,
+        #[arg(short, short, long, help = "Client application ID to change resources for")]
+        client_id: i32,
         #[clap(flatten)]
         new_resources: NewResourcesOption,
     },
     IncResources {
-        #[arg(short, long, help = "IP address of the VM to change resources for")]
+        #[arg(short, short, long, help = "IP address of the VM to change resources for")]
         ip: String,
+        #[arg(short, short, long, help = "Client application ID to change resources for")]
+        client_id: i32,
+        #[clap(flatten)]
+        new_resources: NewResourcesOption,
+    },
+    DecResources {
+        #[arg(short, short, long, help = "IP address of the VM to change resources for")]
+        ip: String,
+        #[arg(short, short, long, help = "Client application ID to change resources for")]
+        client_id: i32,
         #[clap(flatten)]
         new_resources: NewResourcesOption,
     },
     Migrate {
-        #[arg(short, long, help = "IP address of the VM to migrate")]
+        #[arg(short, short, long, help = "IP address of the VM to migrate")]
         ip: String,
-        #[arg(short, long, help = "IP address of the server node to migrate to")]
+        #[arg(short, short, short, long, help = "Client application ID to change resources for")]
+        client_id: i32,
+        #[arg(short, short, long, help = "IP address of the server node to migrate to")]
         dstsnodeip: String,
-        #[arg(short, long, help = "ID of the GPU to migrate to")]
+        #[arg(short, short, long, help = "ID of the GPU to migrate to")]
         dstgpuid: u32,
-        #[arg(short, long, help = "Number of SM cores to allocate")]
+        #[arg(short, short, long, help = "Number of SM cores to allocate")]
         sm_cores: u32,
-        #[arg(short, long, help = "Amount of memory to allocate (MB)")]
+        #[arg(short, short, long, help = "Amount of memory to allocate (MB)")]
         memory: u64,
     },
     MigrateAuto {
-        #[arg(short, long, help = "IP address of the VM to migrate")]
+        #[arg(short, short, long, help = "IP address of the VM to migrate")]
         ip: String,
-        #[arg(short, long, help = "Number of SM cores to allocate")]
+        #[arg(short, short, long, help = "Client application ID to change resources for")]
+        client_id: i32,
+        #[arg(short, short, long, help = "Number of SM cores to allocate")]
         sm_cores: u32,
-        #[arg(short, long, help = "Amount of memory to allocate (MB)")]
+        #[arg(short, short, long, help = "Amount of memory to allocate (MB)")]
         memory: u64,
     },
 }
@@ -81,7 +97,14 @@ fn main() {
     let args = Args::parse();
     let stream_path = get_stream_path();
 
-    let stream = UnixStream::connect(stream_path).unwrap();
+    let stream_org = UnixStream::connect(stream_path);
+    let stream = match stream_org {
+        Ok(stream) => stream,
+        Err(e) => {
+            log::error!("Error stream: {}", e);
+            return ;
+        }
+    };
 
     match args.cmd {
         Commands::ListVms => {
@@ -91,43 +114,49 @@ fn main() {
             list_servernodes(stream);
         }
         Commands::ListVirtServers => list_virt_servers(stream),
-        Commands::ChangeConfig { ip, mut new_resources } => {
+        Commands::ChangeConfig { ip, client_id, mut new_resources } => {
             new_resources.memory = new_resources.memory.map(|x| x * 1024 * 1024);
-            change_resources(stream, &ip, new_resources);
+            change_resources(stream, &ip, client_id, new_resources);
         }
         Commands::Migrate {
             ip,
+            client_id,
             dstsnodeip,
             dstgpuid,
             sm_cores,
             memory,
         } => {
             let mem_bytes = memory * 1024 * 1024;
-            migrate_vm(stream, ip, dstsnodeip, dstgpuid, sm_cores, mem_bytes);
+            migrate_vm(stream, ip, client_id, dstsnodeip, dstgpuid, sm_cores, mem_bytes);
         },
         Commands::MigrateAuto {
             ip,
+            client_id,
             sm_cores,
             memory,
         } => {
             let mem_bytes = memory * 1024 * 1024;
-            migrate_vm_auto(stream, ip, sm_cores, mem_bytes);
+            migrate_vm_auto(stream, ip, client_id, sm_cores, mem_bytes);
         },
-        Commands::IncResources { ip, new_resources } => {
-            increase_resources(stream, &ip, new_resources);
+        Commands::IncResources { ip, client_id, new_resources } => {
+            increase_resources(stream, &ip, client_id, new_resources, false);
+        },
+        Commands::DecResources { ip, client_id, new_resources } => {
+            increase_resources(stream, &ip, client_id, new_resources, true);
         }
     }
 }
 
-pub fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpuid: u32, sm_cores: u32, memory: u64) {
+pub fn migrate_vm(mut stream: UnixStream, ip: String, client_id: i32, dstsnodeip: String, dstgpuid: u32, sm_cores: u32, memory: u64) {
 
     let time_begin = std::time::Instant::now();
 
     match stream.write_all(
         format!(
-            "{}\n{},{},{},{},{}\n",
+            "{}\n{},{},{},{},{},{}\n",
             FrontEndCommand::MIGRATE_VIRT_SERVER,
             ip,
+            client_id,
             dstsnodeip,
             dstgpuid,
             sm_cores,
@@ -159,15 +188,16 @@ pub fn migrate_vm(mut stream: UnixStream, ip: String, dstsnodeip: String, dstgpu
 
 }
 
-pub fn migrate_vm_auto(mut stream: UnixStream, ip: String, sm_cores: u32, memory: u64) {
+pub fn migrate_vm_auto(mut stream: UnixStream, ip: String, client_id: i32, sm_cores: u32, memory: u64) {
 
     let time_begin = std::time::Instant::now();
 
     match stream.write_all(
         format!(
-            "{}\n{},{},{}\n",
+            "{}\n{},{},{},{}\n",
             FrontEndCommand::MIGRATE_VIRT_SERVER_AUTO,
             ip,
+            client_id,
             sm_cores,
             memory
         )
@@ -244,6 +274,7 @@ fn list_vms(mut stream: UnixStream) {
 
     table.set_header(vec![
         "VM IP",
+        "CLIENT ID",
         "VirtServer IP",
         "VirtServer RPC ID",
         "SM Cores",
@@ -418,24 +449,26 @@ fn list_virt_servers(mut stream: UnixStream) {
     println!("{}", table);
 }
 
-pub fn change_resources(mut stream: UnixStream, vm_ip: &String, new_resources: NewResourcesOption) {
+pub fn change_resources(mut stream: UnixStream, vm_ip: &String, client_id: i32, new_resources: NewResourcesOption) {
     let command = if new_resources.sm_cores.is_some() && new_resources.memory.is_some() {
         format!(
-            "{}\n{},{},{}\n",
+            "{}\n{},{},{},{}\n",
             FrontEndCommand::CHANGE_SM_CORES_AND_MEMORY,
             vm_ip,
+            client_id,
             new_resources.sm_cores.unwrap(),
             new_resources.memory.unwrap()
         )
     } else if let Some(sm_cores) = new_resources.sm_cores {
         format!(
-            "{}\n{},{}\n",
+            "{}\n{},{},{}\n",
             FrontEndCommand::CHANGE_SM_CORES,
             vm_ip,
+            client_id,
             sm_cores
         )
     } else if let Some(memory) = new_resources.memory {
-        format!("{}\n{},{}\n", FrontEndCommand::CHANGE_MEMORY, vm_ip, memory)
+        format!("{}\n{},{},{}\n", FrontEndCommand::CHANGE_MEMORY, vm_ip, client_id, memory)
     } else {
         "".to_string()
     };
@@ -472,17 +505,23 @@ pub fn change_resources(mut stream: UnixStream, vm_ip: &String, new_resources: N
 }
 
 
-pub fn increase_resources(mut stream: UnixStream, vm_ip: &String, new_resources: NewResourcesOption) -> IncResourcesResult {
+pub fn increase_resources(mut stream: UnixStream, vm_ip: &String, client_id: i32, new_resources: NewResourcesOption, decrease: bool) -> IncResourcesResult {
     let time_begin = std::time::Instant::now();
 
     let sm_inc = new_resources.sm_cores.unwrap_or(0);
     let mem_inc = new_resources.memory.unwrap_or(0);
+    let mut cmd = FrontEndCommand::INCREASE_RESOURCES;
+
+    if decrease == true {
+        cmd = FrontEndCommand::DECREASE_RESOURCES;
+    }
 
     match stream.write_all(
         format!(
-            "{}\n{},{},{}\n",
-            FrontEndCommand::INCREASE_RESOURCES,
+            "{}\n{},{},{},{}\n",
+            cmd,
             vm_ip,
+            client_id,
             sm_inc,
             mem_inc
         )

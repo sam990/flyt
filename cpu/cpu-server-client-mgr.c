@@ -465,6 +465,7 @@ int add_new_client(int pid, int xp_fd) {
 
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to add new client to resource managers");
+        pthread_mutex_unlock(&client_mgr_mutex);
         resource_mg_free(&client->gpu_mem);
         free_resource_map(client->custom_streams);
         free_resource_map(client->gpu_events);
@@ -534,6 +535,7 @@ int remove_client_ptr(cricket_client* client) {
     pthread_mutex_lock(&client_mgr_mutex);
     LOGE(LOG_INFO, "removing client ptr from %d \n", client->pid);
     resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid);
+    pthread_mutex_unlock(&client_mgr_mutex);
     
     // need to free gpu resources and custom streams
     freeResources(client);
@@ -592,7 +594,6 @@ int remove_client_ptr(cricket_client* client) {
     resource_mg_free(&client->vars);
     resource_mg_free(&client->functions);
 
-    pthread_mutex_unlock(&client_mgr_mutex);
     free(client);
     return 0;
 }
@@ -622,13 +623,11 @@ static int freeResources(cricket_client* client) {
     resource_mg_map_elem *map_elem;
 
     for (size_t i = 0; i < client->gpu_mem.map_res.length; i++) {
-        resource_mg_get_element_at(&client->gpu_mem, FALSE, i, (void **)&map_elem);
-
-        mem_alloc_args_t *mem_args = (mem_alloc_args_t *)map_elem->cuda_address;
-        free_dev_mem(map_elem->client_address, mem_args->padded_size);
+        if (resource_mg_get_element_at(&client->gpu_mem, FALSE, i, (void **)&map_elem) == 0) {
+            mem_alloc_args_t *mem_args = (mem_alloc_args_t *)map_elem->cuda_address;
+            free_dev_mem(map_elem->client_address, mem_args->padded_size);
+	}
     }
-
-
 
     resource_map_iter *event_itr = resource_map_init_iter(client->gpu_events);
     

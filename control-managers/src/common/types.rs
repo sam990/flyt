@@ -90,7 +90,7 @@ impl MqueueClientControlCommand {
         Some(Self::from_bytes(bytes.try_into().unwrap()))
     }
 
-    fn vec_to_string(vec: &[u8]) -> String {
+    pub fn vec_to_string(vec: &[u8]) -> String {
         let mut v = Vec::<u8>::new();
         for i in vec {
             if *i == 0 {

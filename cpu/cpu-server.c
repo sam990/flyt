@@ -88,9 +88,8 @@ bool_t rpc_printmessage_1_svc(char *argp, int *result, struct svc_req *rqstp)
 bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
 {
     LOG(LOG_INFO, "RPC deinit requested.");
-    //svc_exit();
-    
     remove_client(rqstp->rq_xprt->xp_fd);
+    svc_exit();
 
     return 1;
 }
@@ -233,12 +232,31 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     printf("welcome to cricket!\n");
     init_log(LOG_LEVEL, __FILE__);
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+    /*
     //sigaction(SIGINT, &act, NULL);
     sigaction(SIGINT, &act, NULL);
     sigaction(SIGPIPE, &act, NULL);
     sigaction(SIGABRT, &act, NULL);
     sigaction(SIGSEGV, &act, NULL);
     sigaction(SIGBUS, &act, NULL);
+    */
+
+    // List of signals to capture
+    int signals[] = {
+        SIGINT, SIGTERM, SIGSEGV, SIGILL, SIGABRT, SIGFPE,
+	SIGBUS, SIGILL, SIGPROF, SIGSYS,
+        SIGQUIT, SIGHUP, SIGPIPE, SIGALRM, SIGUSR1, SIGUSR2
+        // Add other signals as needed
+    };
+    size_t num_signals = sizeof(signals) / sizeof(signals[0]);
+
+    // Register handler for each signal
+    for (size_t i = 0; i < num_signals; i++) {
+        if (sigaction(signals[i], &act, NULL) == -1) {
+            perror("sigaction");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     #ifdef WITH_IB
     char client[256];
@@ -365,16 +383,19 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         goto cleanup3;
     }
 
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (server_driver_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_runtime failed.");
         goto cleanup2;        
     }
     
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (server_nvml_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_nvml failed.");
         goto cleanup1;
     }
 
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (server_cudnn_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_nvml failed.");
         goto cleanup0;
@@ -396,17 +417,20 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     // }
 
 
+    LOGE(LOG_INFO, "initializing server_runtime.");
     init_listener(vers);
     if (init_resource_controller(num_sm_cores, memory) != 0) {
         LOGE(LOG_ERROR, "initializing resource controller failed.");
         goto cleanup00;
     }
 
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (init_cpu_server_client_mgr() != 0) {
         LOGE(LOG_ERROR, "initializing client manager failed.");
         goto cleanup00;
     }
 
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (init_server_dev_mem(gpu_id) != 0) {
         LOGE(LOG_ERROR, "initializing server_dev_mem failed.");
         goto cleanup00;

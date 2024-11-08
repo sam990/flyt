@@ -8,6 +8,7 @@ use crate::common::api_commands::FlytApiCommand;
 use crate::common::types::StreamEnds;
 use crate::common::utils::StreamUtils;
 
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::collections::HashMap;
 use std::{fs, thread};
 use std::io::{ BufReader, Write };
@@ -98,6 +99,7 @@ fn split_u32(value: u32) -> (u16, u16) {
 pub struct ServerNodesManager<'a> {
     server_nodes: Mutex<HashMap<String, ServerNode>>,
     pub vm_resource_getter: &'a VMResourcesGetter,
+    server_index: AtomicI32,
 }
 
 impl<'a> ServerNodesManager<'a> {
@@ -106,7 +108,23 @@ impl<'a> ServerNodesManager<'a> {
         ServerNodesManager {
             server_nodes: Mutex::new(HashMap::new()),
             vm_resource_getter: resource_getter,
+            server_index: AtomicI32::new(0),
         }
+    }
+
+    // Atomically gets the current counter value and then increments it
+    fn get_next_server_index(&self) -> i32 {
+        let mut current_index = self.server_index.load(Ordering::SeqCst);
+        let max_value = self.server_nodes.lock().unwrap().len() as i32;
+        let next_index = (current_index + 1) % max_value;
+
+        // Atomically store the new value
+        self.server_index.store(next_index, Ordering::SeqCst);
+        next_index
+    }
+
+    fn set_next_server_index(&self, index: i32) {
+        self.server_index.store(index, Ordering::SeqCst);
     }
 
     pub fn add_server_node(&self, server_node: ServerNode) {
@@ -252,7 +270,8 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     }
 
-    pub fn get_free_gpu(&self, required_resources: &VMResources) -> Option<(String, u64)> {
+    pub fn get_free_gpu(&self, required_resources: &VMResources, client_id: i32) -> Option<(String, u64)> {
+        /*
         let host_server_node = self.get_server_node(&required_resources.host_ip);
         
         if host_server_node.is_some() {
@@ -273,26 +292,91 @@ impl<'a> ServerNodesManager<'a> {
                 return Some((server_node.ipaddr.clone(), gpu_id.unwrap()));
             }
         }
+        */
+        let server_nodes = self.get_all_server_nodes();
+        let total_nodes = server_nodes.len();
+        let server_index = self.get_next_server_index();
+
+        // Iterate starting from `start_index` and wrapping around to form a circular search
+        for i in 0..total_nodes {
+            // Calculate the current index, wrapping around using modulo
+            let index = (server_index as usize + i) % total_nodes;
+            log::info!("client_id index in get_free_fpu {} i: {} total: {}", index, i, total_nodes);
+
+            // Check the current server node for available GPU resources
+            let server_node = &server_nodes[index];
+            if let Some(gpu_id) = check_resource_availability(&server_node, required_resources) {
+                self.set_next_server_index(index as i32);
+                return Some((server_node.ipaddr.clone(), gpu_id));
+            }
+        }
+            log::info!("could not find server for client {}", client_id);
 
         None
     
     }
 
-    pub fn allocate_vm_resources(&self, client_ip: &String,) -> Result<Arc<RwLock<VirtServer>>,String> {
+    pub fn get_max_gpu(&self, required_resources: &VMResources) -> (u64, u64) {
+        /*
+        let host_server_node = self.get_server_node(&required_resources.host_ip);
+        
+        if host_server_node.is_some() {
+            let host_server_node = host_server_node.unwrap();
+            let gpu_id = check_resource_availability(&host_server_node, required_resources);
+            if gpu_id.is_some() {
+                return Some((host_server_node.ipaddr.clone(), gpu_id.unwrap()));
+            }
+        }
+
+        // If not, then checking all other servers
+
+        let server_nodes = self.get_all_server_nodes();
+        
+        for server_node in server_nodes {
+            let gpu_id = check_resource_availability(&server_node, required_resources);
+            if gpu_id.is_some() {
+                return Some((server_node.ipaddr.clone(), gpu_id.unwrap()));
+            }
+        }
+        */
+        let server_nodes = self.get_all_server_nodes();
+        let total_nodes = server_nodes.len();
+        let mut max_available_compute = 0;
+        let mut max_available_memory = 0;
+
+        // Iterate starting from `start_index` and wrapping around to form a circular search
+        for i in 0..total_nodes {
+
+            // Check the current server node for available GPU resources
+            let server_node = &server_nodes[i];
+            let (server_compute, server_memory) = max_resource_availability(&server_node);
+
+            let max_compute = max_available_compute.max(server_compute);
+            //TODO: handle memory as well
+            if max_compute == server_compute {
+                max_available_compute = server_compute;
+                max_available_memory = server_memory;
+            }
+        }
+        (max_available_compute, max_available_memory)
+    }
+
+    pub fn allocate_vm_resources(&self, client_ip: &String, client_id: i32) -> Result<Arc<RwLock<VirtServer>>,String> {
         let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
         
-        log::info!("Allocating VM resources for client: {}", client_ip);
+        log::info!("Allocating VM resources for client: {} {}", client_ip, client_id);
         log::info!("VM resources required: {:?}", vm_required_resources);
 
         if vm_required_resources.is_none() {
-            log::error!("VM resources not found for client: {}", client_ip);
+            log::error!("VM resources not found for client: {} {}", client_ip, client_id);
             return Err("VM resources not found".to_string());
         }
 
         let vm_required_resources = vm_required_resources.unwrap();
 
-        let target_gpu = self.get_free_gpu(&vm_required_resources);
+        let target_gpu = self.get_free_gpu(&vm_required_resources, client_id);
 
+        log::info!("after get_free_gpu");
         if target_gpu.is_none() {
             log::error!("No free GPU found for client: {}", client_ip);
             return Err("No free GPU found".to_string());
@@ -300,14 +384,16 @@ impl<'a> ServerNodesManager<'a> {
 
         let (target_server_ip, target_gpu_id) = target_gpu.unwrap();
         
-        let virt_server = self.create_virt_server(&target_server_ip, target_gpu_id, vm_required_resources.compute_units, vm_required_resources.memory, false);
+        let virt_server = self.create_virt_server(&target_server_ip, target_gpu_id, vm_required_resources.compute_units, vm_required_resources.memory, true);
+        log::info!("after create_virt_server");
 
         if virt_server.is_err() {
-            log::error!("Error creating virt server for client: {}", client_ip);
+            log::error!("Error creating virt server for client: {} {}", client_ip, client_id);
             return Err("Error creating virt server".to_string());
         }
 
         let virt_server = virt_server.unwrap();
+        log::info!("Allocated for VM: {} client_id: {} GPU server: {}  gpu_id {}", client_ip, client_id, target_server_ip, target_gpu_id);
 
         Ok(virt_server)
 
@@ -432,17 +518,17 @@ impl<'a> ServerNodesManager<'a> {
         Ok(())
     }
 
-    pub fn migrate_virt_server(&self, client_mgr: &FlytClientManager, client_ip: &String, target_snode_id: &String, target_gpu_id: u64, new_sm_cores: u32, new_mem: u64) -> Result<Arc<RwLock<VirtServer>>,String> {
+    pub fn migrate_virt_server(&self, client_mgr: &FlytClientManager, client_ip: &String, client_id: i32, target_snode_id: &String, target_gpu_id: u64, new_sm_cores: u32, new_mem: u64) -> Result<Arc<RwLock<VirtServer>>,String> {
         
-        log::info!("Migrating virt server: {} to server node: {}", client_ip, target_snode_id);
+        log::info!("Migrating client vm: {},{} to server node: {}", client_ip, client_id, target_snode_id);
 
-        match client_mgr.stop_client(client_ip) {
+        match client_mgr.stop_client(client_ip, client_id) {
             Ok(_) => {
-                log::info!("Client VM {} stopped successfully", client_ip);
+                log::info!("Client VM {},{} stopped successfully", client_ip, client_id);
             }
             Err(e) => {
-                log::error!("Error stopping client VM {}: {}", client_ip, e);
-                return Err(format!("Error stopping client VM {}: {}", client_ip, e));
+                log::error!("Error stopping client VM {},{}: {}", client_ip, client_id, e);
+                return Err(format!("Error stopping client VM {},{}: {}", client_ip, client_id, e));
             }
         }
 
@@ -473,8 +559,16 @@ impl<'a> ServerNodesManager<'a> {
             return Err(format!("Error creating path: {}", ckp_path));
         }
 
-        let snode_ip = client_mgr.get_client(client_ip).unwrap().virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
-        let rpc_id = client_mgr.get_client(client_ip).unwrap().virt_server.as_ref().unwrap().read().unwrap().rpc_id;
+        let client = client_mgr.get_client(client_ip, client_id);
+        if client.is_none() {
+            log::error!("Client is removed or terminated {}, {}", client_ip, client_id);
+            return Err("client not found".to_string());
+        }
+
+        let client = client.unwrap();
+
+        let snode_ip = client.virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
+        let rpc_id = client.virt_server.as_ref().unwrap().read().unwrap().rpc_id;
 
 
         let vserver = thread::scope( |s| {
@@ -520,7 +614,7 @@ impl<'a> ServerNodesManager<'a> {
                 log::error!("Error checkpointing virt server: {:?}", e);
 
                 // free the allocated resources
-                let res = self.free_virt_server(target_snode_id, vserver.read().unwrap().rpc_id);
+                let res = self.free_virt_server(target_snode_id, vserver.read().unwrap().rpc_id, true);
                 
                 if res.is_err() {
                     log::error!("Error freeing virt server: {}", res.err().unwrap());
@@ -561,14 +655,14 @@ impl<'a> ServerNodesManager<'a> {
         }
 
         
-        let res = client_mgr.change_virt_server(&client_ip, &vserver);
+        let res = client_mgr.change_virt_server(&client_ip, client_id, &vserver);
         
         if res.is_err() {
             log::error!("Error changing virt server: {}", res.err().unwrap());
             return Err(format!("Error changing virt server for client"));
         }
 
-        let res = client_mgr.resume_client(&client_ip);
+        let res = client_mgr.resume_client(&client_ip, client_id);
         
         if res.is_err() {
             log::error!("Error resuming client VM: {}", res.err().unwrap());
@@ -577,7 +671,7 @@ impl<'a> ServerNodesManager<'a> {
 
         log::info!("VM migrated successfully");
 
-        let res = self.free_virt_server(&snode_ip, rpc_id);
+        let res = self.free_virt_server(&snode_ip, rpc_id, true);
 
         if res.is_err() {
             log::error!("Error freeing virt server: {}", res.err().unwrap());
@@ -587,7 +681,7 @@ impl<'a> ServerNodesManager<'a> {
     
     }
 
-    pub fn migrate_virt_server_auto(&self, client_mgr: &FlytClientManager, client_ip: &String, new_sm_cores: u32, new_mem: u64) -> Result<Arc<RwLock<VirtServer>>,String> {
+    pub fn migrate_virt_server_auto(&self, client_mgr: &FlytClientManager, client_ip: &String, client_id: i32, new_sm_cores: u32, new_mem: u64) -> Result<Arc<RwLock<VirtServer>>,String> {
         let vm_required_resources = self.vm_resource_getter.get_vm_required_resources(client_ip);
         
         if vm_required_resources.is_none() {
@@ -605,7 +699,7 @@ impl<'a> ServerNodesManager<'a> {
         vm_required_resources.compute_units = new_sm_cores;
         vm_required_resources.memory = new_mem;
 
-        let target_gpu = self.get_free_gpu(&vm_required_resources);
+        let target_gpu = self.get_free_gpu(&vm_required_resources, client_id);
 
         if target_gpu.is_none() {
             log::error!("No free GPU found for client: {}", client_ip);
@@ -614,19 +708,27 @@ impl<'a> ServerNodesManager<'a> {
 
         let (target_server_ip, target_gpu_id) = target_gpu.unwrap();
 
-        let snode_ip = client_mgr.get_client(client_ip).unwrap().virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
+        let client = client_mgr.get_client(client_ip, client_id);
+        if client.is_none() {
+            log::error!("Client is removed or terminated {}, {}", client_ip, client_id);
+            return Err("client not found".to_string());
+        }
+
+        let client = client.unwrap();
+
+        let snode_ip = client.virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
         if target_server_ip == snode_ip {
             log::error!("Migrating to same ip address: {}", target_server_ip);
             return Err("No new GPU found".to_string());
         }
 
-        self.migrate_virt_server(client_mgr, client_ip, &target_server_ip, target_gpu_id, new_sm_cores, new_mem)
+        self.migrate_virt_server(client_mgr, client_ip, client_id, &target_server_ip, target_gpu_id, new_sm_cores, new_mem)
         
     }
 
-    pub fn free_virt_server(&self, virt_ip: &String, rpc_id: u64) -> Result<(),String> {
+    pub fn free_virt_server(&self, virt_ip: &String, rpc_id: u64, sendtoserver: bool) -> Result<(),String> {
 
-        info!("Deallocating virt server: {}/{}", virt_ip, rpc_id);
+        info!("Deallocating virt server: {}:{}", virt_ip, rpc_id);
 
         let server_node = self.get_server_node(&virt_ip);
 
@@ -644,16 +746,18 @@ impl<'a> ServerNodesManager<'a> {
             return Err("Virt server not found".to_string());
         }
 
-        log::trace!("Sending dealloc command to server node: {}/{}", virt_ip, rpc_id);
-        stream_write!(get_writer!(server_node), format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id));
-        
-        let response = stream_read_response!(get_reader!(server_node), 2);
+        if sendtoserver == true {
+            log::trace!("Sending dealloc command to server node: {}/{}", virt_ip, rpc_id);
+            stream_write!(get_writer!(server_node), format!("{}\n{}\n", FlytApiCommand::RMGR_SNODE_DEALLOC_VIRT_SERVER, rpc_id));
+            
+            let response = stream_read_response!(get_reader!(server_node), 2);
 
-        log::trace!("Response from server node {} for deallocate: {:?}", virt_ip, response);
+            log::trace!("Response from server node {} for deallocate: {:?}", virt_ip, response);
 
-        if response[0] != "200" {
-            log::error!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]);
-            return Err(format!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]));
+            if response[0] != "200" {
+                log::error!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]);
+                return Err(format!("RMGR_SNODE_DEALLOC_VIRT_SERVER, Status: {}\n{}", response[0], response[1]));
+            }
         }
 
         let target_vserver = target_vserver.unwrap();
@@ -668,7 +772,7 @@ impl<'a> ServerNodesManager<'a> {
 
         server_node.virt_servers.retain(|virt_server| virt_server.read().unwrap().rpc_id != rpc_id);
         
-        log::trace!("Virt servers after deallocation: {:?}", server_node.virt_servers);
+        log::debug!("Virt servers after deallocation" );
         self.update_server_node(server_node);
         Ok(())
     }
@@ -781,6 +885,7 @@ impl<'a> ServerNodesManager<'a> {
         }
         
         let metrics = stream_read_line!(get_reader!(server_node), None);
+        log::info!("throughput metrics : {}", metrics);
         // Step 1: Remove the square brackets
         let trimmed_str = metrics.trim_matches(|c| c == '[' || c == ']');
 
@@ -814,5 +919,23 @@ fn check_resource_availability(server_node: &ServerNode, vm_resources: &VMResour
         }
     }
     None
+}
+
+fn max_resource_availability(server_node: &ServerNode) -> (u64, u64) {
+    let mut max_available_compute = 0 as u64;
+    let mut max_available_memory = 0 as u64;
+
+    for gpu in server_node.gpus.iter() {
+        let gpu_read = gpu.read().unwrap();
+        let remain_compute_units = gpu_read.compute_units - gpu_read.allocated_compute_units;
+        let remain_memory = gpu_read.memory - gpu_read.allocated_memory;
+        let max_compute = max_available_compute.max(remain_compute_units as u64);
+        //TODO: handle memory as well
+        if max_compute == u64::from(remain_compute_units) {
+            max_available_compute = max_compute;
+            max_available_memory = remain_memory as u64;
+        }
+    }
+    (max_available_compute, max_available_memory)
 }
 

@@ -225,6 +225,95 @@ int server_driver_var_restore(resource_mg *vars, resource_mg *modules)
     return 0;
 }
 
+int server_driver_streams_restore(cricket_client *client, int ckp_restore) {
+
+        cudaError_t err;
+		cudaStream_t tmp_stream;
+		tmp_stream = client->default_stream;
+        err = cudaStreamCreate((cudaStream_t*)&client->default_stream);
+        if (err != cudaSuccess) {
+            LOGE(LOG_ERROR, "cudaStreamCreate failed: %s", cudaGetErrorString(err));
+            return 1;
+        }
+		if (ckp_restore == 0) {
+		    err= cudaStreamDestroy(tmp_stream);
+		}
+
+        resource_map_iter *stream_iter = resource_map_init_iter(client->custom_streams);
+        if (stream_iter == NULL) {
+            LOGE(LOG_ERROR, "Failed to initialize custom_streams resource map iterator");
+            return 1;
+        }
+
+        uint64_t stream_idx;
+        while ((stream_idx = resource_map_iter_next(stream_iter)) != 0) {
+            cudaStream_t newStream;
+            err = cudaStreamCreate(&newStream);
+            // TODO: include custom cuda stream flags
+            if (err != cudaSuccess) {
+                LOGE(LOG_ERROR, "cudaStreamCreate failed: %s", cudaGetErrorString(err));
+                resource_map_free_iter(stream_iter);
+                return 1;
+            }
+
+			void *addr = resource_map_addr_from_index(stream_idx);
+			void *ptr = resource_map_get_addr(client->custom_streams, addr);
+
+            LOGE(LOG_INFO, "new cudaStreamCreate: %p", newStream);
+            if (resource_map_update_addr_idx(client->custom_streams, stream_idx, newStream) != 0) {
+                LOGE(LOG_ERROR, "resource_map_update failed, stream_idx: %lu", stream_idx);
+                resource_map_free_iter(stream_iter);
+                return 1;
+            }
+
+			if ((ptr != NULL) && (ckp_restore == 0)) {
+				err= cudaStreamDestroy((cudaStream_t) ptr);
+			}
+        }
+
+        resource_map_free_iter(stream_iter);
+    	return 0;
+}
+
+int server_driver_events_restore(cricket_client *client, int ckp_restore) {
+
+        cudaError_t err;
+		cudaEvent_t tmp_event;
+
+        resource_map_iter *event_iter = resource_map_init_iter(client->gpu_events);
+        if (event_iter == NULL) {
+            LOGE(LOG_ERROR, "Failed to initialize events resource map iterator");
+            return 1;
+        }
+
+        uint64_t event_idx;
+        while ((event_idx = resource_map_iter_next(event_iter)) != 0) {
+            cudaEvent_t newEvent;
+            err = cudaEventCreate(&newEvent);
+            if (err != cudaSuccess) {
+                LOGE(LOG_ERROR, "cudaEventCreate failed: %s", cudaGetErrorString(err));
+                resource_map_free_iter(event_iter);
+                return 1;
+            }
+
+			void *addr = resource_map_addr_from_index(event_idx);
+			void *ptr = resource_map_get_addr(client->gpu_events, addr);
+
+            LOGE(LOG_INFO, "new cudaEventCreate: %p", newEvent);
+            if (resource_map_update_addr_idx(client->gpu_events, event_idx, newEvent) != 0) {
+                LOGE(LOG_ERROR, "resource_map_update failed, event_idx: %lu", event_idx);
+                resource_map_free_iter(event_iter);
+                return 1;
+            }
+
+			if ((ptr != NULL) && (ckp_restore == 0)) {
+				err= cudaEventDestroy((cudaEvent_t) ptr);
+			}
+        }
+
+        resource_map_free_iter(event_iter);
+    return 0;
+}
 
 static int __server_driver_ctx_state_restore(int ckp_restore) {
 
@@ -243,44 +332,14 @@ static int __server_driver_ctx_state_restore(int ckp_restore) {
         
         int ret = server_driver_modules_restore(&client->modules) || 
         server_driver_function_restore(&client->functions, &client->modules) ||
-        server_driver_var_restore(&client->vars, &client->modules);
+        server_driver_var_restore(&client->vars, &client->modules) ||
+        server_driver_streams_restore(client, ckp_restore) ||
+        server_driver_events_restore(client, ckp_restore);
 
         if (ret != 0) {
             LOGE(LOG_ERROR, "restoring client failed");
             return 1;
         }
-        cudaError_t err;
-        err = cudaStreamCreate((cudaStream_t*)&client->default_stream);
-        if (err != cudaSuccess) {
-            LOGE(LOG_ERROR, "cudaStreamCreate failed: %s", cudaGetErrorString(err));
-            return 1;
-        }
-
-        resource_map_iter *stream_iter = resource_map_init_iter(client->custom_streams);
-        if (stream_iter == NULL) {
-            LOGE(LOG_ERROR, "Failed to initialize custom_streams resource map iterator");
-            return 1;
-        }
-
-        uint64_t stream_idx;
-        while ((stream_idx = resource_map_iter_next(stream_iter)) != 0) {
-            cudaStream_t newStream;
-            err = cudaStreamCreate(&newStream);
-            // TODO: include custom cuda stream flags
-            if (err != cudaSuccess) {
-                LOGE(LOG_ERROR, "cudaStreamCreate failed: %s", cudaGetErrorString(err));
-                resource_map_free_iter(stream_iter);
-                return 1;
-            }
-            LOGE(LOG_INFO, "new cudaStreamCreate: %p", newStream);
-            if (resource_map_update_addr_idx(client->custom_streams, stream_idx, newStream) != 0) {
-                LOGE(LOG_ERROR, "resource_map_update failed, stream_idx: %lu", stream_idx);
-                resource_map_free_iter(stream_iter);
-                return 1;
-            }
-        }
-
-        resource_map_free_iter(stream_iter);
     }
 
     LOGE(LOG_DEBUG, "Context state restored");

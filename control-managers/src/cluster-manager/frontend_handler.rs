@@ -90,7 +90,10 @@ impl <'a> FrontendHandler<'a> {
                 self.migrate_vm_auto(stream, reader);
             }
             FrontEndCommand::INCREASE_RESOURCES => {
-                self.increase_resources(stream, reader);
+                self.increase_resources(stream, reader, false);
+            }
+            FrontEndCommand::DECREASE_RESOURCES => {
+                self.increase_resources(stream, reader, true);
             }
             _ => {
                 log::error!("Invalid command: {}", command);
@@ -111,15 +114,16 @@ impl <'a> FrontendHandler<'a> {
         };
         
         let parts: Vec<&str> = request_params[0].split(',').collect();
-        if parts.len() != 5 {
+        if parts.len() != 6 {
             log::error!("Invalid arguments for migrate command: {:?}", parts);
             let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
             return;
         }
 
         let ipaddr = parts[0];
-        let new_server_ip = parts[1];
-        let new_server_gpu_id = match parts[2].parse::<u64>() {
+        let client_id = parts[1].trim().parse::<i32>().unwrap();
+        let new_server_ip = parts[2];
+        let new_server_gpu_id = match parts[3].trim().parse::<u64>() {
             Ok(gpu_id) => gpu_id,
             Err(e) => {
                 log::error!("Error parsing gpu_id: {}", e);
@@ -128,7 +132,7 @@ impl <'a> FrontendHandler<'a> {
             }
         };
 
-        let new_server_compute_units = match parts[3].parse::<u32>() {
+        let new_server_compute_units = match parts[4].trim().parse::<u32>() {
             Ok(sm_cores) => sm_cores,
             Err(e) => {
                 log::error!("Error parsing sm_cores: {}", e);
@@ -137,7 +141,7 @@ impl <'a> FrontendHandler<'a> {
             }
         };
 
-        let new_server_memory = match parts[4].parse::<u64>() {
+        let new_server_memory = match parts[5].trim().parse::<u64>() {
             Ok(memory) => memory,
             Err(e) => {
                 log::error!("Error parsing memory: {}", e);
@@ -150,6 +154,7 @@ impl <'a> FrontendHandler<'a> {
         let res = self.server_nodes_manager.migrate_virt_server(
             self.client_mgr, 
             &ipaddr.to_string(),
+            client_id,
             &new_server_ip.to_string(),
             new_server_gpu_id,
             new_server_compute_units,
@@ -159,7 +164,7 @@ impl <'a> FrontendHandler<'a> {
             log::error!("Error migrating VM: {}", res.clone().unwrap_err());
             
             // resume the client if stopped
-            let _ = self.client_mgr.resume_client(ipaddr);
+            let _ = self.client_mgr.resume_client(ipaddr, client_id);
 
             let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", res.unwrap_err()));
         }
@@ -183,15 +188,16 @@ impl <'a> FrontendHandler<'a> {
         };
         
         let parts: Vec<&str> = request_params[0].split(',').collect();
-        if parts.len() != 3 {
+        if parts.len() != 4 {
             log::error!("Invalid arguments for migrate command: {:?}", parts);
             let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
             return;
         }
 
         let ipaddr = parts[0];
+        let client_id = parts[1].trim().parse::<i32>().unwrap();
 
-        let new_server_compute_units = match parts[1].parse::<u32>() {
+        let new_server_compute_units = match parts[2].trim().parse::<u32>() {
             Ok(sm_cores) => sm_cores,
             Err(e) => {
                 log::error!("Error parsing sm_cores: {}", e);
@@ -200,7 +206,7 @@ impl <'a> FrontendHandler<'a> {
             }
         };
 
-        let new_server_memory = match parts[2].parse::<u64>() {
+        let new_server_memory = match parts[3].trim().parse::<u64>() {
             Ok(memory) => memory,
             Err(e) => {
                 log::error!("Error parsing memory: {}", e);
@@ -213,6 +219,7 @@ impl <'a> FrontendHandler<'a> {
         let res = self.server_nodes_manager.migrate_virt_server_auto(
             self.client_mgr, 
             &ipaddr.to_string(),
+            client_id,
             new_server_compute_units,
             new_server_memory);
         
@@ -220,7 +227,7 @@ impl <'a> FrontendHandler<'a> {
             log::error!("Error migrating VM: {}", res.clone().unwrap_err());
             
             // resume the client if stopped
-            let _ = self.client_mgr.resume_client(ipaddr);
+            let _ = self.client_mgr.resume_client(ipaddr, client_id);
 
             let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", res.unwrap_err()));
         }
@@ -239,8 +246,9 @@ impl <'a> FrontendHandler<'a> {
             // format: vmip,servnode_ip,servnode_rpcid,sm_cores,memory,isactive
             if let Some(virt_server) = vm.virt_server {
                 let virt_server = virt_server.read().unwrap();
-                response.push_str(&format!("{},{},{},{},{},{}\n",
+                response.push_str(&format!("{},{},{},{},{},{},{}\n",
                     vm.ipaddr,
+                    vm.client_id,
                     virt_server.ipaddr,
                     virt_server.rpc_id,
                     virt_server.compute_units,
@@ -315,17 +323,18 @@ impl <'a> FrontendHandler<'a> {
             }
         };
         let parts: Vec<&str> = buffer[0].split(',').collect();
-        if (change_for != ChangeConfigFor::Both && parts.len() != 2) || (change_for == ChangeConfigFor::Both && parts.len() != 3 ){
+        if (change_for != ChangeConfigFor::Both && parts.len() != 3 )|| (change_for == ChangeConfigFor::Both && parts.len() != 4 ){
             log::error!("Invalid arguments for change resource command {:?} {:?}", change_for, parts);
             let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
             return;
         }
         let ipaddr = parts[0];
-        let new_resource = parts[1].parse::<u64>().unwrap();
+        let client_id = parts[1].trim().parse::<i32>().unwrap();
+        let new_resource = parts[2].trim().parse::<u64>().unwrap();
 
         log::info!("Changing resource for VM: {}, new resource: {} for {:?}", ipaddr, new_resource, change_for);
 
-        let client = self.client_mgr.get_client(ipaddr);
+        let client = self.client_mgr.get_client(ipaddr, client_id);
         if client.is_none() {
             log::error!("Client VM {} not found", ipaddr);
             let _ = StreamUtils::write_all(&mut stream, "500\nVM not found\n".to_string());
@@ -349,7 +358,7 @@ impl <'a> FrontendHandler<'a> {
             ChangeConfigFor::SmCores => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, cur_mem),
             ChangeConfigFor::Memory => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, cur_compute, new_resource),
             ChangeConfigFor::Both => {
-                let mem_new = parts[2].parse::<u64>().unwrap();
+                let mem_new = parts[3].trim().parse::<u64>().unwrap();
                 self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, mem_new)
             }
         };
@@ -366,7 +375,7 @@ impl <'a> FrontendHandler<'a> {
     }
 
 
-    fn increase_resources(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>) {
+    fn increase_resources(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>, decrement: bool) {
         let buffer = match StreamUtils::read_response(&mut reader, 1) {
             Ok(buffer) => buffer,
             Err(e) => {
@@ -375,18 +384,19 @@ impl <'a> FrontendHandler<'a> {
             }
         };
         let parts: Vec<&str> = buffer[0].split(',').collect();
-        if parts.len() != 3 {
+        if parts.len() != 4 {
             log::error!("Invalid arguments for increase resource command: {:?}", parts);
             let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
             return;
         }
         let ipaddr = parts[0];
-        let sm_inc = parts[1].parse::<u32>().unwrap();
-        let mem_inc = parts[2].parse::<u64>().unwrap();
+        let client_id = parts[1].trim().parse::<i32>().unwrap();
+        let sm_inc = parts[2].trim().parse::<u32>().unwrap();
+        let mem_inc = parts[3].trim().parse::<u64>().unwrap();
 
-        log::info!("Increasing resource for VM: {}, sm_inc: {}, mem_inc: {}", ipaddr, sm_inc, mem_inc);
+        log::info!("Increasing resource for VM: {}, client id: {},  sm_inc: {}, mem_inc: {}", ipaddr, client_id, sm_inc, mem_inc);
 
-        let client = self.client_mgr.get_client(ipaddr);
+        let client = self.client_mgr.get_client(ipaddr, client_id);
         if client.is_none() {
             log::error!("Client VM {} not found", ipaddr);
             let _ = StreamUtils::write_all(&mut stream, "500\nVM not found\n".to_string());
@@ -406,7 +416,13 @@ impl <'a> FrontendHandler<'a> {
             (virt_server.ipaddr.clone(), virt_server.rpc_id, virt_server.compute_units, virt_server.memory)
         };
 
-        let new_compute = cur_compute + sm_inc;
+        let mut new_compute = cur_compute;
+        if decrement == true {
+            new_compute = new_compute - sm_inc;
+        }
+        else {
+            new_compute = new_compute + sm_inc;
+        }
         let new_mem = cur_mem + mem_inc;
 
         let ret = self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_compute, new_mem);

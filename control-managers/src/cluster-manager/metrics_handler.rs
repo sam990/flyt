@@ -58,12 +58,13 @@ impl <'a> MetricsHandler<'a> {
         //let server_nodes = self.server_nodes_manager.get_all_server_nodes();
         for client_node in clients {
             if *client_node.is_migrating.read().unwrap() == false  && client_node.virt_server.is_some() {
-                let mut virt_server = client_node.virt_server.as_ref().unwrap().write().unwrap();
+                let virt_server_ip = client_node.virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
+                let rpc_id = client_node.virt_server.as_ref().unwrap().read().unwrap().rpc_id;
                 //let virt_server = virt_server.read().unwrap();
-                let metrics = self.server_nodes_manager.get_server_node_metrics(&virt_server.ipaddr, virt_server.rpc_id);
-                log::info!("Heart beat for server {} is {:?}", virt_server.ipaddr, metrics);
+                let metrics = self.server_nodes_manager.get_server_node_metrics(&virt_server_ip, rpc_id);
+                log::info!("Heart beat for server {} is {:?}", virt_server_ip, metrics);
 
-                let cur_compute = virt_server.compute_units;
+                let cur_compute = client_node.virt_server.as_ref().unwrap().read().unwrap().compute_units;
                 //let cur_mem = virt_server.memory;
                 let mut usage = cur_compute;
                 if let Some(metrics_vec) = metrics.as_ref() {
@@ -104,6 +105,7 @@ impl <'a> MetricsHandler<'a> {
                         cur_mem);
                 }
                 */
+                let mut virt_server = client_node.virt_server.as_ref().unwrap().write().unwrap();
                 virt_server.actual_units = usage;
                 log::info!("Updated aacutal units: {} for virt-server : {}", usage, virt_server.ipaddr);
             }
@@ -138,18 +140,24 @@ impl <'a> MetricsHandler<'a> {
                 return;
             }
         };
+        let parts: Vec<&str> = scalevalue_str.split(',').collect();
+        if parts.len() != 2 {
+            log::error!("Invalid arguments for scale up metrics : {:?}", parts);
+            return;
+        }
 
-        let scalevalue = scalevalue_str.parse::<u32>().unwrap();
+        let client_id = parts[0].trim().parse::<i32>().unwrap();
+        let scalevalue = parts[1].trim().parse::<u32>().unwrap();
         let vm_ip = stream.peer_addr().unwrap().ip().to_string();
 
-        log::info!("Scale received command: {} scalevalue: {} vm ip : {}", command.as_str(), scalevalue, vm_ip);
+        log::info!("Scale received command: {} scalevalue: {} vm ip : {} client_id: {}", command.as_str(), scalevalue, vm_ip, client_id);
 
         match command.as_str() {
             MetricsCommand::CLIENTD_MMGR_UPSCALE => {
-                self.server_scaleup(&vm_ip, scalevalue, ChangeScale::ScaleUp);
+                self.server_scaleup(&vm_ip, client_id, scalevalue, ChangeScale::ScaleUp);
             }
             MetricsCommand::CLIENTD_MMGR_DOWNSCALE => {
-                self.server_scaleup(&vm_ip, scalevalue, ChangeScale::ScaleDown);
+                self.server_scaleup(&vm_ip, client_id, scalevalue, ChangeScale::ScaleDown);
             }
             _ => {
                 log::error!("Invalid command: {}", command);
@@ -157,8 +165,8 @@ impl <'a> MetricsHandler<'a> {
         }
     }
 
-    fn server_scaleup(&self, vm_ip: &String, scale_value: u32, scaleflag: ChangeScale) {
-        let client = self.client_mgr.get_client(vm_ip);
+    fn server_scaleup(&self, vm_ip: &String, client_id: i32, scale_value: u32, scaleflag: ChangeScale) {
+        let client = self.client_mgr.get_client(vm_ip, client_id);
         if client.is_none() {
             log::error!("Client VM {} not found", vm_ip);
             return;
@@ -195,33 +203,20 @@ impl <'a> MetricsHandler<'a> {
             vm_required_resources.compute_units = new_compute;
             vm_required_resources.memory = cur_mem;
 
-            let target_gpu = self.server_nodes_manager.get_free_gpu(&vm_required_resources);
+            let target_gpu = self.server_nodes_manager.get_free_gpu(&vm_required_resources, client_id);
             log::info!("Scaleup required compute: {} memory: {}, target_gpcu {} ", new_compute, cur_mem, target_gpu.is_none());
 
             if target_gpu.is_none() {
-                match self.server_nodes_manager.get_server_node(&virt_server_ip) {
-                    Some(server_node) => {
-                        let mut max_available_compute = 0;
+                let (max_available_compute, max_available_memory) = self.server_nodes_manager.get_max_gpu(&vm_required_resources);
+                // Now compare with new_compute
+                let update_compute = if u64::from(new_compute) <= max_available_compute {
+                    new_compute
+                } else {
+                    log::info!("Scale-up expected {} but can only do {}", new_compute, max_available_compute);
+                    max_available_compute as u32
+                };
 
-                        for gpu in server_node.gpus.iter() {
-                            let gpu_read = gpu.read().unwrap();
-                            max_available_compute = max_available_compute.max(gpu_read.compute_units);
-                        }
-
-                        // Now compare with new_compute
-                        let update_compute = if new_compute <= max_available_compute {
-                            new_compute
-                        } else {
-                            max_available_compute
-                        };
-
-                        log::info!("Scale-up expected {} but can only do {}", new_compute, update_compute);
-                        new_compute = update_compute;
-                    }
-                    None => {
-                        log::warn!("Scaling up No server node found for IP: {}", virt_server_ip);
-                    }
-                }
+                new_compute = update_compute;
             }
             log::info!("Scaleup requested compute: {} memory: {}", new_compute, cur_mem);
 
@@ -235,6 +230,7 @@ impl <'a> MetricsHandler<'a> {
                 let ret_val = self.server_nodes_manager.migrate_virt_server_auto(
                         self.client_mgr, 
                         &client.ipaddr.to_string(),
+                        client_id,
                         new_compute,
                         cur_mem);
                 *client.is_migrating.get_mut().unwrap() = false;

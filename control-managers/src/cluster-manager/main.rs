@@ -41,12 +41,14 @@ fn main() {
         s.spawn(|| {
             frontend_handler.start_listening(crate::cli_frontend::get_stream_path().as_str());
         });
+        /*
         s.spawn(|| {
             metrics_handler.start_metrics_handler(metrics_port);
         });
         s.spawn(|| {
             metrics_handler.start_period_handler(metrics_interval as u64);
         });
+        */
     });
 
 }

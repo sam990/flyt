@@ -13,6 +13,7 @@ use std::path::Path;
 use nix::unistd;
 use std::net::TcpStream;
 use crate::common::api_commands::MetricsCommand;
+use crate::vcuda_client_handler::VCudaClientManager;
 use common::{config::CLMGR_CONFIG_PATH, utils::Utils};
 
 const MIN_PERCENTAGE: f64 = 4.0;
@@ -38,7 +39,7 @@ struct PIDData {
 }
 
 // Struct to manage the metrics handler.
-pub struct Metrics {
+pub struct Metrics <'c> {
     shared_memory_file: String,
     file: Option<File>,
     pids: Arc<Mutex<HashMap<u32, PIDData>>>,
@@ -46,10 +47,11 @@ pub struct Metrics {
     address: String,
     scaleupfactor: u16,
     scaledownfactor: u16,
+    client_mgr: &'c VCudaClientManager,
 }
 
-impl Metrics {
-    pub fn new(default_interval: u64, shared_memory_name: String, server_address: &String, scaleup_factor: u16, scaledown_factor: u16) -> Self {
+impl <'c> Metrics <'c> {
+    pub fn new(client_mgr: &'c VCudaClientManager, default_interval: u64, shared_memory_name: String, server_address: &String, scaleup_factor: u16, scaledown_factor: u16) -> Self {
             println!("metrics constructor 3");
         if !Path::new(shared_memory_name.as_str()).exists() {
             unistd::mkfifo(shared_memory_name.as_str(), nix::sys::stat::Mode::S_IRWXU).expect("Failed to create FIFO");
@@ -63,6 +65,7 @@ impl Metrics {
             address: server_address.clone(),
             scaleupfactor: scaleup_factor,
             scaledownfactor: scaledown_factor,
+            client_mgr: client_mgr,
 
         }
     }
@@ -157,7 +160,7 @@ impl Metrics {
                 pid_data.resource_delta.drain(0..x);
             }
 
-            log::info!("Predicted scale value {} for metric: {}", avg.unwrap_or(0.0), metric);
+            log::info!("Predicted pid: {} scale value {} for metric: {}", pid, avg.unwrap_or(0.0), metric);
             match avg {
                 Some(avg_value) => {
 
@@ -185,7 +188,7 @@ impl Metrics {
         pids.remove(&pid);
     }
 
-    fn send_scale_command(&self, _pid: u32, upscale: bool) {
+    fn send_scale_command(&self, pid: u32, upscale: bool) {
         let stream = TcpStream::connect(self.address.clone());
 
         let mut stream = match stream {
@@ -196,10 +199,12 @@ impl Metrics {
             }
         };
 
+        let client_id = self.client_mgr.get_client_gid(pid);
+
         let message = if upscale { 
-            format!( "{}\n{}\n", MetricsCommand::CLIENTD_MMGR_UPSCALE, self.scaleupfactor)
+            format!( "{}\n{},{}\n", MetricsCommand::CLIENTD_MMGR_UPSCALE, client_id, self.scaleupfactor)
         } else {
-            format!( "{}\n{}\n", MetricsCommand::CLIENTD_MMGR_DOWNSCALE, self.scaledownfactor)
+            format!( "{}\n{},{}\n", MetricsCommand::CLIENTD_MMGR_DOWNSCALE, client_id, self.scaledownfactor)
         };
 
         if let Err(e) = stream.write_all(message.as_bytes()) {
@@ -225,7 +230,7 @@ impl Metrics {
         let cmdlines: Vec<&str> = commands.trim().split('\n').collect();
         for line in cmdlines {
             let mut parts = line.trim().split_whitespace();
-            println!("COMMAND: {:?}", parts);
+            //println!("COMMAND: {:?}", parts);
             if let Some(command) = parts.next() {
                 //println!("match command is {} {:?}", command, parts);
                 match command {
@@ -393,7 +398,8 @@ impl Metrics {
     }
 
 
-impl Drop for Metrics {
+/*
+impl <'c> Drop for Metrics <'c> {
     fn drop(&mut self) {
         println!("Dropping FileManager and closing file");
         let _ = std::fs::remove_file(self.shared_memory_file.clone());
@@ -401,6 +407,7 @@ impl Drop for Metrics {
         // Additional cleanup can be performed here if needed
     }
 }
+*/
 
 /*
 fn main() {

@@ -54,21 +54,21 @@ fn main() {
     let (scaleupfactor, scaledownfactor, interval_millis) = Metrics::get_metric_thresholds();
     let address = format!("{}:{}", resource_manager_address, resource_manager_port);
     let shared_mem_path = Metrics::get_shared_memory_path();
-    let mut metrics = Metrics::new(interval_millis as u64, shared_mem_path, &address, scaleupfactor, scaledownfactor);
+    let mut metrics = Metrics::new(&client_mgr, interval_millis as u64, shared_mem_path, &address, scaleupfactor, scaledownfactor);
 
     thread::scope(|s| {
+        /*
         s.spawn(|| {
             let period = get_vcuda_process_monitor_period();
             loop {
                 thread::sleep(std::time::Duration::from_secs(period));
-                if res_mgr.virt_server_available() {
-                    client_mgr.remove_closed_clients(|| res_mgr.notify_zero_clients());
-                }
+                client_mgr.remove_closed_clients(|| res_mgr.notify_zero_clients());
             }
         });
+        */
 
         s.spawn(|| {
-            client_mgr.listen_to_clients(|| res_mgr.get_virt_server(s));
+            client_mgr.listen_to_clients(|gid, rmgrflag | res_mgr.get_virt_server(s, gid, rmgrflag ));
         });
 
         s.spawn(|| {

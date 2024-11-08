@@ -34,7 +34,7 @@ int main() {
 					        }
 
 	    struct msgbuf msg;
-	  msgrcv(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 1, 0);
-	printf("received message\n");
+	  msgrcv(clientd_mqueue_id, &msg, sizeof(mqueue_msg), 0, 0);
+	printf("received message typd: %ld cmd: %s dat: %s\n", msg.mtype, msg.msg.cmd, msg.msg.data);
 	return 0;
 }	

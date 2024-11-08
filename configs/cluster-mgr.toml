@@ -1,8 +1,8 @@
 [vm-resource-db]
-host = "10.129.27.228"
-port = 27017
-user = "root"
-password = "example"
+host = "10.129.131.167"
+port = 27017 
+user = "adminUser"
+password = "securePassword"
 dbname = "flyt"
 
 [ports]
@@ -19,3 +19,7 @@ frontend-socket = "/tmp/flyt-frontend-socket"
 
 [migration]
 ckp-path = "/mnt/flytckp"
+
+[metrics]
+port = 12403
+interval = 30

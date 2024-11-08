@@ -2,6 +2,7 @@
 #define __CD_CPU_CLIENT_MGR_HANDLER_H__
 
 char* init_client_mgr();
+void deinit_client_mgr();
 void stop_client_mgr();
 
 

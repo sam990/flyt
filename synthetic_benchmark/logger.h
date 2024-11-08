@@ -38,7 +38,7 @@ public:
 		    int spike) {
         // Register a function
 	if(fifo_fd == -1) {
-		pid = pthread_self();
+		pid = getpid();
 		fifo_name = "/tmp/flyt_shmem.log";
 		initSharedMemory();
 		if(send == 0) {
@@ -58,7 +58,7 @@ public:
 		metrics = 200;
 	}
         std::string command = formatLogCommand(pid, functionName, metrics);
-	printf("writing metrics %4d avg: %4d spike: %4d command %s\n", metrics, avg, spike, command.c_str());
+	printf("writing metrics for pid: %4d %4d avg: %4d spike: %4d command %s\n", pid, metrics, avg, spike, command.c_str());
         writeMessage(command);
 	close(fifo_fd);
 	fifo_fd = -1;

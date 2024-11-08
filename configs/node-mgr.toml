@@ -1,10 +1,13 @@
 [resource-manager]
-address = "10.129.27.228"
+address = "10.129.131.167"
 port = 12401
 
 [virt-server]
+#program-path = "ncu"
 program-path = "./cricket-rpc-server"
 thread-mode = 0
+#program-args= "--target-processes,all,-o,./profile.out,./cricket-rpc-server"
+program-args= ""
 
 [ipc]
 mqueue-path = "/tmp/flyt-servernode-queue"

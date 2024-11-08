@@ -161,6 +161,7 @@ int main(int argc, char *argv[]) {
     }
     cudaFree(d_data);
     cudaStreamDestroy(stream);
+    printf("Execution of program completed\n");
 
     return 0;
 }

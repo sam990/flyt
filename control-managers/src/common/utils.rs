@@ -16,7 +16,7 @@ impl Utils {
     pub fn is_ping_active(mqueue: &MessageQueue, send_id: i64, recv_id: i64) -> bool {
         let cmd = MqueueClientControlCommand::new(FlytApiCommand::PING, "").as_bytes();
         mqueue.send(&cmd, send_id).unwrap();
-        let response = mqueue.recv_type_timed(recv_id, Duration::from_secs(2));
+        let response = mqueue.recv_type_timed(recv_id, Duration::from_secs(350));
         response.is_ok()
     }
 

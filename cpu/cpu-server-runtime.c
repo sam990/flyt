@@ -98,6 +98,8 @@ int server_runtime_init(int restore, int gpu_id)
     
     // Make sure runtime API is initialized
     // If we don't do this and use the driver API, it might be unintialized
+    CUresult res = cuInit(0);
+
     cudaError_t cres;
     if ((cres = cudaSetDevice(gpu_id)) != cudaSuccess) {
         LOG(LOG_ERROR, "cudaSetDevice failed: %d", cres);
