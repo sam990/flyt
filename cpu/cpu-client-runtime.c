@@ -369,8 +369,13 @@ cudaError_t cudaGetDeviceCount(int* count)
     Timer t1;
     FUNC_BEGIN(t1); 
     if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
-        printf("In shm cudagetdevicecount\n");
-        retval = rpc_shm_clnt_cuda_get_device_count_1(&result);    
+        //printf("In shm cudagetdevicecount\n");
+        retval = rpc_shm_clnt_cuda_get_device_count_1(&result); 
+        // printf("exited shm dev cnt\n");
+        // printf("res address in outer: %p\n", (void*)&result);
+        // printf("Result err recd from svc: %d\n", result.err);
+        // printf("result data recd from svc: %d\n", result.int_result_u.data);
+
         if (retval != RPC_SHM_SUCCESS) {
             clnt_perror (clnt, "shm call failed");
         }
@@ -385,7 +390,7 @@ cudaError_t cudaGetDeviceCount(int* count)
     //printf("cudagetdevicecount worked\n%d", result.int_result_u.data);
     
     if (result.err == 0) {
-        *count = result.int_result_u.data;
+        *count = result.int_result_u.data; // copy from shm
     }
     return result.err;
 }

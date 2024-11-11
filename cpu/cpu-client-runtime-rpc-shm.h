@@ -1,3 +1,69 @@
+#include <pthread.h>
+#include <stdint.h>
+#include "cpu_rpc_prot.h"
+
+extern pthread_cond_t poll_cond_var;
+extern pthread_mutex_t poll_mutex;
+
+extern pthread_cond_t poll_cond_var_1;
+extern pthread_mutex_t poll_mutex_1;
+
+extern pthread_cond_t poll_stop_cond_var;
+extern pthread_mutex_t poll_stop_mutex;
+
+extern int got_response;
+extern int poll_active;
+extern int poll_quit;
+extern int do_unmap;
+
+// rpc shm helpers
+#define RPC_SHM_SUCCESS 0
+#define RPC_SHM_FAILURE 1
+#define RPC_SHM_MAGIC_START 0xD6 // 1 byte at beginnning of each RPC message. First byte of shm must always be = 0xD6
+#define RPC_SHM_MAGIC_END 0xC5
+#define RPC_SHM_ARG_DATA_START 8
+#define RPC_SHM_MAX_ARG_LENGTH 128 // consistent with cudageterrorstring on server.
+
+// 1 + 7 + 8 + 8 + 8 = 32 bytes/arg
+struct rpc_shm_arg {
+    uint8_t arg_type;
+    uint8_t __pad3[7];
+    struct {
+        uint64_t val;
+        uint64_t d_off;
+    } raw_info;
+    uint64_t arg_data_len;
+}__attribute__((packed));
+
+// 16 bytes /response meta
+typedef struct rpc_shm_response {
+    uint64_t sz; // set by server
+    uint64_t offset; // read by client
+}__attribute__((packed)) rpc_shm_response_t ;
+
+// 1 + 1 + 1 + 4 + 1 + 4 + 1 + 3 + 32 *16 + 16 + 1 = 545 bytes.
+typedef struct rpc_shm_header {
+    uint8_t rpc_magic_start;
+    uint8_t poll_s; // (R:Server, W: Client) On write by client, client sets it to 1, server reads then resets to 0
+    uint8_t poll_c; // (R: Client, W: Server) On write by server, server sets it to 1, client reads then resets to 0
+    uint32_t pid;
+    uint8_t rpc_status; // RPC_SUCCESS/FAILURE
+
+    uint32_t rpc_cmd;
+    uint8_t num_args;
+    uint8_t __pad2[3];
+
+    struct rpc_shm_arg rpc_args[16]; // max 16 rpc args allowed.
+
+    rpc_shm_response_t rpc_response;
+    uint8_t rpc_magic_end;
+}__attribute__((packed)) rpc_shm_header_t;
+
+void rpc_shm_clnt_put_request_and_notify(rpc_shm_header_t *rpc_hdr); // copy rpc control header to shm, update poll bit
+uint64_t rpc_shm_clnt_get_response_status(); // to access status
+uint64_t rpc_shm_clnt_get_response_data_offset();
+
+
 // RPC API
 #define RPC_CHECKPOINT 0
 #define RPC_DEINIT 1

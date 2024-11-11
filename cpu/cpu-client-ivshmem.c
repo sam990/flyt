@@ -17,24 +17,60 @@
 #include <errno.h>
 #include "cpu-utils.h"
 #include <pthread.h>
+#include "cpu-client-runtime-rpc-shm.h"
 
 ivshmem_clnt_ctx *ivshmem_ctx = NULL; // default
 
 pthread_cond_t poll_cond_var = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t poll_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_cond_t poll_cond_var_1 = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t poll_mutex_1 = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_cond_t poll_stop_cond_var = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t poll_stop_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 int got_response = 0;
+int poll_active = 1;
+int poll_quit = 0;
+int do_unmap = 0;
 
 void *do_rpc_shm_poll(void *arg) {
-    while(1) {
+    while (1) {
+        if (poll_quit) {
+            printf("Polling thread exiting...\n");
+            pthread_mutex_lock(&poll_stop_mutex); // Lock again to modify exit condition
+            do_unmap = 1;  // Set the flag to indicate the thread has exited
+            pthread_cond_signal(&poll_stop_cond_var);  // Signal that the thread has finished
+            pthread_mutex_unlock(&poll_stop_mutex);
+            return NULL;  // Exit the loop and return
+        }
+
+        pthread_mutex_lock(&poll_mutex_1);
+        while (!poll_active) {
+            //printf("paused poll\n");
+            
+            pthread_cond_wait(&poll_cond_var_1, &poll_mutex_1);
+            poll_active = 1;
+        }
+        pthread_mutex_unlock(&poll_mutex_1);
+        //printf("unlock done\n");
+
+
         if (*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 1) {
+            // *((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 0;
+            // __sync_synchronize();
+            //printf("got notif\n");
             pthread_mutex_lock(&poll_mutex);
-            printf("got notif\n");
             got_response = 1;
             pthread_cond_signal(&poll_cond_var);
+
+            poll_active = 0;
             pthread_mutex_unlock(&poll_mutex);
         }
-        printf("polling on client\n");
-        usleep(100000);
+        
+        //printf("polling on client\n");
+        //usleep(1);
     }
 }
 

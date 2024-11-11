@@ -22,6 +22,8 @@
 #include "cpu-elf2.h"
 #include "cpu-client-mgr-handler.h"
 #include "cpu-client-ivshmem.h" // for ivshmem-ctx
+#include "cpu-client-runtime-rpc-shm.h"
+
 #ifdef WITH_IB
 #include "cpu-ib.h"
 #endif // WITH_IB
@@ -336,6 +338,16 @@ void __attribute__((destructor)) deinit_rpc(void)
 
         // unmap pci BAR
         if (ivshmem_ctx) {
+            // stop polling
+            poll_quit = 1;  // Signal polling thread to stop
+
+            // Wait for the polling thread to finish before unmapping memory
+            pthread_mutex_lock(&poll_stop_mutex);
+            while (!do_unmap) {
+                pthread_cond_wait(&poll_stop_cond_var, &poll_stop_mutex);  // Wait until the thread is done
+            }
+            pthread_mutex_unlock(&poll_stop_mutex);
+
             printf("unmapping\n");
             munmap(ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_proc_size);
 
