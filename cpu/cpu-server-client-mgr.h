@@ -107,7 +107,7 @@ void free_cpu_server_client_mgr();
 
 cricket_client *create_client(int pid, ivshmem_svc_ctx *ctx);
 
-int add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *ctx);
+cricket_client *add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *ctx);
 
 int add_restored_client(cricket_client *client);
 

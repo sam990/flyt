@@ -32,6 +32,9 @@ typedef struct __ivshmem_svc_ctx {
 
     _ivshmem_area read_from;  
     _ivshmem_area write_to; 
+    
+    pthread_mutex_t poll_mutex_svc;  // Mutex for polling service
+    pthread_cond_t poll_cond_var_svc; // Condition variable for polling service
 } ivshmem_svc_ctx;
 
 ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt);
@@ -44,6 +47,10 @@ void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx);
 // in H2D: svc src_addr = read_getaddr() + w_off_clnt
 uintptr_t shm_get_readaddr_svc(ivshmem_svc_ctx *_ctx); // returns VA of start of mmaped region corresp to ivshmem_area read_from (shm_mmap + PROC_READ_OFFSET_SVC)
 uintptr_t shm_get_writeaddr_svc(ivshmem_svc_ctx *_ctx); // returns VA of start of mmaped region corresp to ivshmem_area write_to (shm_mmap + PROC_WRITE_OFFSET_SVC)
+
+// rpc shm helpers
+void rpc_shm_svc_put_response_and_notify(); // write result value to shm, update notification flag.
+void rpc_shm_svc_read_request(); // Generic function to get request type, request args from shared memory and return a struct.
 
 #endif
 

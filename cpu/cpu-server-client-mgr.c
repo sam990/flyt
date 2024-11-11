@@ -85,9 +85,25 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
         return NULL;
     }
 
-    // ivshmem added.
+    // ivshmem added. Create condvar, mutex.
     if (_ctx) {
         client->ivshmem_ctx = _ctx;
+        // create the mutex and cond_var
+        if (pthread_mutex_init(&(client->ivshmem_ctx->poll_mutex_svc), NULL) != 0) {
+            LOGE(LOG_ERROR, "Failed to initialize mutex for ivshmem_ctx");
+            cudaStreamDestroy(client->default_stream);
+            free(client);
+            return NULL;
+        }
+
+        if (pthread_cond_init(&(client->ivshmem_ctx->poll_cond_var_svc), NULL) != 0) {
+            LOGE(LOG_ERROR, "Failed to initialize condition variable for ivshmem_ctx");
+            pthread_mutex_destroy(&client->ivshmem_ctx->poll_mutex_svc);
+            cudaStreamDestroy(client->default_stream);
+            free(client);
+            return NULL;
+        }
+
     } else {
         client->ivshmem_ctx = NULL;
     }
@@ -119,7 +135,7 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
 
 // create a new client
 // add <&fd, &client> to xp_fd_to_client map.
-int add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *_ctx) {
+cricket_client* add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *_ctx) {
 
     cricket_client* client = create_client(pid, _ctx);
     if (client == NULL) {
@@ -144,7 +160,8 @@ int add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *_ctx) {
     }
     pthread_mutex_unlock(&client_mgr_mutex);
 
-    return (ret != 0)? -1:0;
+    // return (ret != 0)? -1:0;
+    return client;
 }
 
 int add_restored_client(cricket_client *client) {
@@ -262,7 +279,7 @@ int remove_client_ptr(cricket_client* client) {
 
     pthread_mutex_unlock(&client_mgr_mutex);
     free(client);
-    //printf("all freed\n");
+    printf("all freed\n");
     return 0;
 }
 

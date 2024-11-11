@@ -45,6 +45,9 @@ ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt) {
     return _ctx;
 }
 
+// these are cudamemcpy apis
+// the split may not be necessary for 
+// rpc over shm with memcpy data.
 void init_ivshmem_areas_svc(ivshmem_svc_ctx *ctx) {
     // read from [sz/2, sz)
     ctx->write_to.max_size = ctx->shm_proc_size  / 2;
