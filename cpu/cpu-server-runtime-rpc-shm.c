@@ -31,16 +31,16 @@ void _svc_resp_do_notify(cricket_client *client) {
     //printf("Notif before: 0x%02X\n", *(notif));
     uint8_t value = 1;
     memcpy((uint8_t *)client->ivshmem_ctx->shm_mmap + 2, &value, sizeof(value)); // set poll_c
-    printf("poll_c set by server\n");
+    // printf("poll_c set by server\n");
 
     // Perform cache flush to ensure visibility
-    clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 2);
+    // clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 2);
     __sync_synchronize();
 
-    printf("poll_c val set to by svc: %d\nneighbours after:\n", *((uint8_t *)client->ivshmem_ctx->shm_mmap + 2));
+    // printf("poll_c val set to by svc: %d\nneighbours after:\n", *((uint8_t *)client->ivshmem_ctx->shm_mmap + 2));
 
-    int num_bytes_to_print = 8;
-    print_neighbors((uint8_t *)client->ivshmem_ctx->shm_mmap + 1, num_bytes_to_print * 2 + 1);
+    // int num_bytes_to_print = 8;
+    // print_neighbors((uint8_t *)client->ivshmem_ctx->shm_mmap + 1, num_bytes_to_print * 2 + 1);
 
 }
 
@@ -57,10 +57,10 @@ void rpc_shm_svc_cuda_get_device_count_1(volatile rpc_shm_header_t *rpc_hdr_svc,
     // response will always be in the data section.
     // response may be a simple struct, or even data.
     uint64_t resp_off = sizeof(rpc_shm_header_t) + RPC_SHM_ARG_DATA_START - 1;
-    if (((uintptr_t)(client->ivshmem_ctx->shm_mmap + resp_off) % alignof(int_result)) != 0) {
-    printf("Error: Misaligned write for int_result at offset %zu\n", resp_off);
-    // Handle misalignment, e.g., adjust r_d_off or handle the error
-}
+//     if (((uintptr_t)(client->ivshmem_ctx->shm_mmap + resp_off) % alignof(int_result)) != 0) {
+//     printf("Error: Misaligned write for int_result at offset %zu\n", resp_off);
+//     // Handle misalignment, e.g., adjust r_d_off or handle the error
+// }
 
     // memcpy result to shm at response offset
     memcpy(client->ivshmem_ctx->shm_mmap + resp_off, result, sizeof(int_result));
@@ -80,9 +80,9 @@ void rpc_shm_svc_cuda_get_device_count_1(volatile rpc_shm_header_t *rpc_hdr_svc,
 
     // 
     
-    printf("status offset  %d\n", offsetof(rpc_shm_header_t, rpc_status));
+    // printf("status offset  %d\n", offsetof(rpc_shm_header_t, rpc_status));
 
-    print_neighbors((uint8_t *)client->ivshmem_ctx->shm_mmap + 1, num_bytes_to_print * 2 + 1);
+    // print_neighbors((uint8_t *)client->ivshmem_ctx->shm_mmap + 1, num_bytes_to_print * 2 + 1);
 
 
     // this is likely redundant.
@@ -92,7 +92,7 @@ void rpc_shm_svc_cuda_get_device_count_1(volatile rpc_shm_header_t *rpc_hdr_svc,
     // notify
     _svc_resp_do_notify(client);
 
-    _mm_mfence();
+    // _mm_mfence();
     //msync((void *)rpc_hdr_svc, sizeof(rpc_shm_header_t), MS_SYNC);
 
 }

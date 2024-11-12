@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <dlfcn.h>
 #include <link.h>
+#include <sched.h>
 
 #include "cpu-server.h"
 #include "cpu_rpc_prot.h"
@@ -134,23 +135,35 @@ void begin_poll_svc() {
 // one per client.
 void *rpc_shm_dispatcher(void *arg) {
     cricket_client *client = (cricket_client *)arg;
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);       // Initialize the CPU set
+    CPU_SET(3, &cpuset);     // Set core 0 (adjust the core number as needed)
+
+    // Get the thread ID and set the CPU affinity
+    pthread_t current_thread = pthread_self();
+    if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
+        perror("pthread_setaffinity_np");
+        return NULL;
+    }
+
     while (1) {
-        printf("Server waiting for notif, client %d\n", client->pid);
+        // printf("Server waiting for notif, client %d\n", client->pid);
         for (;;) {
             if (*((uint8_t *)client->ivshmem_ctx->shm_mmap + 1) == 1) {
                 break; // got notif
             }
-            clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
+            // clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
+            usleep(1);
         }
         
         volatile rpc_shm_header_t *rpc_hdr_svc = (rpc_shm_header_t *)(client->ivshmem_ctx->shm_mmap);
 
         // clear poll_s
         uint8_t *notif = (uint8_t *)client->ivshmem_ctx->shm_mmap + 1;
-        printf("before poll_s acked: %d\n", *notif);
+        // printf("before poll_s acked: %d\n", *notif);
         *notif = 0;
-        clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
-        printf("new poll_s value written to shm: %d\n", *((uint8_t *)client->ivshmem_ctx->shm_mmap + 1));
+        // clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
+        // printf("new poll_s value written to shm: %d\n", *((uint8_t *)client->ivshmem_ctx->shm_mmap + 1));
 
 
         // read the cmd
@@ -159,7 +172,7 @@ void *rpc_shm_dispatcher(void *arg) {
             case CUDA_GET_DEVICE_COUNT: {
                 int_result result;
                 rpc_shm_svc_cuda_get_device_count_1(rpc_hdr_svc, &result, client);
-                printf("cgdc done\n");
+                // printf("cgdc done\n");
                 break;
             }
             
@@ -208,7 +221,7 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
     // poll_pause = 0;
     // pthread_mutex_unlock(&poll_pause_mutex);
     // pthread_cond_signal(&poll_pause_cond_var);
-    printf("signal to poll done\n");
+    // printf("signal to poll done\n");
 
     return 1;
 }
