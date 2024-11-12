@@ -265,9 +265,8 @@ int remove_client_ptr(cricket_client* client) {
     for (size_t i = 0; i < client->functions.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->functions.map_res, i);
         if(elem != NULL) {
-
-                addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
-                free_function_data(pair);
+            addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
+            free_function_data(pair);
         }
     }
     pthread_mutex_unlock(&client->functions.map_res.mutex);

@@ -4,8 +4,8 @@
 #include "cpu-server-client-mgr.h"
 
 // rpc shm helpers
-#define RPC_SHM_SUCCESS 0
-#define RPC_SHM_FAILURE 1
+#define RPC_SHM_SUCCESS 0x3B
+#define RPC_SHM_FAILURE 0x2A
 #define RPC_SHM_MAGIC_START 0xD6 // 1 byte at beginnning of each RPC message. First byte of shm must always be = 0xD6
 #define RPC_SHM_MAGIC_END 0xC5
 #define RPC_SHM_ARG_DATA_START 8
@@ -34,10 +34,10 @@ typedef struct rpc_shm_response {
 // 1 + 1 + 1 + 4 + 1 + 4 + 1 + 3 + 32 *16 + 16 + 1 = 545 bytes.
 typedef struct rpc_shm_header {
     uint8_t rpc_magic_start;
-    uint8_t poll_s; // (R:Server, W: Client) On write by client, client sets it to 1, server reads then resets to 0
-    uint8_t poll_c; // (R: Client, W: Server) On write by server, server sets it to 1, client reads then resets to 0
+    volatile uint8_t poll_s; // (R:Server, W: Client) On write by client, client sets it to 1, server reads then resets to 0
+    volatile uint8_t poll_c; // (R: Client, W: Server) On write by server, server sets it to 1, client reads then resets to 0
     uint32_t pid;
-    uint8_t rpc_status; // RPC_SUCCESS/FAILURE
+    volatile uint8_t rpc_status; // RPC_SUCCESS/FAILURE
 
     uint32_t rpc_cmd;
     uint8_t num_args;
@@ -45,7 +45,7 @@ typedef struct rpc_shm_header {
 
     struct rpc_shm_arg rpc_args[16]; // max 16 rpc args allowed.
 
-    rpc_shm_response_t rpc_response_desc;
+    volatile rpc_shm_response_t rpc_response_desc;
     uint8_t rpc_magic_end;
 }__attribute__((packed)) rpc_shm_header_t;
 
@@ -54,6 +54,10 @@ uint32_t rpc_shm_svc_get_cuda_cmd();
 
 extern int got_request;
 
+inline void clflush(volatile void *p)
+{
+    asm volatile ("clflush (%0)" :: "r"(p));
+}
 
 // RPC API
 #define RPC_CHECKPOINT 0
@@ -85,12 +89,12 @@ extern int got_request;
 #define CUDA_DEVICE_SYNCHRONIZE 116
 #define CUDA_GET_DEVICE 117
 #define CUDA_GET_DEVICE_COUNT 118
-void rpc_shm_svc_cuda_get_device_count_1(rpc_shm_header_t *rpc_hdr_svc, int_result *res, cricket_client *client);
+void rpc_shm_svc_cuda_get_device_count_1(volatile rpc_shm_header_t *rpc_hdr_svc, int_result *res, cricket_client *client);
 
 #define CUDA_GET_DEVICE_FLAGS 119
 
 #define CUDA_GET_DEVICE_PROPERTIES 120
-void rpc_shm_svc_cuda_get_device_properties_1(rpc_shm_header_t *rpc_hdr_svc, int_result *res, cricket_client *client);
+void rpc_shm_svc_cuda_get_device_properties_1(volatile rpc_shm_header_t *rpc_hdr_svc, int_result *res, cricket_client *client);
 
 #define CUDA_SET_DEVICE 126
 #define CUDA_SET_DEVICE_FLAGS 127

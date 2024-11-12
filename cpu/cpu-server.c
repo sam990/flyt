@@ -116,6 +116,7 @@ void *do_rpc_shm_poll_svc() {
                     pthread_cond_signal(&(client->ivshmem_ctx->poll_cond_var_svc));
                     pthread_mutex_unlock(&(client->ivshmem_ctx->poll_mutex_svc));
                 }
+                clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
                 _cnt++;
             }
         }
@@ -133,20 +134,24 @@ void begin_poll_svc() {
 // one per client.
 void *rpc_shm_dispatcher(void *arg) {
     cricket_client *client = (cricket_client *)arg;
-    printf("Server waiting for notif, client %d\n", client->pid);
-    while(1) {
-        pthread_mutex_lock(&(client->ivshmem_ctx->poll_mutex_svc));
-        while (!got_request) {
-            pthread_cond_wait(&(client->ivshmem_ctx->poll_cond_var_svc), &(client->ivshmem_ctx->poll_mutex_svc));
+    while (1) {
+        printf("Server waiting for notif, client %d\n", client->pid);
+        for (;;) {
+            if (*((uint8_t *)client->ivshmem_ctx->shm_mmap + 1) == 1) {
+                break; // got notif
+            }
+            clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
         }
-        got_request = 0;
-        pthread_mutex_unlock(&(client->ivshmem_ctx->poll_mutex_svc));
-
-        rpc_shm_header_t *rpc_hdr_svc = (rpc_shm_header_t *)(client->ivshmem_ctx->shm_mmap);
+        
+        volatile rpc_shm_header_t *rpc_hdr_svc = (rpc_shm_header_t *)(client->ivshmem_ctx->shm_mmap);
 
         // clear poll_s
         uint8_t *notif = (uint8_t *)client->ivshmem_ctx->shm_mmap + 1;
+        printf("before poll_s acked: %d\n", *notif);
         *notif = 0;
+        clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
+        printf("new poll_s value written to shm: %d\n", *((uint8_t *)client->ivshmem_ctx->shm_mmap + 1));
+
 
         // read the cmd
         //printf("cmd: %d\nFor client %d\n", rpc_hdr_svc->rpc_cmd, client->pid);
@@ -154,7 +159,7 @@ void *rpc_shm_dispatcher(void *arg) {
             case CUDA_GET_DEVICE_COUNT: {
                 int_result result;
                 rpc_shm_svc_cuda_get_device_count_1(rpc_hdr_svc, &result, client);
-                // notify
+                printf("cgdc done\n");
                 break;
             }
             
@@ -167,6 +172,7 @@ void *rpc_shm_dispatcher(void *arg) {
                 break;
             }
         }
+            
     }
 }
 
@@ -255,10 +261,10 @@ bool_t rpc_init_1_svc(int pid, ivshmem_setup_desc iv_stat, int *result, struct s
         // - if write detected, check the pid of the process.
         // - wake up (signal) only the thread that is handling this pid. ?? How?
         // - Threads are created dynamically, cannot have a fixed number of condition variables.
-        if (!proc_cnt) {
-            proc_cnt++;
-            begin_poll_svc(); // start the thread. Needs to be able to poll every ivshmem_ctx poll region.
-        }
+        // if (!proc_cnt) {
+        //     proc_cnt++;
+        //     begin_poll_svc(); // start the thread. Needs to be able to poll every ivshmem_ctx poll region.
+        // }
     } else {
         client_tcp = add_new_client(pid, rqstp->rq_xprt->xp_fd, ivshmem_ctx); 
         if (!client_tcp) {
