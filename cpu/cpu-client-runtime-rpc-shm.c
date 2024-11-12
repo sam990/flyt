@@ -22,7 +22,7 @@ inline void clflush(volatile void *p)
 void _clnt_req_do_notify() {
     // write to poll_s
     *((uint8_t *)ivshmem_ctx->shm_mmap + 1) = 1; // set poll_s
-    clflush((uint8_t *)ivshmem_ctx->shm_mmap + 1);
+    // clflush((uint8_t *)ivshmem_ctx->shm_mmap + 1);
 }
 
 uint64_t _rpc_shm_get_offset_of_arg(int _idx) {
@@ -61,28 +61,28 @@ void rpc_shm_clnt_put_request_and_notify(volatile rpc_shm_header_t *rpc_hdr) {
     uintptr_t _addr = (uintptr_t)ivshmem_ctx->shm_mmap;
     uintptr_t _end = _addr + sizeof(rpc_shm_header_t);
 
-    for (; _addr < _end; _addr += 64) {
-        clflush((void *)_addr);
-    }
+    // for (; _addr < _end; _addr += 64) {
+    //     clflush((void *)_addr);
+    // }
 
-    __sync_synchronize();
+    // __sync_synchronize();
 
-    _mm_mfence();
+    // _mm_mfence();
 
     // clflush
     
     // cacheflush((void *)ivshmem_ctx->shm_mmap, sizeof(rpc_shm_header_t));
 
 
-    assert(*((uint8_t *)ivshmem_ctx->shm_mmap) == RPC_SHM_MAGIC_START);
-    assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 1) == 0);
-    assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 0);
-    printf("pid byte: 0x%02X\n", *(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3));
-    assert(*(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3) == 0xDEADBEEF);
+    // assert(*((uint8_t *)ivshmem_ctx->shm_mmap) == RPC_SHM_MAGIC_START);
+    // assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 1) == 0);
+    // assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 0);
+    // printf("pid byte: 0x%02X\n", *(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3));
+    // assert(*(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3) == 0xDEADBEEF);
 
     size_t num_bytes_to_print = 4;
-    print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status) - num_bytes_to_print,num_bytes_to_print * 2 + 1);
-    assert(*((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status)) == RPC_SHM_FAILURE);
+    // print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status) - num_bytes_to_print,num_bytes_to_print * 2 + 1);
+    // assert(*((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status)) == RPC_SHM_FAILURE);
 
 
     // printf("Byte before magic_end: 0x%02X\n", *((uint8_t *)ivshmem_ctx->shm_mmap + sizeof(rpc_shm_header_t) - 1));
@@ -153,16 +153,16 @@ uint64_t rpc_shm_clnt_cuda_get_device_count_1(int_result *res) {
     //printf("reached the condvar wait\n");
 
     for (;;) {
-        clflush((uint8_t *)ivshmem_ctx->shm_mmap + 2);
+        // clflush((uint8_t *)ivshmem_ctx->shm_mmap + 2);
         if ((*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 1)) {
             //printf("got notif\n");
             break;
         }
         int num_bytes_to_print = 2;
-        print_neighbors(((uint8_t *)ivshmem_ctx->shm_mmap + 2), num_bytes_to_print * 2 + 1);
-        printf("poll_c on client: %d\n", *((uint8_t *)ivshmem_ctx->shm_mmap + 2));
-        __sync_synchronize();
-        usleep(100000);
+        // print_neighbors(((uint8_t *)ivshmem_ctx->shm_mmap + 2), num_bytes_to_print * 2 + 1);
+        // printf("poll_c on client: %d\n", *((uint8_t *)ivshmem_ctx->shm_mmap + 2));
+        // __sync_synchronize();
+        usleep(1);
     }
 
     // clear poll_c
@@ -184,8 +184,8 @@ uint64_t rpc_shm_clnt_cuda_get_device_count_1(int_result *res) {
 
     // get result
     int err = rpc_shm_clnt_get_response_status();
-    __sync_synchronize();
-    print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status) - num_bytes_to_print, num_bytes_to_print * 2 + 1);
+    // __sync_synchronize();
+    // print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status) - num_bytes_to_print, num_bytes_to_print * 2 + 1);
     if (err == RPC_SHM_FAILURE) {
         printf("rpc shm failure written by server\n");
         res->err = RPC_FAILED; // this will change the actual shm

@@ -375,7 +375,7 @@ cudaError_t cudaGetDeviceCount(int* count)
         // printf("res address in outer: %p\n", (void*)&result);
         // printf("Result err recd from svc: %d\n", result.err);
         // printf("result data recd from svc: %d\n", result.int_result_u.data);
-        printf("retval from clnt: %x\n", retval);
+        // printf("retval from clnt: %x\n", retval);
         if (retval != RPC_SHM_SUCCESS) {
             clnt_perror (clnt, "shm call failed");
         }
