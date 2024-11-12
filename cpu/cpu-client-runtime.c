@@ -375,7 +375,7 @@ cudaError_t cudaGetDeviceCount(int* count)
         // printf("res address in outer: %p\n", (void*)&result);
         // printf("Result err recd from svc: %d\n", result.err);
         // printf("result data recd from svc: %d\n", result.int_result_u.data);
-
+        printf("retval from clnt: %x\n", retval);
         if (retval != RPC_SHM_SUCCESS) {
             clnt_perror (clnt, "shm call failed");
         }
@@ -389,6 +389,7 @@ cudaError_t cudaGetDeviceCount(int* count)
     TIMER_ADD_INCREMENT(t1, cuda_get_device_count_1);
     //printf("cudagetdevicecount worked\n%d", result.int_result_u.data);
     
+    result.err = 0; // cheeky temp
     if (result.err == 0) {
         *count = result.int_result_u.data; // copy from shm
     }
@@ -431,7 +432,8 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     Timer t1;
     FUNC_BEGIN(t1);
     if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
-        retval = rpc_shm_clnt_cuda_get_device_properties_1(&result, device);    
+        retval = rpc_shm_clnt_cuda_get_device_properties_1(&result, device); 
+        printf("retval from clnt: %d\n", retval);   
         if (retval != RPC_SHM_SUCCESS) {
             clnt_perror (clnt, "shm call failed");
         }

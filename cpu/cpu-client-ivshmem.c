@@ -35,44 +35,44 @@ int poll_active = 1;
 int poll_quit = 0;
 int do_unmap = 0;
 
-void *do_rpc_shm_poll(void *arg) {
-    while (1) {
-        if (poll_quit) {
-            printf("Polling thread exiting...\n");
-            pthread_mutex_lock(&poll_stop_mutex); // Lock again to modify exit condition
-            do_unmap = 1;  // Set the flag to indicate the thread has exited
-            pthread_cond_signal(&poll_stop_cond_var);  // Signal that the thread has finished
-            pthread_mutex_unlock(&poll_stop_mutex);
-            return NULL;  // Exit the loop and return
-        }
+// void *do_rpc_shm_poll(void *arg) {
+//     while (1) {
+//         if (poll_quit) {
+//             printf("Polling thread exiting...\n");
+//             pthread_mutex_lock(&poll_stop_mutex); // Lock again to modify exit condition
+//             do_unmap = 1;  // Set the flag to indicate the thread has exited
+//             pthread_cond_signal(&poll_stop_cond_var);  // Signal that the thread has finished
+//             pthread_mutex_unlock(&poll_stop_mutex);
+//             return NULL;  // Exit the loop and return
+//         }
 
-        pthread_mutex_lock(&poll_mutex_1);
-        while (!poll_active) {
-            //printf("paused poll\n");
+//         pthread_mutex_lock(&poll_mutex_1);
+//         while (!poll_active) {
+//             //printf("paused poll\n");
             
-            pthread_cond_wait(&poll_cond_var_1, &poll_mutex_1);
-            poll_active = 1;
-        }
-        pthread_mutex_unlock(&poll_mutex_1);
-        //printf("unlock done\n");
+//             pthread_cond_wait(&poll_cond_var_1, &poll_mutex_1);
+//             poll_active = 1;
+//         }
+//         pthread_mutex_unlock(&poll_mutex_1);
+//         //printf("unlock done\n");
 
 
-        if (*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 1) {
-            // *((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 0;
-            // __sync_synchronize();
-            //printf("got notif\n");
-            pthread_mutex_lock(&poll_mutex);
-            got_response = 1;
-            pthread_cond_signal(&poll_cond_var);
+//         if (*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 1) {
+//             // *((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 0;
+//             // __sync_synchronize();
+//             //printf("got notif\n");
+//             pthread_mutex_lock(&poll_mutex);
+//             got_response = 1;
+//             pthread_cond_signal(&poll_cond_var);
 
-            poll_active = 0;
-            pthread_mutex_unlock(&poll_mutex);
-        }
+//             poll_active = 0;
+//             pthread_mutex_unlock(&poll_mutex);
+//         }
         
-        //printf("polling on client\n");
-        //usleep(1);
-    }
-}
+//         //printf("polling on client\n");
+//         //usleep(1);
+//     }
+// }
 
 // enter only if shm_enabled.
 void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
@@ -106,9 +106,9 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     if (ivshmem_ctx->shm_mmap == MAP_FAILED) {
         LOGE(LOG_ERROR, "Error receiving mapping region: %s", strerror(errno));
     }
-    // mlock(ivshmem_ctx->shm_mmap, _args->proc_be_sz);
 
     madvise(ivshmem_ctx->shm_mmap, _args->proc_be_sz, MADV_WILLNEED);
+    mlock(ivshmem_ctx->shm_mmap, _args->proc_be_sz);
     //assert();
     close(_pci_fd);
 
@@ -125,10 +125,10 @@ void init_ivshmem_clnt(int clnt_pid, char *shm_be_path, int clientd_mq_id) {
     printf("clnt ivshmem ctx created. mmap start VA: %p\nend VA: %p\n", ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_mmap + ivshmem_ctx->shm_proc_size);
 
     // create poll thread and condition variable.
-    printf("starting poll\n");
-    pthread_t poll_tid;
-    pthread_create(&poll_tid, NULL, do_rpc_shm_poll, NULL);
-    pthread_detach(poll_tid);
+    // printf("starting poll\n");
+    // pthread_t poll_tid;
+    // pthread_create(&poll_tid, NULL, do_rpc_shm_poll, NULL);
+    // pthread_detach(poll_tid);
 }
 
 void init_ivshmem_areas_clnt(ivshmem_clnt_ctx *ctx) {
@@ -253,7 +253,7 @@ ivshmem_setup_desc *_clnt_mgr_get_shm(int clnt_pid, int clientd_mq_id) {
     ivshmem_setup_desc *_desc = malloc(sizeof(ivshmem_setup_desc));
 
     _desc->proc_be_off = strtoul(splitted->str[0], NULL, 10);
-    printf("proc_be_off from cmgr: %d\n", _desc->proc_be_off);
+    printf("proc_be_off from cmgr: %lu\n", _desc->proc_be_off);
 
     _desc->proc_be_sz = strtoul(splitted->str[1], NULL, 10);
     printf("proc_be_sz from cmgr: %ld\n", _desc->proc_be_sz);

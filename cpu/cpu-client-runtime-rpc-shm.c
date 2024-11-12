@@ -5,15 +5,24 @@
 #include <stddef.h>
 #include <assert.h>
 #include <stdalign.h>
+#include <unistd.h>
+#include <emmintrin.h>
 
 #define RPC_SHM_INT 0
 #define RPC_SHM_INT_64 1
 #define RPC_SHM_DATA_PTR_64 2 // all struct args must be memcpied to data region
 #define RPC_SHM_NO_DATA_PTR_64 3
 
+inline void clflush(volatile void *p)
+{
+    asm volatile ("clflush (%0)" :: "r"(p));
+}
+
+
 void _clnt_req_do_notify() {
     // write to poll_s
     *((uint8_t *)ivshmem_ctx->shm_mmap + 1) = 1; // set poll_s
+    clflush((uint8_t *)ivshmem_ctx->shm_mmap + 1);
 }
 
 uint64_t _rpc_shm_get_offset_of_arg(int _idx) {
@@ -25,7 +34,7 @@ uint64_t _rpc_shm_get_offset_of_arg_data(int _idx) {
 ;
 }
 
-uint64_t rpc_shm_clnt_get_response_status() {
+uint8_t rpc_shm_clnt_get_response_status() {
     uint64_t _off = offsetof(rpc_shm_header_t, rpc_status);
     return *(uint8_t *)((uint8_t *)ivshmem_ctx->shm_mmap + _off);  
 }
@@ -45,29 +54,47 @@ void print_neighbors(uint8_t *ptr, size_t num_bytes) {
     }
 }
 
-void rpc_shm_clnt_put_request_and_notify(rpc_shm_header_t *rpc_hdr) {
+void rpc_shm_clnt_put_request_and_notify(volatile rpc_shm_header_t *rpc_hdr) {
     // memcpy the request metadata into shared memory.
-    memcpy(ivshmem_ctx->shm_mmap, rpc_hdr, sizeof(rpc_shm_header_t));
+    memcpy((void *)ivshmem_ctx->shm_mmap, rpc_hdr, sizeof(rpc_shm_header_t));
 
-    // assert(*((uint8_t *)ivshmem_ctx->shm_mmap) == RPC_SHM_MAGIC_START);
-    // assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 1) == 0);
-    // assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 0);
-    // printf("pid byte: 0x%02X\n", *(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3));
-    // assert(*(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3) == 0xDEADBEEF);
+    uintptr_t _addr = (uintptr_t)ivshmem_ctx->shm_mmap;
+    uintptr_t _end = _addr + sizeof(rpc_shm_header_t);
+
+    for (; _addr < _end; _addr += 64) {
+        clflush((void *)_addr);
+    }
+
+    __sync_synchronize();
+
+    _mm_mfence();
+
+    // clflush
+    
+    // cacheflush((void *)ivshmem_ctx->shm_mmap, sizeof(rpc_shm_header_t));
+
+
+    assert(*((uint8_t *)ivshmem_ctx->shm_mmap) == RPC_SHM_MAGIC_START);
+    assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 1) == 0);
+    assert(*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 0);
+    printf("pid byte: 0x%02X\n", *(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3));
+    assert(*(uint32_t *)((uint8_t *)ivshmem_ctx->shm_mmap + 3) == 0xDEADBEEF);
+
+    size_t num_bytes_to_print = 4;
+    print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status) - num_bytes_to_print,num_bytes_to_print * 2 + 1);
+    assert(*((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status)) == RPC_SHM_FAILURE);
 
 
     // printf("Byte before magic_end: 0x%02X\n", *((uint8_t *)ivshmem_ctx->shm_mmap + sizeof(rpc_shm_header_t) - 1));
     // printf("Magic end byte: 0x%02X\n", *((uint8_t *)ivshmem_ctx->shm_mmap + sizeof(rpc_shm_header_t) - 1));
     // printf("Byte after magic_end: 0x%02X\n", *((uint8_t *)ivshmem_ctx->shm_mmap + sizeof(rpc_shm_header_t) - 1));
-
-    size_t num_bytes_to_print = 16;
     // printf("sizeof hdr: %d\n", sizeof(rpc_shm_header_t));
     //print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + sizeof(rpc_shm_header_t) - num_bytes_to_print, num_bytes_to_print * 2 + 1);
     
     // assert(*((uint8_t *)ivshmem_ctx->shm_mmap + sizeof(rpc_shm_header_t) -1) == RPC_SHM_MAGIC_END);
 
     for (int _arg = 0; _arg < rpc_hdr->num_args; _arg++) {
-        struct rpc_shm_arg *arg = &(rpc_hdr->rpc_args[_arg]);
+        volatile struct rpc_shm_arg *arg = &(rpc_hdr->rpc_args[_arg]);
         if (arg->arg_type == RPC_SHM_DATA_PTR_64) {
             // 1. Choose an offset (from start of memory) for the data
             // common data region.
@@ -104,7 +131,7 @@ void rpc_shm_clnt_put_request_and_notify(rpc_shm_header_t *rpc_hdr) {
 // need a global pid 
 uint64_t rpc_shm_clnt_cuda_get_device_count_1(int_result *res) {
     // create control struct
-    rpc_shm_header_t *rpc_hdr = malloc(sizeof(rpc_shm_header_t));
+    volatile rpc_shm_header_t *rpc_hdr = malloc(sizeof(rpc_shm_header_t));
 
     rpc_hdr->rpc_magic_start = RPC_SHM_MAGIC_START;
     rpc_hdr->rpc_magic_end = RPC_SHM_MAGIC_END;
@@ -125,45 +152,42 @@ uint64_t rpc_shm_clnt_cuda_get_device_count_1(int_result *res) {
     free(rpc_hdr);
     //printf("reached the condvar wait\n");
 
-    // wait for cond_var
-    // printf("got_resp: %d\n", got_response);
-    pthread_mutex_lock(&poll_mutex);
-    // Wait in a loop to handle spurious wake-ups and missed signals
-    while (!got_response) {
-        pthread_cond_wait(&poll_cond_var, &poll_mutex);
+    for (;;) {
+        clflush((uint8_t *)ivshmem_ctx->shm_mmap + 2);
+        if ((*((uint8_t *)ivshmem_ctx->shm_mmap + 2) == 1)) {
+            //printf("got notif\n");
+            break;
+        }
+        int num_bytes_to_print = 2;
+        print_neighbors(((uint8_t *)ivshmem_ctx->shm_mmap + 2), num_bytes_to_print * 2 + 1);
+        printf("poll_c on client: %d\n", *((uint8_t *)ivshmem_ctx->shm_mmap + 2));
+        __sync_synchronize();
+        usleep(100000);
     }
-    got_response = 0;
+
     // clear poll_c
     //printf("Client got response!\n");
-    *((uint8_t *)ivshmem_ctx->shm_mmap + 2) = 0;
-    pthread_mutex_unlock(&poll_mutex);
+    // printf("previous notif value: %d\n", *((uint8_t *)ivshmem_ctx->shm_mmap + 2));
+    *((uint8_t *)ivshmem_ctx->shm_mmap + 2) = 0; // ensures busy wait in next iteration
+    // clflush((uint8_t *)ivshmem_ctx->shm_mmap + 2);
+    // printf("new notif value: %d\n", *((uint8_t *)ivshmem_ctx->shm_mmap + 2));
 
     // read 
-    int err = rpc_shm_clnt_get_response_status();
     uint64_t r_d_off = rpc_shm_clnt_get_response_data_offset(); // start offset of response data
-    uint64_t r_d_sz = rpc_shm_clnt_get_response_data_sz();
 
-    // get response
-    // THIS IS CORRECT.
-    // requirement: server always copies result back to
-    // shm.
-    // here, we're getting res to point at a region
-    // of shared memory.
-//     printf("res address in inner: %p\n", (void*)res);
-//     if (((uintptr_t)(ivshmem_ctx->shm_mmap + r_d_off) % alignof(int_result)) != 0) {
-//     printf("Error: Misaligned read for int_result at offset %zu\n", r_d_off);
-//     // Handle misalignment, e.g., adjust r_d_off or handle the error
-// }
-//     *res = *((int_result *)(ivshmem_ctx->shm_mmap + r_d_off));
-//     printf("result data from svc: %d\n", res->int_result_u.data);
+    *res = *((int_result *)(ivshmem_ctx->shm_mmap + r_d_off));
+    //printf("result data from svc: %d\n", res->int_result_u.data);
 
 //     printf("error code: %d\n", res->err);
-    // int num_bytes_to_print = 8;
-    // print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + r_d_off - num_bytes_to_print, num_bytes_to_print * 2 + 1);
+    int num_bytes_to_print = 8;
+    //print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + r_d_off - num_bytes_to_print, num_bytes_to_print * 2 + 1);
 
     // get result
+    int err = rpc_shm_clnt_get_response_status();
+    __sync_synchronize();
+    print_neighbors((uint8_t *)ivshmem_ctx->shm_mmap + offsetof(rpc_shm_header_t, rpc_status) - num_bytes_to_print, num_bytes_to_print * 2 + 1);
     if (err == RPC_SHM_FAILURE) {
-        // printf("rpc shm failure written by server\n");
+        printf("rpc shm failure written by server\n");
         res->err = RPC_FAILED; // this will change the actual shm
     } else if (err == RPC_SHM_SUCCESS) {
         // printf("rpc shm success written by server\n");
@@ -171,11 +195,11 @@ uint64_t rpc_shm_clnt_cuda_get_device_count_1(int_result *res) {
         //memcpy(&(res->int_result_u.data), (void *)((uint8_t *)ivshmem_ctx->shm_mmap + r_d_off), r_d_sz); // this will be call-dependent.
     }
 
-    pthread_mutex_lock(&poll_mutex_1);
-    poll_active = 1;  // Set the condition that the poll thread is waiting for
-    pthread_cond_signal(&poll_cond_var_1);  // Signal the poll thread
+    // pthread_mutex_lock(&poll_mutex_1);
+    // poll_active = 1;  // Set the condition that the poll thread is waiting for
+    // pthread_cond_signal(&poll_cond_var_1);  // Signal the poll thread
     
-    pthread_mutex_unlock(&poll_mutex_1); 
+    // pthread_mutex_unlock(&poll_mutex_1); 
     
     return err;
 }
