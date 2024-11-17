@@ -153,6 +153,9 @@ cublasStatus_t cublasLtMatmulAlgoGetHeuristic(
     matmul_hr_result result;
     enum clnt_stat retval_1;
     FUNC_BEGIN 
+    int mycount = sizeof(result.matmul_hr_result_u.data.p)/ sizeof(cublasLtMatmulHeuristicResult_t);
+    requestedAlgoCount = requestedAlgoCount > mycount? mycount: requestedAlgoCount;
+
     retval_1 = rpc_cublasltmatmulalgogetheuristic_1(
         (ptr)lightHandle,
         (ptr)operationDesc,
@@ -174,8 +177,9 @@ cublasStatus_t cublasLtMatmulAlgoGetHeuristic(
       return result.err;
     }
 
+
     *returnAlgoCount = result.matmul_hr_result_u.data.s;
-    if (memcpy(heuristicResultsArray, result.matmul_hr_result_u.data.p, 96) == NULL) {
+    if (memcpy(heuristicResultsArray, result.matmul_hr_result_u.data.p, (*returnAlgoCount) * sizeof(cublasLtMatmulHeuristicResult_t)) == NULL) {
       LOGE(LOG_ERROR, "error: matmul hr alloc");
       return result.err;
     }

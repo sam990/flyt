@@ -313,6 +313,10 @@ cudaError_t cudaGetDevice(int* device)
     int_result result;
     enum clnt_stat retval_1;
     FUNC_BEGIN 
+
+    //*device = 0;
+    //return cudaSuccess;
+
     retval_1 = cuda_get_device_1(&result, clnt);
     FUNC_END
     if (retval_1 != RPC_SUCCESS) {
@@ -332,6 +336,9 @@ cudaError_t cudaGetDeviceCount(int* count)
     int_result result;
     enum clnt_stat retval_1;
     FUNC_BEGIN 
+    //*count = 1;
+    //return cudaSuccess;
+
     retval_1 = cuda_get_device_count_1(&result, clnt);
     FUNC_END
     if (retval_1 != RPC_SUCCESS) {
@@ -381,7 +388,7 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     if (result.err != 0) {
         return result.err;
     }
-    // if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(struct cudaDeviceProp)) == NULL) {
+    //if (memcpy(prop, result.cuda_device_prop_result_u.data, sizeof(struct cudaDeviceProp)) == NULL) {
     //FIXME: Don't know why, but pytorch expects a different definition of cudaDeviceProp, which is only 728 bytes long
     if (memcpy(prop, result.cuda_device_prop_result_u.data, 728) == NULL) {
         LOGE(LOG_ERROR, "error: memcpy failed");
@@ -877,7 +884,7 @@ cudaError_t cudaFuncGetAttributes(struct cudaFuncAttributes* attr, const void* f
     mem_result result;
     enum clnt_stat retval_1;
     FUNC_BEGIN 
-    // retval_1 = cuda_func_get_attributes_1((ptr)func, &result, clnt);
+    //retval_1 = cuda_func_get_attributes_1((ptr)func, &result, clnt);
     // this is temporary fix
     retval_1 = RPC_SUCCESS;
     attr->maxThreadsPerBlock = 1024;
@@ -887,10 +894,10 @@ cudaError_t cudaFuncGetAttributes(struct cudaFuncAttributes* attr, const void* f
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
-    // if (result.err == 0) {
-    //     memcpy(attr, result.mem_result_u.data.mem_data_val,
-    //                  result.mem_result_u.data.mem_data_len);
-    // }
+    //if (result.err == 0) {
+    //    memcpy(attr, result.mem_result_u.data.mem_data_val,
+    //                 result.mem_result_u.data.mem_data_len);
+    //}
     return result.err;
 }
 

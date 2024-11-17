@@ -27,7 +27,7 @@ typedef struct __temp_sort_mem_alloc {
     mem_alloc_args_t *alloc_args;
 } temp_sort_mem_alloc;
 
-int dump_memory(char *filename, resource_mg *gpu_mem) {
+int dump_memory(char *filename, resource_mg *gpu_mem, resource_map *gpu_mem_ext) {
     FILE *fp = fopen(filename, "wb");
 
     if (fp == NULL) {
@@ -57,9 +57,19 @@ int dump_memory(char *filename, resource_mg *gpu_mem) {
         mem_alloc_args_t *alloc_args = (mem_alloc_args_t *)elem->cuda_address;
         temp_sort_mem_alloc *alloc_args_temp = (temp_sort_mem_alloc *)malloc(sizeof(temp_sort_mem_alloc));
         alloc_args_temp->dev_ptr = elem->client_address;
+#if 0 // migration
+        mem_alloc_ext_t *tmp = get_mem_resource_map_addr(gpu_mem_ext, elem->client_address);
+		if(tmp == NULL) {
+				LOGE(LOG_ERROR, "Invalid client_address");
+				fclose(fp);
+				return -1;
+		}
+        alloc_args_temp->dev_ptr = tmp->cudaPtr;
+#endif
+
         alloc_args_temp->alloc_args = alloc_args;
 
-        if (resource_mg_add_sorted(&mem_idx_ordered, alloc_args->idx, alloc_args_temp) != 0) {
+        if (resource_mg_add_sorted(&mem_idx_ordered, (void *)alloc_args->idx, alloc_args_temp) != 0) {
             LOGE(LOG_ERROR, "Failed to add memory map element to memory index ordered resource manager");
             fclose(fp);
             return -1;
@@ -231,6 +241,8 @@ int dump_vars(char *filename, resource_mg *vars) {
 }
 
 
+#define FILE_EXTRA_LENGTH 64
+
 int flyt_create_checkpoint(char *basepath) {
 
     SET_EXEC_CTX;
@@ -248,7 +260,7 @@ int flyt_create_checkpoint(char *basepath) {
     while ((client = get_next_client(&iter)) != NULL) {
         LOGE(LOG_DEBUG, "Creating checkpoint for client %d", client->pid);
 
-        char *client_path = malloc(strlen(basepath) + 32);
+        char *client_path = malloc(strlen(basepath) + FILE_EXTRA_LENGTH);
         if (client_path == NULL) {
             LOGE(LOG_ERROR, "Failed to allocate memory for client path");
             return -1;
@@ -265,7 +277,7 @@ int flyt_create_checkpoint(char *basepath) {
             }
 	}
 
-        char *filename = malloc(strlen(client_path) + 32);
+        char *filename = malloc(strlen(client_path) + FILE_EXTRA_LENGTH);
         if (filename == NULL) {
             LOGE(LOG_ERROR, "Failed to allocate memory for filename");
             free(client_path);
@@ -273,14 +285,14 @@ int flyt_create_checkpoint(char *basepath) {
         }
 
         sprintf(filename, "%s/gpu_mem", client_path);
-        if (dump_memory(filename, &client->gpu_mem) != 0) {
+        if (dump_memory(filename, &client->gpu_mem, client->gpu_mem_ext) != 0) {
             LOGE(LOG_ERROR, "Failed to dump memory for client %d", client->pid);
             free(client_path);
             free(filename);
             return -1;
         }
 
-        LOGE(LOG_DEBUG, "Dumped memory for client %d", client->pid);
+        LOGE(LOG_DEBUG, "Dumped memory for client %s", filename);
 
         sprintf(filename, "%s/custom_streams", client_path);
         if (dump_streams(filename, client->custom_streams) != 0) {
@@ -327,7 +339,7 @@ int flyt_create_checkpoint(char *basepath) {
     return 0;
 }
 
-int flyt_restore_memory(char *memory_file, resource_mg *gpu_mem) {
+int flyt_restore_memory(char *memory_file, resource_mg *gpu_mem, resource_map *gpu_mem_ext) {
     FILE *fp = fopen(memory_file, "rb");
 
     if (fp == NULL) {
@@ -408,6 +420,15 @@ int flyt_restore_memory(char *memory_file, resource_mg *gpu_mem) {
             free(data);
             return -1;
         }
+
+#if 0 // migration
+		mem_alloc_ext_t *extPtr = malloc(sizeof(mem_alloc_ext_t));
+		strncpy(extPtr->marker, "DEADBEEF", 8);
+		extPtr->cudaPtr = (void *)addr;
+		extPtr->cpuPtr = extPtr;
+
+		resource_map_add(gpu_mem_ext, extPtr, NULL, (void **)&addr);
+#endif 
 
         alloc_args->padded_size = padded_out;
 
@@ -666,7 +687,7 @@ int flyt_restore_checkpoint(char *basepath) {
 
             LOGE(LOG_DEBUG, "Restoring checkpoint for client %d", client_pid_int);
 
-            char *filename = malloc(strlen(client_path) + 32);
+            char *filename = malloc(strlen(client_path) + FILE_EXTRA_LENGTH);
             if (filename == NULL) {
                 LOGE(LOG_ERROR, "Failed to allocate memory for filename");
                 free(client_path);
@@ -689,7 +710,7 @@ int flyt_restore_checkpoint(char *basepath) {
             ret |= flyt_restore_streams(filename, client->custom_streams);
 
             sprintf(filename, "%s/gpu_mem", client_path);
-            ret |= flyt_restore_memory(filename, &client->gpu_mem);
+            ret |= flyt_restore_memory(filename, &client->gpu_mem, client->gpu_mem_ext);
 
             if (ret != 0) {
                 LOGE(LOG_ERROR, "Failed to restore checkpoint for client %d", client_pid_int);

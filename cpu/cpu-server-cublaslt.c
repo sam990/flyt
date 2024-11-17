@@ -99,6 +99,9 @@ bool_t rpc_cublasltmatmuldescdestroy_1_svc(ptr matmulDesc, int *result, struct s
 
     GSCHED_RETAIN;
     *result = cublasLtMatmulDescDestroy(resource_mg_get_or_null(&rm_cublaslt, (void*)matmulDesc));
+    if (*result == cudaSuccess) {
+	    resource_mg_remove(&rm_cublaslt, (void *)matmulDesc);
+    }
     GSCHED_RELEASE;
     return 1;
 }
@@ -153,6 +156,26 @@ bool_t rpc_cublasltmatmuldescsetattribute_1_svc(ptr matmulDesc, int attr, mem_da
 {
     LOGE(LOG_DEBUG, "cublasLtMatmulDescSetAttribute");
     GSCHED_RETAIN;
+    GET_CLIENT(*result);
+
+#if 0
+    if ((attr == CUBLASLT_MATMUL_DESC_BIAS_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_A_SCALE_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_B_SCALE_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_C_SCALE_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_D_SCALE_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_AMAX_D_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_AMAX_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_ATOMIC_SYNC_IN_COUNTERS_POINTER) || 
+	    (attr == CUBLASLT_MATMUL_DESC_ATOMIC_SYNC_OUT_COUNTERS_POINTER) ) {
+	    LOGE(LOG_ERROR, "Not supported type %d data val: %p, data size: %d\n", attr, *(void **)data.mem_data_val, data.mem_data_len);
+	    void *extPtr = get_mem_cuda_addr_withoffset(client->gpu_mem_ext, &client->gpu_mem, *(void **)data.mem_data_val);
+	    if (extPtr != NULL)
+	    	*(void **)data.mem_data_val = extPtr;
+    }
+#endif
 
     *result = cublasLtMatmulDescSetAttribute(
         (cublasLtMatmulDesc_t)resource_mg_get_or_null(&rm_cublaslt, (void*)matmulDesc),
@@ -191,26 +214,33 @@ bool_t rpc_cublasltmatmul_1_svc(ptr lightHandle,
     void *stream_ptr;
     
     GET_STREAM(stream_ptr, stream, *result);
+    GET_MEMORY(mem_ptr_A, A, *result)
+    GET_MEMORY(mem_ptr_B, B, *result)
+    GET_MEMORY(mem_ptr_C, C, *result)
+    GET_MEMORY(mem_ptr_D, D, *result)
+    GET_MEMORY(mem_ptr_workspace, workspace, *result)
 
     *result = cublasLtMatmul(
         (cublasLtHandle_t)resource_mg_get_or_null(&rm_cublaslt, (void*)lightHandle),
         (cublasLtMatmulDesc_t)resource_mg_get_or_null(&rm_cublaslt, (void*)computeDesc),
         &alpha,
-        A,
+        mem_ptr_A,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Adesc),
-        B,
+        mem_ptr_B,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Bdesc),
         &beta,
-        C,
+        mem_ptr_C,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Cdesc),
-        D,
+        mem_ptr_D,
         (cublasLtMatrixLayout_t)resource_mg_get_or_null(&rm_cublaslt, (void*)Ddesc),
         // (const cublasLtMatmulAlgo_t *)algo,
 	    NULL,
-        workspace,
+        mem_ptr_workspace,
         workspaceSizeInBytes,
        (cudaStream_t)stream_ptr
     );
+    //cudaDeviceSynchronize();
+    //LOGE(LOG_INFO, "MatGet last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
 
     GSCHED_RELEASE;
     return 1;

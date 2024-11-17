@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <pthread.h>
 
+#define SHIFT_AMOUNT 50ull
+#define MASK (((uint64_t)(1ULL << SHIFT_AMOUNT)) - 1ull)
+#define get_offset(x)	((uint64_t)x & MASK)
+
 typedef struct __resource_map_item {
     void *mapped_addr;
     void *args;
@@ -15,6 +19,7 @@ typedef struct __resource_map {
     uint64_t length;
     uint64_t free_ptr_idx;
     uint64_t tail_idx;
+    uint64_t OFFSET;
     pthread_mutex_t mutex;
 } resource_map;
 

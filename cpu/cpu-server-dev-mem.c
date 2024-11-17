@@ -50,6 +50,7 @@ cudaError_t dev_mem_alloc(void **dev_ptr, size_t size, int va_specified, size_t 
     
     size_t padded_size = (((size - 1) / granularity) + 1) * granularity;
 
+#if 1
     CUdeviceptr dptr;
 
     CUdeviceptr req_addr = *((CUdeviceptr *)dev_ptr);
@@ -66,10 +67,12 @@ cudaError_t dev_mem_alloc(void **dev_ptr, size_t size, int va_specified, size_t 
     }
 
 
+    /*
     if (va_specified && (dptr != req_addr)) {
         LOGE(LOG_WARNING, "%s: Required address cannnot be reserved: %p", __FUNCTION__, req_addr);
         return cudaErrorMemoryAllocation;
     }
+    */
     
     res = cuMemCreate(&allocHandle, padded_size, &prop, 0); 
 
@@ -103,12 +106,17 @@ cudaError_t dev_mem_alloc(void **dev_ptr, size_t size, int va_specified, size_t 
     }
 
     *((CUdeviceptr *)dev_ptr) = dptr;
+    cudaError_t err = cudaSuccess;
+#else
+    cudaError_t err = cudaMalloc(dev_ptr, padded_size);
+#endif
     *padded_size_out = padded_size;
 
+	LOGE(LOG_INFO, "cudaMalloc %p: size: %p\n", *dev_ptr, padded_size);
     
 
 
-    return cudaSuccess;
+    return err;
 
 }
 
@@ -127,8 +135,12 @@ cudaError_t dev_mem_alloc_pitched(void **dev_ptr, size_t width, size_t height, s
 cudaError_t free_dev_mem(void *ptr, size_t padded_size) {
     if (ptr == NULL)
         return cudaSuccess;
+#if 1
     if (cuMemUnmap((CUdeviceptr)ptr, padded_size) != CUDA_SUCCESS || cuMemAddressFree((CUdeviceptr)ptr, padded_size) != CUDA_SUCCESS)
         return cudaErrorInvalidValue;
+#else
+    return cudaFree(ptr);
+#endif
     return cudaSuccess;
 }
 

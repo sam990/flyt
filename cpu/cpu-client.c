@@ -210,7 +210,7 @@ void __attribute__((constructor)) init_rpc(void)
     }
 
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
-    init_log(LOG_LEVEL, __FILE__);
+    //init_log(LOG_LEVEL, __FILE__);
 
     struct sigaction act;
     act.sa_handler = sigint_handler;

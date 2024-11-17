@@ -7,6 +7,10 @@
 
 #define OFFSET 0x00ffffffffffffffull
 
+#define create_ptr(x)	((uint64_t)x << SHIFT_AMOUNT)
+#define generate_idx(x) ((uint64_t)x >> SHIFT_AMOUNT)
+
+
 resource_map* init_resource_map(uint64_t init_length) {
     resource_map* map = (resource_map*)malloc(sizeof(resource_map));
     if (map == NULL) {
@@ -46,16 +50,20 @@ void free_resource_map(resource_map* map) {
 }
 
 void* resource_map_addr_from_index(uint64_t idx) {
-    return (void*)(idx + OFFSET);
+	return (void *)(create_ptr(idx));
+    //return (void*)(idx + OFFSET);
 }
 
 uint64_t resource_map_index_from_addr(void* addr) {
-    return (uint64_t)addr - OFFSET;
+	return (uint64_t)(generate_idx(addr));
+    //return (uint64_t)addr - OFFSET;
 }
 
 resource_map_item* resource_map_get(resource_map* map, void* addr) {
     pthread_mutex_lock(&map->mutex);
-    resource_map_item *val = &(map->list[(uint64_t)addr - OFFSET]);
+    uint64_t idx = generate_idx(addr);
+    //resource_map_item *val = &(map->list[(uint64_t)addr - OFFSET]);
+    resource_map_item *val = &(map->list[idx]);
     pthread_mutex_unlock(&map->mutex);
     return val;
 }
@@ -86,7 +94,8 @@ int resource_map_update_addr_idx(resource_map* map, uint64_t idx, void* new_addr
 
 uint8_t resource_map_contains(resource_map* map, void* addr) {
     pthread_mutex_lock(&map->mutex);
-    uint8_t val = (uint64_t)addr - OFFSET < map->tail_idx && map->list[(uint64_t)addr - OFFSET].present;
+    uint64_t idx = generate_idx(addr);
+    uint8_t val = idx < map->tail_idx && map->list[idx].present;
     pthread_mutex_unlock(&map->mutex);
     return val;
 }
@@ -106,7 +115,7 @@ int resource_map_add(resource_map* map, void* mapped_addr, void *args, void **cl
         map->list[map->tail_idx].mapped_addr = mapped_addr;
         map->list[map->tail_idx].args = args;
         map->list[map->tail_idx].present = 1;
-        *client_addr = (void*)(map->tail_idx + OFFSET);
+        *client_addr = (void*)create_ptr((map->tail_idx));// (map->tail_idx + OFFSET);
         map->tail_idx++;
         map->free_ptr_idx++;
     }
@@ -116,14 +125,14 @@ int resource_map_add(resource_map* map, void* mapped_addr, void *args, void **cl
         map->list[alloc_idx].mapped_addr = (void*)mapped_addr;
         map->list[alloc_idx].args = args;
         map->list[alloc_idx].present = 1;
-        *client_addr = (void*)(alloc_idx + OFFSET);
+        *client_addr = (void*)create_ptr(alloc_idx); //(alloc_idx + OFFSET);
     }
     pthread_mutex_unlock(&map->mutex);
     return 0;
 }
 
 void resource_map_unset(resource_map* map, void* client_addr) {
-    uint64_t idx = (uint64_t)client_addr - OFFSET;
+    uint64_t idx = generate_idx(client_addr); //(uint64_t)client_addr - OFFSET;
 
     pthread_mutex_lock(&map->mutex);
 

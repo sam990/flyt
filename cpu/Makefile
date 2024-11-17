@@ -94,13 +94,13 @@ INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
 #INC_FLAGS += -I$(METRICS_SRC)/include
 
-LIB_FLAGS += $(LIBTIRPC_PREFIX)/lib/libtirpc.a # static linking libtirpc
-LIB_FLAGS += -L$(CUDA_SRC)/lib64
-LIB_FLAGS += -L$(CUDA_SRC)/lib64/stubs
+#LIB_FLAGS += $(LIBTIRPC_PREFIX)/lib/libtirpc.a # static linking libtirpc
+LD_FLAGS = -L$(CUDA_SRC)/lib64
+LD_FLAGS += -L$(CUDA_SRC)/lib64/stubs
 CC_FLAGS += $(INC_FLAGS)
 # TODO: use extern in header files instead of direct definition e.g. in cpu-common.h to remove -fcommon flag
 CC_FLAGS += -fcommon
-LD_FLAGS = $(LIB_FLAGS) -ldl -lcrypto -lelf 
+LD_FLAGS += $(LIB_FLAGS) -ldl -lcrypto -lelf 
 
 ifdef WITH_DEBUG
 # use ASAN_OPTIONS=protect_shadow_gap=0  LSAN_OPTIONS=fast_unwind_on_malloc=0 when running
@@ -166,7 +166,7 @@ $(RPC_XDR) : $(RPC_DEF)
 	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
 %.o : %.c $(RPC_H)
-	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
+	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LIB_FLAGS) 
 
 clean:
 	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC) $(METRICS)

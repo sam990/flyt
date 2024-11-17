@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include <cuda_runtime_api.h>
 #include <cudaGL.h>
 #include <cudaEGL.h>
 #include <vdpau/vdpau.h>
@@ -19,9 +20,9 @@
 #include "cpu-elf2.h"
 
 
-//DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
-//DEF_FN(CUresult, cuProfilerStart)
-//DEF_FN(CUresult, cuProfilerStop)
+DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, int, outputMode)
+DEF_FN(CUresult, cuProfilerStart)
+DEF_FN(CUresult, cuProfilerStop)
 DEF_FN(CUresult, cuVDPAUGetDevice, CUdevice*, pDevice, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
 #undef cuVDPAUCtxCreate
 DEF_FN(CUresult, cuVDPAUCtxCreate, CUcontext*, pCtx, unsigned int, flags, CUdevice, device, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
@@ -1063,3 +1064,14 @@ DEF_FN(CUresult, cuGraphNodeSetParams, CUgraphNode, hNode, CUgraphNodeParams*, n
 DEF_FN(CUresult, cuGraphExecNodeSetParams, CUgraphExec, hGraphExec, CUgraphNode, hNode, CUgraphNodeParams*, nodeParams)
 DEF_FN(CUresult, cuGraphConditionalHandleCreate, CUgraphConditionalHandle*, pHandle_out, CUgraph, hGraph, CUcontext, ctx, unsigned int, defaultLaunchValue, unsigned int, flags)
 DEF_FN(CUresult, cuFuncGetName, const char**, name, CUfunction, hfunc)
+
+//DEF_FN(CUresult, cuGLMapBufferObject, CUdeviceptr*, dptr, size_t*, size, GLuint, buffer)
+
+DEF_FN(CUresult, cuFuncGetParamInfo, CUfunction, kernel, size_t, paramIndex, size_t*, paramOffset, size_t* paramSize)
+
+DEF_FN(CUresult, cuKernelGetParamInfo, CUkernel, kernel, size_t, paramIndex, size_t*, paramOffset, size_t*, paramSize)
+
+DEF_FN(CUresult, cuDeviceRegisterAsyncNotification, CUdevice, device, CUasyncCallback, callbackFunc, void*, userdata, CUasyncCallbackHandle*, callback)
+DEF_FN(CUresult, cuDeviceUnregisterAsyncNotification, CUdevice, device, CUasyncCallbackHandle, callback)
+
+DEF_FN(CUresult, cuGLMapBufferObjectAsync, CUdeviceptr*, pdtr, size_t*, size, GLuint, buffer, CUstream hstream)

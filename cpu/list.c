@@ -19,7 +19,6 @@ int list_init(list *l, size_t element_size)
     // Set the attribute to make the mutex recursive
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 
-    //printf("This is line number %d\n", __LINE__);
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -37,7 +36,6 @@ int list_init(list *l, size_t element_size)
     l->element_size = element_size;
     l->capacity = INITIAL_CAPACITY;
     l->length = 0LL;
-    //printf("This is line number %d\n", __LINE__);
 
     return 0;
 }
@@ -53,7 +51,6 @@ int list_init_capacity(list *l, size_t element_size, size_t capacity)
     // Set the attribute to make the mutex recursive
     pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 
-    //printf("This is line number %d\n", __LINE__);
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -75,18 +72,22 @@ int list_init_capacity(list *l, size_t element_size, size_t capacity)
     	pthread_mutex_init(&l->mutex, &attr);
         return 1;
     }
+#if 0
+    if (new_capacity > (2^12)) {
+	    LOGE(LOG_WARNING, "beyond memory size 12 bits");
+	    //return 1;
+    }
+#endif
     l->element_size = element_size;
     l->capacity = new_capacity;
     l->length = 0LL;
     pthread_mutex_init(&l->mutex, &attr);
-    //printf("This is line number %d\n", __LINE__);
 
     return 0;
 }
 
 int list_resize(list *l, size_t new_capacity)
 {
-    //printf("This is line number %d\n", __LINE__);
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -94,7 +95,12 @@ int list_resize(list *l, size_t new_capacity)
     if (new_capacity <= l->capacity) {
         return 0;
     }
-
+#if 0
+    if (new_capacity > (2^12)) {
+	    LOGE(LOG_WARNING, "beyond memory size 12 bits");
+	    //return 1;
+    }
+#endif
     size_t rounded_capacity;
     for (rounded_capacity = 1; rounded_capacity < new_capacity; rounded_capacity <<= 1);
     void *nll;
@@ -107,13 +113,11 @@ int list_resize(list *l, size_t new_capacity)
     l->capacity = new_capacity;
     l->elements = nll;
     pthread_mutex_unlock(&l->mutex);
-    //printf("This is line number %d\n", __LINE__);
     return 0;
 }
 
 int list_free(list *l)
 {
-    //printf("This is line number %d\n", __LINE__);
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -124,7 +128,6 @@ int list_free(list *l)
     free(l->elements);
     l->elements = NULL;
     pthread_mutex_destroy(&l->mutex);
-    //printf("This is line number %d\n", __LINE__);
 
     return 0;
 }
@@ -145,7 +148,6 @@ int list_free_elements(list *l)
 
 int list_append(list *l, void **new_element)
 {
-    //printf("This is line number %d\n", __LINE__);
     int ret = 0;
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
@@ -163,11 +165,16 @@ int list_append(list *l, void **new_element)
         l->elements = nlist;
         l->capacity *= 2;
     }
+#if 0
+    if (l->capacity > (2^12)) {
+	    LOGE(LOG_WARNING, "beyond memory size 12 bits");
+	    //return 1;
+    }
+#endif
     if (new_element != NULL) {
         *new_element = list_get(l, l->length++);
     }
     pthread_mutex_unlock(&l->mutex);
-    //printf("This is line number %d\n", __LINE__);
 
     return ret;
 }
@@ -176,7 +183,6 @@ int list_append_copy(list *l, void *new_element)
 {
     int ret = 0;
     void *elem;
-    //printf("This is line number %d\n", __LINE__);
     if(new_element == NULL) {
         LOGE(LOG_ERROR, "new element is NULL");
         return 1;
@@ -189,13 +195,11 @@ int list_append_copy(list *l, void *new_element)
     memcpy(elem, new_element, l->element_size);
  out:
     pthread_mutex_unlock(&l->mutex);
-    //printf("This is line number %d\n", __LINE__);
     return ret;
 }
 
 int list_at(list *l, size_t at, void **element)
 {
-    //printf("This is line number %d\n", __LINE__);
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -214,7 +218,6 @@ int list_at(list *l, size_t at, void **element)
         *element = list_get(l, at);
     }
     pthread_mutex_unlock(&l->mutex);
-    //printf("This is line number %d\n", __LINE__);
     return 0;
 }
 
@@ -225,7 +228,6 @@ inline void* list_get(list *l, size_t at) {
 int list_insert(list *l, size_t at, void *new_element)
 {
     int val;
-    //printf("This is line number %d\n", __LINE__);
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -261,14 +263,12 @@ int list_insert(list *l, size_t at, void *new_element)
     }
     val = 0;
 out:
-    //printf("This is line number %d\n", __LINE__);
     pthread_mutex_unlock(&l->mutex);
     return val;
 }
 
 int list_rm(list *l, size_t at)
 {
-    //printf("This is line number %d\n", __LINE__);
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -283,7 +283,6 @@ int list_rm(list *l, size_t at)
         memmove(list_get(l, at), list_get(l, at+1), (l->length-1-at)*l->element_size);
     }
     l->length -= 1;
-    //printf("This is line number %d\n", __LINE__);
     pthread_mutex_unlock(&l->mutex);
     return 0;
 }

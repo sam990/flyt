@@ -101,6 +101,9 @@ nvmlReturn_t nvmlDeviceGetCount_v2(unsigned int* deviceCount )
     if (deviceCount == NULL) {
         return NVML_ERROR_INVALID_ARGUMENT;
     }
+
+    //*deviceCount = 1;
+    //return 0;
     FUNC_BEGIN 
     retval_1 = rpc_nvmldevicegetcount_v2_1(&result, clnt);
     FUNC_END

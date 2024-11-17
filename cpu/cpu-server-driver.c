@@ -529,6 +529,20 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
         func_info->reg_data.size = sizeof(rpc_cumodulegetfunction_1_argument);
         func_info->reg_data.data = reg_args;
 
+	/*
+	if (resource_mg_get_or_null(&client->functions, (void *)hostFun) != NULL) {
+		addr_data_pair_t *tmp = resource_mg_get_or_null(&client->functions, (void *)hostFun);
+		rpc_cumodulegetfunction_1_argument *args = func_info->reg_data.data;
+
+		LOGE(LOG_ERROR, "duplicate function: older one is handle: %p, hostFun: %p, arg deviceFun %s, Old deviceFun %p, deviceName: %s, new deviceFun %p",
+				args->arg1,
+				hostFun,
+				deviceFun,
+				tmp->addr,
+				args->arg2,
+				func_d_ptr);
+	}
+	*/
         resource_mg_add_sorted(&client->functions, (void*)hostFun, (void*)func_info);
     }
 
@@ -648,6 +662,7 @@ bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rq
     GSCHED_RETAIN;
     result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
     GSCHED_RELEASE;
+    LOG(LOG_DEBUG, " return valud: %d %s", result->int_result_u.data, __FUNCTION__);
     return 1;
 }
 
@@ -1009,6 +1024,13 @@ bool_t rpc_cumemalloc_1_svc(uint64_t size, ptr_result *result,
         args->size = size;
         args->padded_size = padded_size;
 
+	mem_alloc_ext_t *extPtr = malloc(sizeof(mem_alloc_ext_t));
+	strncpy(extPtr->marker, "DEADBEEF", 8);
+	extPtr->cudaPtr = dev_mem_ptr;
+	extPtr->cpuPtr = extPtr;
+
+	resource_map_add(client->gpu_mem_ext, extPtr, NULL, &dev_mem_ptr);
+
         resource_mg_add_sorted(&client->gpu_mem, dev_mem_ptr, args);
         result->ptr_result_u.ptr = (ptr)dev_mem_ptr;
     }
@@ -1075,7 +1097,13 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
+	/*
+	void *extPtr = get_mem_cuda_addr_withoffset(client->gpu_mem_ext, &client->gpu_mem, *(void **)cuda_args[i]);
+	if (extPtr != NULL) {
+		*(void **)cuda_args[i] = extPtr;
+	}
         // *(void**)cuda_args[i] = resource_map_get_addr_default(client->gpu_mem, *(void**)cuda_args[i], *(void**)cuda_args[i]);
+	*/
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 

@@ -42,6 +42,12 @@ enum MEM_ALLOC_TYPE {
     MEM_ALLOC_TYPE_3D_ARRAY = 3,
 };
 
+typedef struct __mem_alloc_ext {
+    char marker[8];
+    void *cudaPtr;
+    void *cpuPtr;
+} mem_alloc_ext_t;
+
 typedef struct __mem_alloc_args {
     enum MEM_ALLOC_TYPE type;
     long long size;
@@ -92,7 +98,7 @@ typedef struct __cricket_client {
     int pid;
     resource_mg gpu_mem;
     void* default_stream;
-    //resource_map* gpu_mem;
+    resource_map* gpu_mem_ext;
     resource_map* custom_streams;
     resource_map* gpu_events;
     resource_mg modules;
@@ -120,7 +126,7 @@ int move_restored_client(int pid, int xp_fd);
 
 cricket_client* get_client(int xp_fd);
 
-cricket_client* get_client_by_pid(int pid);
+//cricket_client* get_client_by_pid(int pid);
 
 int remove_client_ptr(cricket_client *client);
 
@@ -156,6 +162,9 @@ int remove_client_by_pid(int pid);
 
 int dealloc_client_resources();
 
+mem_alloc_ext_t *get_mem_resource_map_addr(resource_map *map, void *addr);
+void *get_mem_cuda_addr_withoffset(resource_map *map, resource_mg *mg, void *addr);
+int check_mem_cuda_addr_withoffset(resource_map *map, resource_mg *mg, void *addr, uint64_t count);
 
 #define GET_CLIENT(result) cricket_client *client = get_client(rqstp->rq_xprt->xp_fd); \
     if (client == NULL) { \
@@ -187,16 +196,24 @@ int dealloc_client_resources();
         event_ptr = resource_map_get_addr(client->gpu_events, (void*)event); \
     }
 
-/*
 #define GET_MEMORY(mem_ptr, client_addr, result) \
-    if (!resource_map_contains(client->gpu_mem, (void*)client_addr)) { \
+	void *mem_ptr = (void *)client_addr; //get_mem_cuda_addr_withoffset(client->gpu_mem_ext, &client->gpu_mem, (void *)client_addr); \
+	if(mem_ptr == NULL) {\
         LOGE(LOG_ERROR, "memory not found in gpu_mem"); \
         result = cudaErrorInvalidValue; \
         GSCHED_RELEASE; \
         return 1; \
-    } \
-    mem_ptr = resource_map_get_addr(client->gpu_mem, (void*)client_addr);
-    */
+	} 
+
+#define CHECK_MEMORY(client_addr, count, result) \
+	/*
+	if (check_mem_cuda_addr_withoffset(client->gpu_mem_ext, &client->gpu_mem, (void *)client_addr, count) == 0) { \
+        LOGE(LOG_ERROR, "memory overflow"); \
+        result = cudaErrorInvalidValue; \
+        GSCHED_RELEASE; \
+        return 1; \
+	} 
+	*/
 
 // #define GET_SPL_MEMORY(mem_ptr, client_addr, result) \
 //     if (!resource_map_contains(client->gpu_mem, (void*)client_addr)) { \
