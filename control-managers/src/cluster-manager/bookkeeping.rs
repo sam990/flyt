@@ -2,7 +2,7 @@ use std::sync::RwLock;
 use std::sync::Arc;
 use std::net::TcpStream;
 use toml::Table;
-use mongodb::{options::{ClientOptions, ServerAddress, Credential}, sync::Client, sync::Collection, bson::doc};
+use mongodb::{options::{ClientOptions, ServerAddress, Credential, FindOneAndUpdateOptions, ReturnDocument}, sync::Client, sync::Collection, bson::doc};
 use serde::{Deserialize, Serialize};
 
 use crate::common::config::RMGR_CONFIG_PATH;
@@ -165,6 +165,29 @@ impl VMResourcesGetter {
             rsc.memory = rsc.memory * 1024 * 1024;
             Some(rsc)
         })
+    }
+
+    pub fn set_vm_sm_resource( &self, vm_ip: &String, new_sm_core: i32,) -> Option<i32> {
+        // Access the MongoDB collection
+        if new_sm_core <= 0 {
+            return None;
+        }
+        let collection = self.mongo_collection.as_ref()?;
+        let filter = doc! { "vm_ip": vm_ip };
+        let update = doc! { "$set": { "compute_units": new_sm_core } };
+
+        // Set the options to return the old document
+        let options = FindOneAndUpdateOptions::builder()
+            .return_document(ReturnDocument::Before)
+            .build();
+
+        // Perform the update operation
+        let result = collection
+            .find_one_and_update(filter, update, options)
+            .ok()?;
+
+        // Extract the old sm_core value from the result
+        result.map(|rsc| rsc.compute_units as i32)
     }
 
 

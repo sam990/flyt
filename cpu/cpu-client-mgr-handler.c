@@ -114,6 +114,24 @@ void stop_client_mgr() {
     pthread_join(handler_thread, NULL);
 }
 
+int get_sm_core_value() {
+    const char *sm_core_str = getenv("SM_CORE");
+    if (sm_core_str) {
+        char *endptr;
+        long value = strtol(sm_core_str, &endptr, 10);
+
+        // Check if the entire string was converted to a number
+        if (*endptr == '\0' && errno != ERANGE) {
+            return (int)value;  // Return the valid integer value
+        } else {
+            // Handle error if the string was not a valid integer
+            fprintf(stderr, "Invalid value for SM_CORE: %s\n", sm_core_str);
+            return -1;
+        }
+    }
+    return -1;  // Return -1 if the environment variable is not set
+}
+
 char* init_client_mgr() {
     LOGE(LOG_DEBUG, "My Connecting to client manager");
     if (access(CLIENTD_MQUEUE_PATH, F_OK) == -1) {
@@ -136,11 +154,12 @@ char* init_client_mgr() {
 
     uint64_t recv_id = msg_recv_id();
     uint64_t send_id = msg_send_id();
+    int sm_core = get_sm_core_value();
 
     struct msgbuf msg;
     msg.mtype = 1;
     strncpy(msg.msg.cmd, CLIENTD_RMGR_CONNECT, sizeof(msg.msg.cmd));
-    sprintf(msg.msg.data, "%d", recv_id);
+    sprintf(msg.msg.data, "%d,%d", recv_id,sm_core);
 
     msgsnd(clientd_mqueue_id, &msg, sizeof(msg.msg), 0);
 

@@ -68,7 +68,7 @@ fn main() {
         */
 
         s.spawn(|| {
-            client_mgr.listen_to_clients(|gid, rmgrflag | res_mgr.get_virt_server(s, gid, rmgrflag ));
+            client_mgr.listen_to_clients(|gid, sm_core, rmgrflag | res_mgr.get_virt_server(s, gid, sm_core, rmgrflag ));
         });
 
         s.spawn(|| {

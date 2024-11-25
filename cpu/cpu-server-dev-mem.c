@@ -22,6 +22,10 @@ static size_t cudaCalculateMallocPitch(size_t width){
   return pitch;
 }
 
+void *get_next_uva(size_t size);
+int free_uva_addr(void *ptr, size_t size);
+int get_uva_addr(void *ptr, size_t size);
+
 int init_server_dev_mem(int device_id) {
     prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
     prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
@@ -53,11 +57,26 @@ cudaError_t dev_mem_alloc(void **dev_ptr, size_t size, int va_specified, size_t 
 #if 1
     CUdeviceptr dptr;
 
-    CUdeviceptr req_addr = *((CUdeviceptr *)dev_ptr);
-
+    volatile CUdeviceptr req_addr = *((CUdeviceptr *)dev_ptr);
     if (va_specified) {
+	    /*
+	if(get_uva_addr((void *)req_addr, padded_size) != 0) {
+	    LOGE(LOG_ERROR, "Not able to get requested address at %p", req_addr);
+            return cudaErrorMemoryAllocation;
+	}
+	*/
+    }
+    else {
+	//req_addr = (CUdeviceptr) get_next_uva(padded_size);
+        //LOGE(LOG_INFO, "malloc reserved address at %p", req_addr);
+	req_addr = (CUdeviceptr) NULL;
+    }
+
+    if (req_addr != (CUdeviceptr) NULL) {
         res = cuMemAddressReserve(&dptr, padded_size, 0, req_addr, 0);
     } else {
+        //LOGE(LOG_ERROR, "Not able to get reserved address at %p", req_addr);
+        //return cudaErrorMemoryAllocation;
         res = cuMemAddressReserve(&dptr, padded_size, 0, 0, 0);
     }
 
@@ -136,6 +155,8 @@ cudaError_t free_dev_mem(void *ptr, size_t padded_size) {
     if (ptr == NULL)
         return cudaSuccess;
 #if 1
+    free_uva_addr(ptr, padded_size);
+
     if (cuMemUnmap((CUdeviceptr)ptr, padded_size) != CUDA_SUCCESS || cuMemAddressFree((CUdeviceptr)ptr, padded_size) != CUDA_SUCCESS)
         return cudaErrorInvalidValue;
 #else

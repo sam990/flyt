@@ -95,6 +95,12 @@ impl <'a> FrontendHandler<'a> {
             FrontEndCommand::DECREASE_RESOURCES => {
                 self.increase_resources(stream, reader, true);
             }
+            FrontEndCommand::ENABLE_VM_GROUPING => {
+                self.set_vm_grouping(stream, reader, true);
+            }
+            FrontEndCommand::DISABLE_VM_GROUPING => {
+                self.set_vm_grouping(stream, reader, false);
+            }
             _ => {
                 log::error!("Invalid command: {}", command);
             }
@@ -435,6 +441,29 @@ impl <'a> FrontendHandler<'a> {
             log::error!("Error updating resource: {:?}", ret);
             let _ = StreamUtils::write_all(&mut stream, format!("300\n{},{},{}\n", cur_compute, cur_mem, ret.unwrap_err()));
         }
+    }
+
+    fn set_vm_grouping(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>, enable: bool) {
+        let buffer = match StreamUtils::read_response(&mut reader, 1) {
+            Ok(buffer) => buffer,
+            Err(e) => {
+                log::error!("Error reading buffer: {}", e);
+                return;
+            }
+        };
+        let parts: Vec<&str> = buffer[0].split(',').collect();
+        if parts.len() != 1{
+            log::error!("Invalid arguments for vm grouping command: {:?}", parts);
+            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+            return;
+        }
+        let ipaddr = parts[0];
+
+        log::info!("set vm grouping for VM: {}, enable : {}", ipaddr, enable);
+
+        self.client_mgr.set_grouping_for_ip(ipaddr.to_string(), enable);
+
+        let _ = StreamUtils::write_all(&mut stream, format!("200\n"));
     }
     
 }

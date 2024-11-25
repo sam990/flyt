@@ -74,6 +74,12 @@ enum Commands {
         #[arg(short, short, long, help = "Amount of memory to allocate (MB)")]
         memory: u64,
     },
+    VMGrouping {
+        #[arg(short, short, long, help = "IP address of the VM to migrate")]
+        ip: String,
+        #[arg(short, short, long, help = "Client application ID to change resources for")]
+        enable: i32,
+    }
 }
 #[derive(Debug, clap::Args, Clone)]
 #[group(required = true)]
@@ -143,7 +149,10 @@ fn main() {
         },
         Commands::DecResources { ip, client_id, new_resources } => {
             increase_resources(stream, &ip, client_id, new_resources, true);
-        }
+        },
+        Commands::VMGrouping { ip, enable } => {
+            set_vm_grouping(stream, &ip, enable);
+        },
     }
 }
 
@@ -581,4 +590,38 @@ pub fn increase_resources(mut stream: UnixStream, vm_ip: &String, client_id: i32
         time_taken: time_taken
     };
 
+}
+
+pub fn set_vm_grouping(mut stream: UnixStream, vm_ip: &String, enable: i32) {
+    let time_begin = std::time::Instant::now();
+
+    let mut cmd = FrontEndCommand::DISABLE_VM_GROUPING;
+
+    if enable == 1 {
+        cmd = FrontEndCommand::ENABLE_VM_GROUPING;
+    }
+
+    match stream.write_all(
+        format!(
+            "{}\n{}\n",
+            cmd,
+            vm_ip
+        )
+        .as_bytes(),
+    ) {
+        Ok(_) => {}
+        Err(e) => {
+            log::error!("Error writing to stream: {}", e);
+        }
+    }
+
+    let mut reader = std::io::BufReader::new(stream);
+    let status = match StreamUtils::read_line(&mut reader) {
+        Ok(status) => status,
+        Err(e) => {
+            log::error!("Error reading status: {}", e);
+            return;
+        }
+    };
+    println!("{}", status);
 }

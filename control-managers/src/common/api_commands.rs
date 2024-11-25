@@ -49,4 +49,6 @@ impl FrontEndCommand {
     pub const MIGRATE_VIRT_SERVER_AUTO: &'static str = "MIGRATE_VIRT_SERVER_AUTO";
     pub const INCREASE_RESOURCES: &'static str = "INCREASE_RESOURCES";
     pub const DECREASE_RESOURCES: &'static str = "DECREASE_RESOURCES";
+    pub const ENABLE_VM_GROUPING: &'static str = "ENABLE_VM_GROUPING";
+    pub const DISABLE_VM_GROUPING: &'static str = "DISABLE_VM_GROUPING";
 }

@@ -54,6 +54,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 device-management.c \
 			 resource-map.c \
 			 cpu-server-client-mgr.c \
+			 cpu-server-mem_manager.c \
 			 flyt-cr.c \
 			 cpu-server-dev-mem.c
 

@@ -430,6 +430,8 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         goto cleanup00;
     }
 
+    init_shared_resources();
+
     LOGE(LOG_INFO, "initializing server_runtime.");
     if (init_server_dev_mem(gpu_id) != 0) {
         LOGE(LOG_ERROR, "initializing server_dev_mem failed.");
@@ -471,6 +473,9 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     pmap_unset(prog, vers);
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
+
+    cleanup_shared_resources();
+
     LOG(LOG_DEBUG, "have a nice day!");
     exit(ret);
 }

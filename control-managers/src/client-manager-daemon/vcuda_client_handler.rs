@@ -221,7 +221,7 @@ impl VCudaClientManager {
         return -1;
     }
 
-    pub fn listen_to_clients<F>(&self, virt_server_getter: F) where F: Fn(i32, bool) -> Option<(String, u64)> {
+    pub fn listen_to_clients<F>(&self, virt_server_getter: F) where F: Fn(i32, i32, bool) -> Option<(String, u64)> {
         let key = PathProjectIdKey::new(self.mqueue_path.clone(), PROJ_ID);
         let message_queue = MessageQueue::new(MessageQueueKey::PathKey(key)).create().init().unwrap();
         log::info!("Flyt client manager listening to clients...");
@@ -250,7 +250,18 @@ impl VCudaClientManager {
 
             let data_str = ctrlcommand.data_str();
             let parsed = sscanf!(data_str, "{u32}");
-            let client_pid = parsed.unwrap();
+            //let client_pid = parsed.unwrap();
+            let (client_pid, sm_core) = if let Ok((client_pid, sm_core)) = 
+                sscanf!(data_str, "{u32},{i32}") {
+                (client_pid, sm_core)
+            } else if let Ok(client_pid) = sscanf!(data_str, "{u32}") {
+                (client_pid, -1 as i32) // Default sm_core to -1 if absent
+            } else {
+                log::error!("Failed to parse client_pid and sm_core {}", data_str);
+                continue;
+            };
+
+
 
             //let client_pid = client_pid.unwrap();
             let mut gid = self.get_client_gid(client_pid);
@@ -263,7 +274,7 @@ impl VCudaClientManager {
                 if send_result.is_err() {
                     log::error!("Error sending error message to client: {}", client_pid);
                 }
-                virt_server_getter(gid as i32, false);
+                virt_server_getter(gid as i32, sm_core as i32, false);
                 self.remove_client(client_pid as i64, gid);
             }
             else if command_str == FlytApiCommand::CLIENTD_RMGR_CONNECT {
@@ -281,7 +292,7 @@ impl VCudaClientManager {
 
                 log::info!("Client connected: {}", client_pid);
 
-                match virt_server_getter(gid as i32, true) {
+                match virt_server_getter(gid as i32, sm_core as i32, true) {
                     Some((address, rpc_id)) => {
                         let vserver = VirtServer {address: address.clone(), rpc_id: rpc_id};
                         client_msgid.virt_server.write().unwrap().replace(vserver.clone());

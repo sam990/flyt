@@ -11,11 +11,13 @@ use std::io::{BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
+use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct FlytClientNode {
     pub ipaddr: String,
     pub client_id: i32,
+    pub group_id: i32,
     pub stream: Arc<RwLock<Option<StreamEnds<TcpStream>>>>,
     pub virt_server: Option<Arc<RwLock<VirtServer>>>,
     pub is_migrating: RwLock<bool>,
@@ -27,6 +29,7 @@ impl Clone for FlytClientNode {
         FlytClientNode {
             ipaddr: self.ipaddr.clone(),
             client_id: self.client_id,
+            group_id:self.group_id,
             stream: self.stream.clone(),
             virt_server: self.virt_server.clone(),
             is_migrating: RwLock::new(false),
@@ -50,6 +53,9 @@ macro_rules! get_writer {
 pub struct FlytClientManager<'a> {
     clients: Mutex<HashMap<(String, i32),FlytClientNode>>,
     server_nodes_manager: &'a ServerNodesManager<'a>,
+    ip_grouping_enabled: Mutex<HashMap<String, bool>>,  // Enable/disable grouping per IP
+    ipaddr_to_group_id: Mutex<HashMap<String, i32>>,    // Tracks group IDs for IPs with grouping enabled
+    group_to_virt_server: Mutex<HashMap<i32, Arc<RwLock<VirtServer>>>>,  // Shared virt_server per group
 }
 
 
@@ -59,11 +65,75 @@ impl<'a> FlytClientManager<'a> {
         FlytClientManager {
             clients: Mutex::new(HashMap::new()),
             server_nodes_manager: server_nodes_mgr,
+            ip_grouping_enabled: Mutex::new(HashMap::new()),
+            ipaddr_to_group_id: Mutex::new(HashMap::new()),
+            group_to_virt_server: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn add_client(&self, client: FlytClientNode) {
+    /// Enable or disable grouping for a specific IP
+    pub fn set_grouping_for_ip(&self, ipaddr: String, enable_grouping: bool) {
+        let mut ip_grouping = self.ip_grouping_enabled.lock().unwrap();
+        ip_grouping.insert(ipaddr, enable_grouping);
+    }
+
+    /// Retrieves the virt_server for a given ipaddr.
+    pub fn get_virt_server_for_ip(&self, ipaddr: &str) -> Option<Arc<RwLock<VirtServer>>> {
+        let grouping_enabled = {
+            let ip_grouping = self.ip_grouping_enabled.lock().unwrap();
+            *ip_grouping.get(ipaddr).unwrap_or(&false)
+        };
+
+        if grouping_enabled {
+            let ip_to_group = self.ipaddr_to_group_id.lock().unwrap();
+            if let Some(group_id) = ip_to_group.get(ipaddr) {
+                let group_to_virt = self.group_to_virt_server.lock().unwrap();
+                return group_to_virt.get(group_id).cloned();
+            }
+        }
+
+        None
+    }
+
+    pub fn count_clients_with_virt_server(&self, virt_server: Arc<RwLock<VirtServer>>) -> usize {
+        // Lock the clients map to safely access client nodes
+        let clients = self.clients.lock().unwrap();
+
+        // Count clients that share the same virt_server by using Arc::ptr_eq
+        clients.values().filter(|client| {
+            if let Some(client_virt_server) = &client.virt_server {
+                Arc::ptr_eq(client_virt_server, &virt_server)
+            } else {
+                false
+            }
+        }).count()
+    }
+
+    pub fn add_client(&self, mut client: FlytClientNode) {
         let mut clients = self.clients.lock().unwrap();
+        let grouping_enabled = {
+            let ip_grouping = self.ip_grouping_enabled.lock().unwrap();
+            *ip_grouping.get(&client.ipaddr).unwrap_or(&false)
+        };
+
+        let group_id = if grouping_enabled {
+            let mut ip_to_group = self.ipaddr_to_group_id.lock().unwrap();
+            *ip_to_group.entry(client.ipaddr.clone()).or_insert_with(|| {
+                Uuid::new_v4().as_u128() as i32
+            })
+        } else {
+            -1
+        };
+
+        if group_id != -1 {
+            // Lock the group_to_virt_server map to safely update it
+            let mut group_to_virt = self.group_to_virt_server.lock().unwrap();
+
+            // Update or insert the virt_server for the given group_id
+            group_to_virt.insert(group_id, client.virt_server.clone().expect("virt_server not present"));
+        }
+
+        client.group_id = group_id;
         clients.insert((client.ipaddr.to_string(), client.client_id), client);
     }
 
@@ -117,7 +187,39 @@ impl<'a> FlytClientManager<'a> {
         clients.contains_key(&(ipaddr.to_string(), client_id ))
     }
 
+    pub fn get_clients_by_group(&self, ipaddr: &str, client_id: i32) -> Vec<(String, i32)> {
+        let clients = self.clients.lock().unwrap();
+
+        // Create a vector to hold the results
+        let mut result = Vec::new();
+
+        // Check if the client exists
+        if let Some(client) = clients.get(&(ipaddr.to_string(), client_id)) {
+            let group_id = client.group_id;
+
+            // If the client has a valid group_id (not -1)
+            if group_id != -1 {
+                // Collect all clients with the same group_id
+                for (key, client) in clients.iter() {
+                    if client.group_id == group_id {
+                        result.push((key.0.clone(), key.1));  // Add (ipaddr, client_id)
+                    }
+                }
+            } else {
+                // If the client has no group (group_id == -1), return just this client
+                result.push((ipaddr.to_string(), client_id));
+            }
+        }
+
+        result
+    }
+
     pub fn stop_client(&self, ipaddr: &str, client_id: i32) -> Result<(),String> {
+       let result = self.get_clients_by_group(ipaddr, client_id);
+       let mut errors = Vec::new(); // Collect errors in this vector
+
+       for (ipaddr, client_id) in result.iter() {
+        let client_id = *client_id;
         if self.exists(ipaddr, client_id) {
             let mut client = self.get_client(ipaddr, client_id).unwrap();
             *client.is_migrating.get_mut().unwrap() = true;
@@ -132,33 +234,45 @@ impl<'a> FlytClientManager<'a> {
                             }
                             Err(e) => {
                                 log::error!("Error reading response from client: {}", e);
-                                return Err("Error reading response from client".to_string());
+                                errors.push(format!("Error reading response from client {}: {}", ipaddr, e));
+                                continue; // Continue to the next client
                             }
                         };
                         if response[0] != "200" {
-                            return Err(format!("Error stopping client: {}", response[1]));
+                            errors.push(format!("Error stopping client: {}. Response: {}", client_id, response[1]));
+                            continue; // Continue to the next client
                         }
-
-                        Ok(())
-
                     }
                     Err(e) => {
                         log::error!("Error writing to client: {}", e);
-                        return Err("Error writing to client".to_string());
+                        errors.push(format!("Error writing to client {}: {}", ipaddr, e));
+                        continue; // Continue to the next client
                     }
                 }
             }
             else {
                 log::info!("Client stream is None");
-                Err("Client stream is None".to_string())
+                errors.push(format!("Client stream is None for client: {},{}", ipaddr, client_id));
+                continue; // Continue to the next client
             }
         }
         else {
-            Err("Client not found".to_string())
+            errors.push(format!("Client not found: {},{}", ipaddr, client_id));
+            continue; // Continue to the next client
         }
+      }
+      if errors.is_empty() {
+        Ok(())
+      } else {
+        Err(errors.join("\n")) // Join all errors into a single string and return as Err
+      }
     }
 
     pub fn change_virt_server(&self, ipaddr: &str, client_id: i32, new_virt_server: &Arc<RwLock<VirtServer>>) -> Result<(), String> {
+       let result = self.get_clients_by_group(ipaddr, client_id);
+       let mut errors = Vec::new(); // Collect errors in this vector
+       for (ipaddr, client_id) in result.iter() {
+        let client_id = *client_id;
         if self.exists(ipaddr, client_id) {
             let mut client = self.get_client(ipaddr, client_id).unwrap();
 
@@ -176,37 +290,49 @@ impl<'a> FlytClientManager<'a> {
                             }
                             Err(e) => {
                                 log::error!("Error reading response from client: {}", e);
-                                return Err("Error reading response from client".to_string());
+                                errors.push(format!("Error reading response from client {}: {}", ipaddr, e));
+                                continue; // Continue to the next client
                             }
                         };
                         if response[0] != "200" {
-                            return Err(format!("Error changing virt server: {}", response[1]));
+                            errors.push(format!("Error stopping client: {}. Response: {}", client_id, response[1]));
+                            continue; // Continue to the next client
                         }
                         
                         // Update client virt server
                         client.virt_server = Some(new_virt_server.clone());
                         self.update_client(client);
-    
-                        Ok(())
-
                     }
                     Err(e) => {
                         log::error!("Error writing to client: {}", e);
-                        return Err("Error writing to client".to_string());
+                        errors.push(format!("Error writing to client {}: {}", ipaddr, e));
+                        continue; // Continue to the next clien
                     }
                 }
             }
             else {
                 log::info!("Client stream is None");
-                Err("Client stream is None".to_string())
+                errors.push(format!("Client stream is None for client: {},{}", ipaddr, client_id));
+                continue; // Continue to the next client
             }
         }
         else {
-            Err("Client not found".to_string())
+            errors.push(format!("Client not found: {},{}", ipaddr, client_id));
+            continue; // Continue to the next clien
         }
+      }
+      if errors.is_empty() {
+        Ok(())
+      } else {
+        Err(errors.join("\n")) // Join all errors into a single string and return as Err
+      }
     }
 
     pub fn resume_client(&self, ipaddr: &str, client_id: i32) -> Result<(),String> {
+       let result = self.get_clients_by_group(ipaddr, client_id);
+       let mut errors = Vec::new(); // Collect errors in this vector
+       for (ipaddr, client_id) in result.iter() {
+        let client_id = *client_id;
         if self.exists(ipaddr, client_id) {
             let mut client = self.get_client(ipaddr, client_id).unwrap();
             *client.is_migrating.get_mut().unwrap() = false;
@@ -221,30 +347,39 @@ impl<'a> FlytClientManager<'a> {
                             }
                             Err(e) => {
                                 log::error!("Error reading response from client: {}", e);
-                                return Err("Error reading response from client".to_string());
+                                errors.push(format!("Error reading response from client {}: {}", ipaddr, e));
+                                continue; // Continue to the next client
                             }
                         };
                         if response[0] != "200" {
-                            return Err(format!("Error resuming client: {}", response[1]));
+                            errors.push(format!("Error stopping client: {}. Response: {}", client_id, response[1]));
+                            continue; // Continue to the next client
                         }
-
-                        Ok(())
-
                     }
                     Err(e) => {
                         log::error!("Error writing to client: {}", e);
-                        return Err("Error writing to client".to_string());
+                        errors.push(format!("Error writing to client {}: {}", ipaddr, e));
+                        continue; // Continue to the next client
                     }
                 }
             }
             else {
                 log::info!("Client stream is None");
-                Err("Client stream is None".to_string())
+                errors.push(format!("Client stream is None for client: {},{}", ipaddr, client_id));
+                continue; // Continue to the next client
             }
         }
         else {
-            Err("Client not found".to_string())
+            log::info!("Client not found: {},{}", ipaddr, client_id);
+            errors.push(format!("Client not found: {},{}", ipaddr, client_id));
+            continue; // Continue to the next client
         }
+      }
+      if errors.is_empty() {
+        Ok(())
+      } else {
+        Err(errors.join("\n")) // Join all errors into a single string and return as Err
+      }
     }
 
     pub fn start_flytclient_handler<'b>(&'b self, port: u16, scope: &'b thread::Scope<'b, '_>) {
@@ -261,13 +396,28 @@ impl<'a> FlytClientManager<'a> {
         }
     }
 
-    fn get_client_command_client_id(response_str: String) -> (String, i32) {
+    fn get_client_command_client_id(response_str: String) -> (String, i32, i32) {
         let client_details = response_str.split(",").collect::<Vec<&str>>();
-        if client_details.len() != 2 {
+        if client_details.len() < 2 || client_details.len() > 3 {
             log::error!("client details not in correct format: {}", response_str);
-            return ("".to_string(), -1);
+            return ("".to_string(), -1, -1);
         }
-        (client_details[0].to_string(), client_details[1].trim().parse::<i32>().unwrap())
+
+        let first_value = client_details[0].to_string();
+        let second_value = client_details[1].trim().parse::<i32>().unwrap_or_else(|_| {
+            log::error!("Failed to parse second value as i32: {}", client_details[1]);
+            -1
+        });
+        let third_value = if client_details.len() == 3 {
+            client_details[2].trim().parse::<i32>().unwrap_or_else(|_| {
+                log::error!("Failed to parse third value as i32: {}", client_details[2]);
+                -1
+            })
+        } else {
+            -1
+        };
+
+        (first_value, second_value, third_value)
     }
 
     fn handle_flytclient<'b>(&'b self, mut stream: TcpStream, scope: &'b thread::Scope<'b, '_>) {
@@ -283,7 +433,7 @@ impl<'a> FlytClientManager<'a> {
 
         let mut reader = BufReader::new(stream_clone);
         
-        let (command, client_id) = match StreamUtils::read_response(&mut reader, 1) {
+        let (command, client_id, sm_core) = match StreamUtils::read_response(&mut reader, 1) {
             Ok(response) => Self::get_client_command_client_id(response[0].clone()),
             Err(e) => {
                 log::error!("Error reading command from client: {}", e);
@@ -316,34 +466,54 @@ impl<'a> FlytClientManager<'a> {
                     }
                 }
                 else {
-                    log::info!("creating new client {},{}", client_ip, client_id);
-                    let virt_server = self.server_nodes_manager.allocate_vm_resources(&client_ip, client_id);
+                    log::info!("creating new client {},{}, sm_core: {}", client_ip, client_id, sm_core);
+                    // Try to get an existing virt_server for the IP, or allocate a new one if it doesn't exist.
+                    let virt_server = match self.get_virt_server_for_ip(&client_ip) {
+                        Some(vs) => vs, // Use the existing virt_server if found.
+                        None => {
+                            // Try to allocate VM resources if no existing virt_server is found.
+                            let old_compute_units = self.server_nodes_manager.vm_resource_getter.set_vm_sm_resource(&client_ip,sm_core);
+                            match self.server_nodes_manager.allocate_vm_resources(&client_ip, client_id) {
+                                Ok(vs) => {
+                                    if !old_compute_units.is_none() {
+                                        self.server_nodes_manager.vm_resource_getter.set_vm_sm_resource(&client_ip, old_compute_units.expect("not valid old compute"));
+                                    }
+                                    vs // Use the newly allocated virt_server.
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to allocate VM resources for {},{}: {}", client_ip, client_id, e);
+                                    if !old_compute_units.is_none() {
+                                        self.server_nodes_manager.vm_resource_getter.set_vm_sm_resource(&client_ip, old_compute_units.expect("not valid old compute"));
+                                    }
+                                    let _ = stream.write_all(format!("500\nFailed to allocate VM resources error: {}\n",e).as_bytes());
+                                    return;
+                                }
+                            }
+                        }
+                    };
                     log::info!("after allocating vm resources new client {},{}", client_ip, client_id);
-                    if virt_server.is_ok() {
-                        let virt_server = virt_server.unwrap();
-                        let client = FlytClientNode {
+                    let client = FlytClientNode {
                             ipaddr: client_ip.clone(),
                             client_id: client_id,
+                            group_id: -1,
                             stream: Arc::new(RwLock::new(Some(StreamEnds{writer: stream, reader}))),
                             virt_server: Some(virt_server.clone()),
                             is_migrating: RwLock::new(false),
                             is_active: RwLock::new(true),
-                        };
-                        let client_stream_clone = client.stream.clone();
-                        let mut client_stream_clone_writer = client_stream_clone.write().unwrap();
-                        match client_stream_clone_writer.as_mut().unwrap().writer.write_all(format!("200\n{},{}\n", virt_server.read().unwrap().ipaddr, virt_server.read().unwrap().rpc_id).as_bytes()) {
-                            Ok(_) => {
-                                log::info!("Adding new client {},{}", client_ip, client_id);
-                                self.add_client(client);
-                            }
-                            Err(e) => {
-                                log::error!("Error writing to stream: {}", e);
-                            }
+                    };
+                    let client_stream_clone = client.stream.clone();
+                    let mut client_stream_clone_writer = client_stream_clone.write().unwrap();
+                    let virt_server = virt_server.read().unwrap();
+                    match client_stream_clone_writer.as_mut().unwrap().writer.write_all(format!("200\n{},{}\n", virt_server.ipaddr, virt_server.rpc_id).as_bytes()) {
+                        Ok(_) => {
+                            log::info!("Adding new client {},{}", client_ip, client_id);
+                            self.add_client(client);
+                        }
+                        Err(e) => {
+                            log::error!("Error writing to stream: {}", e);
                         }
                     }
-                    else {
-                        let _ = stream.write_all(format!("500\n{}\n", virt_server.unwrap_err()).as_bytes());
-                    }
+                    
                 }
             },
 
@@ -363,7 +533,9 @@ impl<'a> FlytClientManager<'a> {
                         let virt_server_ip = client.virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
                         let rpc_id = client.virt_server.as_ref().unwrap().read().unwrap().rpc_id;
 
-                        self.server_nodes_manager.free_virt_server(&virt_server_ip, rpc_id, false);
+                        if self.count_clients_with_virt_server(client.virt_server.as_ref().unwrap().clone()) == 1 {
+                            self.server_nodes_manager.free_virt_server(&virt_server_ip, rpc_id, false);
+                        }
                         let _ = stream.write_all(format!("200\n").as_bytes());
 
                         // Free the previous client stream as well

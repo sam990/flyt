@@ -20,7 +20,7 @@ impl <'b> ResourceManagerHandler <'b> {
         }
     }
 
-    pub fn get_virt_server<'a>(&'a self, scope: &'a thread::Scope<'a,'_>, gid: i32, rmgrflag: bool) -> Option<(String, u64)> {
+    pub fn get_virt_server<'a>(&'a self, scope: &'a thread::Scope<'a,'_>, gid: i32, sm_core: i32, rmgrflag: bool) -> Option<(String, u64)> {
         let stream = TcpStream::connect(format!("{}:{}", self.server_ip, self.server_port));
         match stream {
             Ok(mut stream) => {
@@ -33,7 +33,7 @@ impl <'b> ResourceManagerHandler <'b> {
                 };
                 let mut reader = BufReader::new(stream_clone);
                 if rmgrflag == true {
-                    match stream.write_all(format!("{},{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT, gid).as_bytes()) {
+                    match stream.write_all(format!("{},{},{}\n", FlytApiCommand::CLIENTD_RMGR_CONNECT, gid, sm_core).as_bytes()) {
                         Ok(_) => {}
                         Err(e) => {
                             log::error!("Error writing to stream: {}", e);
