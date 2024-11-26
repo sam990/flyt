@@ -249,7 +249,7 @@ impl VCudaClientManager {
 
             // temp, hardcode backend and shm_enable.
             // perhaps virt_server must contain these parameters.
-            let shm_enable = 1;
+            let shm_enable = 0;
             let shm_backend = "/dev/shm/ivshmem-0-ub11.dat";
             let virt_server = virt_server.unwrap();
             

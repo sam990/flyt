@@ -69,16 +69,30 @@ cudaError_t cudaChooseDevice(int* device, const struct cudaDeviceProp* prop)
 #endif //WITH_API_CNT
     int_result result;
     enum clnt_stat retval_1;
-    mem_data prop_mem = {
-      .mem_data_len = sizeof(struct cudaDeviceProp),
-      .mem_data_val = (void*)prop};
 
-    FUNC_BEGIN(); 
-    retval_1 = cuda_choose_device_1(prop_mem, &result, clnt);
-    FUNC_END();
-    if (retval_1 != RPC_SUCCESS) {
-        clnt_perror (clnt, "call failed");
+    Timer t1;
+    FUNC_BEGIN(t1);
+    if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
+        // retval_1 = rpc_shm_clnt_cuda_choose_device_1(prop, &result); 
+        if (retval_1 != RPC_SHM_SUCCESS) {
+            clnt_perror (clnt, "shm call failed");
+        }
+    } else {
+        mem_data prop_mem = {
+            .mem_data_len = sizeof(struct cudaDeviceProp),
+            .mem_data_val = (void*)prop};
+            
+        FUNC_BEGIN(); 
+        retval_1 = cuda_choose_device_1(prop_mem, &result, clnt);
+        FUNC_END();
+        if (retval_1 != RPC_SUCCESS) {
+            clnt_perror (clnt, "call failed");
+        }   
     }
+
+    FUNC_END();
+    TIMER_ADD_INCREMENT(t1, cuda_choose_device_1);
+
     if (result.err == 0) {
         *device = result.int_result_u.data;
     }
@@ -369,13 +383,7 @@ cudaError_t cudaGetDeviceCount(int* count)
     Timer t1;
     FUNC_BEGIN(t1); 
     if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
-        //printf("In shm cudagetdevicecount\n");
         retval = rpc_shm_clnt_cuda_get_device_count_1(&result); 
-        // printf("exited shm dev cnt\n");
-        // printf("res address in outer: %p\n", (void*)&result);
-        // printf("Result err recd from svc: %d\n", result.err);
-        // printf("result data recd from svc: %d\n", result.int_result_u.data);
-        // printf("retval from clnt: %x\n", retval);
         if (retval != RPC_SHM_SUCCESS) {
             clnt_perror (clnt, "shm call failed");
         }
@@ -387,11 +395,11 @@ cudaError_t cudaGetDeviceCount(int* count)
     }
     FUNC_END();
     TIMER_ADD_INCREMENT(t1, cuda_get_device_count_1);
-    //printf("cudagetdevicecount worked\n%d", result.int_result_u.data);
-    
-    result.err = 0; // cheeky temp
+
     if (result.err == 0) {
         *count = result.int_result_u.data; // copy from shm
+    } else {
+        printf("No cudaSuccess: %d\n", result.err);
     }
     return result.err;
 }
@@ -432,7 +440,7 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     Timer t1;
     FUNC_BEGIN(t1);
     if (ivshmem_ctx && ivshmem_ctx->shm_enabled) {
-        retval = rpc_shm_clnt_cuda_get_device_properties_1(&result, device); 
+        retval = rpc_shm_clnt_cuda_get_device_properties_1(device, &result); 
         printf("retval from clnt: %d\n", retval);   
         if (retval != RPC_SHM_SUCCESS) {
             clnt_perror (clnt, "shm call failed");
@@ -451,6 +459,7 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     }
     // if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(struct cudaDeviceProp)) == NULL) {
     //FIXME: Don't know why, but pytorch expects a different definition of cudaDeviceProp, which is only 728 bytes long
+    // copying to userspace.
     if (memcpy(prop, result.cuda_device_prop_result_u.data, 728) == NULL) {
         LOGE(LOG_ERROR, "error: memcpy failed");
         return result.err;
@@ -1843,7 +1852,6 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
                     LOGE(LOG_ERROR, "cuda_memcpy_shm failed");
                     goto cleanup;
                 }
-
                 copied_count += chunk_size;
                 rpc_cnt ++;
             }

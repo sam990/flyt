@@ -232,7 +232,7 @@ void __attribute__((constructor)) init_rpc(void)
     char *printmessage_1_arg1 = "hello";
 
     LOGE(LOG_DBG(1), "log level is %d", LOG_LEVEL);
-    init_log(LOG_LEVEL, __FILE__);
+    // init_log(LOG_LEVEL, __FILE__);
 
     pthread_rwlock_init(&access_sem, NULL); // to allow read/write access to client.
 
@@ -347,6 +347,9 @@ void __attribute__((destructor)) deinit_rpc(void)
             //     pthread_cond_wait(&poll_stop_cond_var, &poll_stop_mutex);  // Wait until the thread is done
             // }
             // pthread_mutex_unlock(&poll_stop_mutex);
+            
+            // clear the entire mmaped region.
+            memset(ivshmem_ctx->shm_mmap, 0, ivshmem_ctx->shm_proc_size);
 
             printf("unmapping\n");
             munmap(ivshmem_ctx->shm_mmap, ivshmem_ctx->shm_proc_size);

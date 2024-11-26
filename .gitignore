@@ -37,6 +37,8 @@ synthetic_benchmark/*.log
 *.data
 *.perf
 *.old
+torchserve_support/image_store
+torchserve_support/model_store
 
 # npm modules
 setup/node_modules

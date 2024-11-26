@@ -19,18 +19,34 @@ extern int do_unmap;
 // rpc shm helpers
 #define RPC_SHM_SUCCESS 0x3B
 #define RPC_SHM_FAILURE 0x2A
+#define RPC_SHM_NONE 0x00
+
 #define RPC_SHM_MAGIC_START 0xD6 // 1 byte at beginnning of each RPC message. First byte of shm must always be = 0xD6
 #define RPC_SHM_MAGIC_END 0xC5
+
 #define RPC_SHM_ARG_DATA_START 8
 #define RPC_SHM_MAX_ARG_LENGTH 128 // consistent with cudageterrorstring on server.
+
+#define POLL_S 1
+#define POLL_C 2
+
+typedef enum {
+    RPC_SHM_INT = 1,
+    RPC_SHM_FLOAT = 2,
+    RPC_SHM_DOUBLE = 3,
+    RPC_SHM_CHAR = 4,
+    RPC_SHM_DATA_PTR_64 = 5,
+    RPC_SHM_PTR_64 = 6,
+    RPC_SHM_INT_64 = 7
+} RPC_SHM_Type;
 
 // 1 + 7 + 8 + 8 + 8 = 32 bytes/arg
 struct rpc_shm_arg {
     uint8_t arg_type;
     uint8_t __pad3[7];
     struct {
-        uint64_t val;
-        uint64_t d_off;
+        uint64_t val; // for regular values.
+        uint64_t d_off; // for memcpys into shm
     } raw_info;
     uint64_t arg_data_len;
 }__attribute__((packed));
@@ -38,7 +54,7 @@ struct rpc_shm_arg {
 // 16 bytes /response meta
 typedef struct rpc_shm_response {
     uint64_t sz; // set by server
-    uint64_t offset; // read by client
+    uint64_t offset; // read by client to retrieve response data
 }__attribute__((packed)) rpc_shm_response_t ;
 
 // 1 + 1 + 1 + 4 + 1 + 4 + 1 + 3 + 32 *16 + 16 + 1 = 545 bytes.
@@ -53,16 +69,17 @@ typedef struct rpc_shm_header {
     uint8_t num_args;
     uint8_t __pad2[3];
 
-    struct rpc_shm_arg rpc_args[16]; // max 16 rpc args allowed.
+    struct rpc_shm_arg rpc_args[8]; // max 16 rpc args allowed.
 
     volatile rpc_shm_response_t rpc_response_desc;
     uint8_t rpc_magic_end;
 }__attribute__((packed)) rpc_shm_header_t;
 
-void rpc_shm_clnt_put_request_and_notify(volatile rpc_shm_header_t *rpc_hdr); // copy rpc control header to shm, update poll bit
+void rpc_shm_clnt_put_request_and_notify(volatile rpc_shm_header_t *rpc_hdr, int _notify_at); // copy rpc control header to shm, update poll bit
 uint8_t rpc_shm_clnt_get_response_status(); // to access status
 uint64_t rpc_shm_clnt_get_response_data_offset();
-
+rpc_shm_header_t *init_rpc_shm_header(int _cuda_api_call, int num_argsg);
+void busy_poll_and_wait_for_response(int _at_byte);
 
 // RPC API
 #define RPC_CHECKPOINT 0
@@ -78,6 +95,8 @@ uint64_t rpc_shm_clnt_get_response_data_offset();
 
 // CUDA Runtime API
 #define CUDA_CHOOSE_DEVICE 101
+// uint64_t rpc_shm_clnt_cuda_choose_device_1(const struct cudaDeviceProp *prop, int_result *result);
+
 #define CUDA_DEVICE_GET_ATTRIBUTE 102
 #define CUDA_DEVICE_GET_BY_PCI_BUS_ID 103
 #define CUDA_DEVICE_GET_CACHE_CONFIG 104
@@ -98,8 +117,9 @@ uint64_t rpc_shm_clnt_cuda_get_device_count_1(int_result *res);
 
 #define CUDA_GET_DEVICE_FLAGS 119
 
+
 #define CUDA_GET_DEVICE_PROPERTIES 120
-uint64_t rpc_shm_clnt_cuda_get_device_properties_1(cuda_device_prop_result *res, int device);
+uint64_t rpc_shm_clnt_cuda_get_device_properties_1(int device, cuda_device_prop_result *res);
 
 #define CUDA_SET_DEVICE 126
 #define CUDA_SET_DEVICE_FLAGS 127

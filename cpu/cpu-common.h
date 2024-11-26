@@ -75,6 +75,7 @@ struct rpc_times {
     double rpc_cublasltmatmulpreferencedestroy_1;
     double rpc_cublasltmatmuldescdestroy_1;  
     double rpc_cudeviceget_1;  
+    double cuda_choose_device_1;
 };
 
 struct rpc_cnt {
@@ -115,6 +116,7 @@ struct rpc_cnt {
     double rpc_cublasltmatmulpreferencedestroy_1;
     double rpc_cublasltmatmuldescdestroy_1;
     double rpc_cudeviceget_1;
+    double cuda_choose_device_1;
 };
 
 // defined in constructor
