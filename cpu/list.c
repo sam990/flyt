@@ -152,6 +152,8 @@ int list_append(list *l, void **new_element)
         return 1;
     }
     pthread_mutex_lock(&l->mutex);
+    // if we've reached init capacity, resize the
+    // resource map list to double, amortized log growth.
     if (l->capacity == l->length) {
         void *nlist = realloc(l->elements, l->capacity*2*l->element_size);
         if (nlist== NULL) {
@@ -163,7 +165,12 @@ int list_append(list *l, void **new_element)
         l->elements = nlist;
         l->capacity *= 2;
     }
+    // by default, whill come here.
+    // get address at which the mapping
+    // is stored.
     if (new_element != NULL) {
+        // post incr, l->length updated after the 
+        // old value is used.
         *new_element = list_get(l, l->length++);
     }
     pthread_mutex_unlock(&l->mutex);
@@ -172,6 +179,8 @@ int list_append(list *l, void **new_element)
     return ret;
 }
 
+// append a copy of the element to 
+// a given list.
 int list_append_copy(list *l, void *new_element)
 {
     int ret = 0;
@@ -183,9 +192,20 @@ int list_append_copy(list *l, void *new_element)
     }
 
     pthread_mutex_lock(&l->mutex);
+    // This likely provides a location for
+    // the new element, i.e. updates the value
+    // void *elem
     if ( (ret = list_append(l, &elem)) != 0) {
         goto out;
     }
+    // copy the void * values that represent the
+    // mapping to the address pointed to by elem
+    // *elem = <mapping struct>
+    // and elem is the start address of a sequence
+    // of blocks in a list, accessible via the resource mgr.
+    // ---
+    // new_element is just temporary. Actual server info
+    // is stored at elem
     memcpy(elem, new_element, l->element_size);
  out:
     pthread_mutex_unlock(&l->mutex);
@@ -218,6 +238,9 @@ int list_at(list *l, size_t at, void **element)
     return 0;
 }
 
+// address of the new element is simply 
+// the address of next unused sequential block.
+// element removal will be thoda involved.
 inline void* list_get(list *l, size_t at) {
     return (l->elements+at*l->element_size);
 }
@@ -226,6 +249,8 @@ int list_insert(list *l, size_t at, void *new_element)
 {
     int val;
     //printf("This is line number %d\n", __LINE__);
+
+    // do some samity checcks
     if (l == NULL) {
         LOGE(LOG_ERROR, "list parameter is NULL");
         return 1;
@@ -235,28 +260,44 @@ int list_insert(list *l, size_t at, void *new_element)
         return 1;
     }
     pthread_mutex_lock(&l->mutex);
+    // one more sanity check that we're not 
+    // inserting at an index thats larger
+    // than the current size of the list
     if (at > l->length) {
         LOGE(LOG_ERROR, "accessing list out of bounds");
         val = 1;
 	goto out;
     }
+    // if we find that the new element needs to go
+    // to the end of the list, we append a copy of it
+    // -- this is the case when key of new element
+    // is the largest yet.
     if (at == l->length) {
 
         val = list_append_copy(l, new_element);
 	if (val != 0)
 	    goto out;
     }
+    // in the common case, we need to add the mapping
+    // somewhere in the middle of an existing sorted
+    // list.
     else {
-
+        // no idea
         if (list_append(l, NULL) != 0) {
             LOGE(LOG_ERROR, "error while lengthening list");
             val = 1;
 	    goto out;
         }
+        // make 1 block space in the list for the new element
+        // move the (subset of list after) the block currently at the dest of new elem
+        // one block further.
         memmove(list_get(l, at+1), list_get(l, at), (l->length-at)*l->element_size);
 
+        // coppy the new element to the newly allocated 
+        // space made for it
         memcpy(list_get(l, at), new_element, l->element_size);
 
+        // increment the recorded dlength of the list/map
         l->length += 1; //appending a NULL element does not increase list length
     }
     val = 0;
@@ -280,10 +321,19 @@ int list_rm(list *l, size_t at)
         return 1;
     }
     if ((l->length > 1) && (at < l->length-1)) {
-        memmove(list_get(l, at), list_get(l, at+1), (l->length-1-at)*l->element_size);
+        printf("before memmove\n");
+        void *dest = list_get(l, at);
+        void *src = list_get(l, at+1);
+        size_t sz = (l->length-1-at)*l->element_size;
+        printf("dest address: %p\n", dest);
+        printf("src address: %p\n", src);
+        printf("size (sz): %zu\n", sz);
+        
+        memmove(dest, src, sz);
+        printf("after memmove\n");
     }
     l->length -= 1;
-    //printf("This is line number %d\n", __LINE__);
+    // printf("This is line number %d\n", __LINE__);
     pthread_mutex_unlock(&l->mutex);
     return 0;
 }

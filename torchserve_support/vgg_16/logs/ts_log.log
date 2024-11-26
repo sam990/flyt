@@ -1,0 +1,334 @@
+2024-11-23T18:26:03,997 [DEBUG] main org.pytorch.serve.util.ConfigManager - xpu-smi not available or failed: Cannot run program "xpu-smi": error=2, No such file or directory
+2024-11-23T18:26:03,997 [DEBUG] main org.pytorch.serve.util.ConfigManager - xpu-smi not available or failed: Cannot run program "xpu-smi": error=2, No such file or directory
+2024-11-23T18:26:04,004 [WARN ] main org.pytorch.serve.util.ConfigManager - Your torchserve instance can access any URL to load models. When deploying to production, make sure to limit the set of allowed_urls in config.properties
+2024-11-23T18:26:04,004 [WARN ] main org.pytorch.serve.util.ConfigManager - Your torchserve instance can access any URL to load models. When deploying to production, make sure to limit the set of allowed_urls in config.properties
+2024-11-23T18:26:04,015 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager - Initializing plugins manager...
+2024-11-23T18:26:04,015 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager - Initializing plugins manager...
+2024-11-23T18:26:04,074 [INFO ] main org.pytorch.serve.metrics.configuration.MetricConfiguration - Successfully loaded metrics configuration from /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+2024-11-23T18:26:04,074 [INFO ] main org.pytorch.serve.metrics.configuration.MetricConfiguration - Successfully loaded metrics configuration from /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+2024-11-23T18:26:04,269 [INFO ] main org.pytorch.serve.ModelServer - 
+Torchserve version: 0.12.0
+TS Home: /home/ub-11/miniconda3/lib/python3.9/site-packages
+Current directory: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16
+Temp directory: /tmp
+Metrics config path: /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+Number of GPUs: 1
+Number of CPUs: 64
+Max heap size: 16024 M
+Python executable: /home/ub-11/miniconda3/bin/python
+Config file: ./config.properties
+Inference address: http://10.129.2.27:8080
+Management address: http://10.129.2.27:8081
+Metrics address: http://10.129.2.27:8082
+Model Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+Initial Models: vgg16=vgg16.mar
+Log dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Metrics dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Netty threads: 0
+Netty client threads: 0
+Default workers per model: 1
+Blacklist Regex: N/A
+Maximum Response Size: 6553500
+Maximum Request Size: 6553500
+Limit Maximum Image Pixels: true
+Prefer direct buffer: false
+Allowed Urls: [file://.*|http(s)?://.*]
+Custom python dependency for model allowed: false
+Enable metrics API: true
+Metrics mode: LOG
+Disable system metrics: false
+Workflow Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+CPP log config: N/A
+Model config: N/A
+System metrics command: default
+Model API enabled: true
+2024-11-23T18:26:04,269 [INFO ] main org.pytorch.serve.ModelServer - 
+Torchserve version: 0.12.0
+TS Home: /home/ub-11/miniconda3/lib/python3.9/site-packages
+Current directory: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16
+Temp directory: /tmp
+Metrics config path: /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+Number of GPUs: 1
+Number of CPUs: 64
+Max heap size: 16024 M
+Python executable: /home/ub-11/miniconda3/bin/python
+Config file: ./config.properties
+Inference address: http://10.129.2.27:8080
+Management address: http://10.129.2.27:8081
+Metrics address: http://10.129.2.27:8082
+Model Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+Initial Models: vgg16=vgg16.mar
+Log dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Metrics dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Netty threads: 0
+Netty client threads: 0
+Default workers per model: 1
+Blacklist Regex: N/A
+Maximum Response Size: 6553500
+Maximum Request Size: 6553500
+Limit Maximum Image Pixels: true
+Prefer direct buffer: false
+Allowed Urls: [file://.*|http(s)?://.*]
+Custom python dependency for model allowed: false
+Enable metrics API: true
+Metrics mode: LOG
+Disable system metrics: false
+Workflow Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+CPP log config: N/A
+Model config: N/A
+System metrics command: default
+Model API enabled: true
+2024-11-23T18:26:04,302 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager -  Loading snapshot serializer plugin...
+2024-11-23T18:26:04,302 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager -  Loading snapshot serializer plugin...
+2024-11-23T18:26:04,323 [INFO ] main org.pytorch.serve.ModelServer - Loading initial models: vgg16.mar
+2024-11-23T18:26:04,323 [INFO ] main org.pytorch.serve.ModelServer - Loading initial models: vgg16.mar
+2024-11-23T18:26:11,323 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Adding new version 1.0 for model vgg16
+2024-11-23T18:26:11,323 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Adding new version 1.0 for model vgg16
+2024-11-23T18:26:11,323 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Setting default version to 1.0 for model vgg16
+2024-11-23T18:26:11,323 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Setting default version to 1.0 for model vgg16
+2024-11-23T18:26:11,324 [INFO ] main org.pytorch.serve.wlm.ModelManager - Model vgg16 loaded.
+2024-11-23T18:26:11,324 [INFO ] main org.pytorch.serve.wlm.ModelManager - Model vgg16 loaded.
+2024-11-23T18:26:11,324 [WARN ] main org.pytorch.serve.ModelServer - Invalid model config in mar, minWorkers:0, maxWorkers:0
+2024-11-23T18:26:11,324 [WARN ] main org.pytorch.serve.ModelServer - Invalid model config in mar, minWorkers:0, maxWorkers:0
+2024-11-23T18:26:11,324 [DEBUG] main org.pytorch.serve.wlm.ModelManager - updateModel: vgg16, count: 1
+2024-11-23T18:26:11,324 [DEBUG] main org.pytorch.serve.wlm.ModelManager - updateModel: vgg16, count: 1
+2024-11-23T18:26:11,334 [INFO ] main org.pytorch.serve.ModelServer - Initialize Inference server with: EpollServerSocketChannel.
+2024-11-23T18:26:11,334 [INFO ] main org.pytorch.serve.ModelServer - Initialize Inference server with: EpollServerSocketChannel.
+2024-11-23T18:26:11,337 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerLifeCycle - Worker cmdline: [/home/ub-11/miniconda3/bin/python, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/model_service_worker.py, --sock-type, unix, --sock-name, /tmp/.ts.sock.9000, --metrics-config, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml]
+2024-11-23T18:26:11,337 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerLifeCycle - Worker cmdline: [/home/ub-11/miniconda3/bin/python, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/model_service_worker.py, --sock-type, unix, --sock-name, /tmp/.ts.sock.9000, --metrics-config, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml]
+2024-11-23T18:26:11,408 [INFO ] main org.pytorch.serve.ModelServer - Inference API bind to: http://10.129.2.27:8080
+2024-11-23T18:26:11,408 [INFO ] main org.pytorch.serve.ModelServer - Inference API bind to: http://10.129.2.27:8080
+2024-11-23T18:26:11,408 [INFO ] main org.pytorch.serve.ModelServer - Initialize Management server with: EpollServerSocketChannel.
+2024-11-23T18:26:11,408 [INFO ] main org.pytorch.serve.ModelServer - Initialize Management server with: EpollServerSocketChannel.
+2024-11-23T18:26:11,410 [INFO ] main org.pytorch.serve.ModelServer - Management API bind to: http://10.129.2.27:8081
+2024-11-23T18:26:11,410 [INFO ] main org.pytorch.serve.ModelServer - Management API bind to: http://10.129.2.27:8081
+2024-11-23T18:26:11,410 [INFO ] main org.pytorch.serve.ModelServer - Initialize Metrics server with: EpollServerSocketChannel.
+2024-11-23T18:26:11,410 [INFO ] main org.pytorch.serve.ModelServer - Initialize Metrics server with: EpollServerSocketChannel.
+2024-11-23T18:26:11,412 [INFO ] main org.pytorch.serve.ModelServer - Metrics API bind to: http://10.129.2.27:8082
+2024-11-23T18:26:11,412 [INFO ] main org.pytorch.serve.ModelServer - Metrics API bind to: http://10.129.2.27:8082
+2024-11-23T18:26:11,689 [WARN ] pool-3-thread-1 org.pytorch.serve.metrics.MetricCollector - worker pid is not available yet.
+2024-11-23T18:26:11,689 [WARN ] pool-3-thread-1 org.pytorch.serve.metrics.MetricCollector - worker pid is not available yet.
+2024-11-23T18:26:12,169 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - s_name_part0=/tmp/.ts.sock, s_name_part1=9000, pid=163781
+2024-11-23T18:26:12,171 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Listening on port: /tmp/.ts.sock.9000
+2024-11-23T18:26:12,177 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Successfully loaded /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml.
+2024-11-23T18:26:12,178 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - [PID]163781
+2024-11-23T18:26:12,178 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch worker started.
+2024-11-23T18:26:12,179 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Python runtime: 3.9.18
+2024-11-23T18:26:12,179 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change null -> WORKER_STARTED
+2024-11-23T18:26:12,179 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change null -> WORKER_STARTED
+2024-11-23T18:26:12,193 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Connecting to: /tmp/.ts.sock.9000
+2024-11-23T18:26:12,193 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Connecting to: /tmp/.ts.sock.9000
+2024-11-23T18:26:12,211 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Connection accepted: /tmp/.ts.sock.9000.
+2024-11-23T18:26:12,219 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Flushing req.cmd LOAD repeats 1 to backend at: 1732366572218
+2024-11-23T18:26:12,219 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Flushing req.cmd LOAD repeats 1 to backend at: 1732366572218
+2024-11-23T18:26:12,223 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Looping backend response at: 1732366572223
+2024-11-23T18:26:12,223 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Looping backend response at: 1732366572223
+2024-11-23T18:26:12,254 [INFO ] pool-3-thread-1 TS_METRICS - CPUUtilization.Percent:0.0|#Level:Host|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,260 [INFO ] pool-3-thread-1 TS_METRICS - DiskAvailable.Gigabytes:75.40888977050781|#Level:Host|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,260 [INFO ] pool-3-thread-1 TS_METRICS - DiskUsage.Gigabytes:358.57336044311523|#Level:Host|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,261 [INFO ] pool-3-thread-1 TS_METRICS - DiskUtilization.Percent:82.6|#Level:Host|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,262 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUtilization.Percent:0.31753786028334147|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,263 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUsed.Megabytes:52.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,263 [INFO ] pool-3-thread-1 TS_METRICS - GPUUtilization.Percent:0.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,264 [INFO ] pool-3-thread-1 TS_METRICS - MemoryAvailable.Megabytes:50551.09765625|#Level:Host|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,264 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUsed.Megabytes:12049.62109375|#Level:Host|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,265 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUtilization.Percent:21.1|#Level:Host|#hostname:synerg,timestamp:1732366572
+2024-11-23T18:26:12,276 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - model_name: vgg16, batchSize: 1
+2024-11-23T18:26:12,759 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Your torch version is 1.12.1+cu113 which does not support torch.compile
+2024-11-23T18:26:12,760 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - OpenVINO is not enabled
+2024-11-23T18:26:12,760 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - proceeding without onnxruntime
+2024-11-23T18:26:12,761 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch TensorRT not enabled
+2024-11-23T18:26:16,581 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - '/tmp/models/f820e2d0dac44c93a091229d89a3a17f/index_to_name.json' is missing. Inference output will not include class name.
+2024-11-23T18:26:16,596 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Backend response time: 4371
+2024-11-23T18:26:16,596 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Backend response time: 4371
+2024-11-23T18:26:16,597 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change WORKER_STARTED -> WORKER_MODEL_LOADED
+2024-11-23T18:26:16,597 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change WORKER_STARTED -> WORKER_MODEL_LOADED
+2024-11-23T18:26:16,597 [INFO ] W-9000-vgg16_1.0 TS_METRICS - WorkerLoadTime.Milliseconds:5269.0|#WorkerName:W-9000-vgg16_1.0,Level:Host|#hostname:synerg,timestamp:1732366576
+2024-11-23T18:26:16,599 [INFO ] W-9000-vgg16_1.0 TS_METRICS - WorkerThreadTime.Milliseconds:9.0|#Level:Host|#hostname:synerg,timestamp:1732366576
+2024-11-23T18:27:12,365 [INFO ] pool-3-thread-1 TS_METRICS - CPUUtilization.Percent:7.1|#Level:Host|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,366 [INFO ] pool-3-thread-1 TS_METRICS - DiskAvailable.Gigabytes:75.40885162353516|#Level:Host|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,366 [INFO ] pool-3-thread-1 TS_METRICS - DiskUsage.Gigabytes:358.5733985900879|#Level:Host|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,367 [INFO ] pool-3-thread-1 TS_METRICS - DiskUtilization.Percent:82.6|#Level:Host|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,368 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUtilization.Percent:7.79799706888129|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,368 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUsed.Megabytes:1277.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,369 [INFO ] pool-3-thread-1 TS_METRICS - GPUUtilization.Percent:0.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,369 [INFO ] pool-3-thread-1 TS_METRICS - MemoryAvailable.Megabytes:49094.96484375|#Level:Host|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,370 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUsed.Megabytes:13496.109375|#Level:Host|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:27:12,370 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUtilization.Percent:23.4|#Level:Host|#hostname:synerg,timestamp:1732366632
+2024-11-23T18:28:12,320 [INFO ] pool-3-thread-1 TS_METRICS - CPUUtilization.Percent:7.7|#Level:Host|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,321 [INFO ] pool-3-thread-1 TS_METRICS - DiskAvailable.Gigabytes:75.4088363647461|#Level:Host|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,321 [INFO ] pool-3-thread-1 TS_METRICS - DiskUsage.Gigabytes:358.57341384887695|#Level:Host|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,322 [INFO ] pool-3-thread-1 TS_METRICS - DiskUtilization.Percent:82.6|#Level:Host|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,322 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUtilization.Percent:7.79799706888129|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,323 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUsed.Megabytes:1277.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,323 [INFO ] pool-3-thread-1 TS_METRICS - GPUUtilization.Percent:0.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,324 [INFO ] pool-3-thread-1 TS_METRICS - MemoryAvailable.Megabytes:49094.55078125|#Level:Host|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,324 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUsed.Megabytes:13496.51171875|#Level:Host|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:28:12,325 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUtilization.Percent:23.4|#Level:Host|#hostname:synerg,timestamp:1732366692
+2024-11-23T18:29:12,341 [INFO ] pool-3-thread-1 TS_METRICS - CPUUtilization.Percent:0.0|#Level:Host|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,342 [INFO ] pool-3-thread-1 TS_METRICS - DiskAvailable.Gigabytes:75.40882873535156|#Level:Host|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,343 [INFO ] pool-3-thread-1 TS_METRICS - DiskUsage.Gigabytes:358.5734214782715|#Level:Host|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,343 [INFO ] pool-3-thread-1 TS_METRICS - DiskUtilization.Percent:82.6|#Level:Host|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,344 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUtilization.Percent:7.79799706888129|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,344 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUsed.Megabytes:1277.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,345 [INFO ] pool-3-thread-1 TS_METRICS - GPUUtilization.Percent:0.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,345 [INFO ] pool-3-thread-1 TS_METRICS - MemoryAvailable.Megabytes:49190.26953125|#Level:Host|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,346 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUsed.Megabytes:13400.8046875|#Level:Host|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:29:12,346 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUtilization.Percent:23.2|#Level:Host|#hostname:synerg,timestamp:1732366752
+2024-11-23T18:34:50,429 [DEBUG] main org.pytorch.serve.util.ConfigManager - xpu-smi not available or failed: Cannot run program "xpu-smi": error=2, No such file or directory
+2024-11-23T18:34:50,429 [DEBUG] main org.pytorch.serve.util.ConfigManager - xpu-smi not available or failed: Cannot run program "xpu-smi": error=2, No such file or directory
+2024-11-23T18:34:50,436 [WARN ] main org.pytorch.serve.util.ConfigManager - Your torchserve instance can access any URL to load models. When deploying to production, make sure to limit the set of allowed_urls in config.properties
+2024-11-23T18:34:50,436 [WARN ] main org.pytorch.serve.util.ConfigManager - Your torchserve instance can access any URL to load models. When deploying to production, make sure to limit the set of allowed_urls in config.properties
+2024-11-23T18:34:50,448 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager - Initializing plugins manager...
+2024-11-23T18:34:50,448 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager - Initializing plugins manager...
+2024-11-23T18:34:50,512 [INFO ] main org.pytorch.serve.metrics.configuration.MetricConfiguration - Successfully loaded metrics configuration from /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+2024-11-23T18:34:50,512 [INFO ] main org.pytorch.serve.metrics.configuration.MetricConfiguration - Successfully loaded metrics configuration from /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+2024-11-23T18:34:50,714 [INFO ] main org.pytorch.serve.ModelServer - 
+Torchserve version: 0.12.0
+TS Home: /home/ub-11/miniconda3/lib/python3.9/site-packages
+Current directory: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16
+Temp directory: /tmp
+Metrics config path: /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+Number of GPUs: 1
+Number of CPUs: 64
+Max heap size: 16024 M
+Python executable: /home/ub-11/miniconda3/bin/python
+Config file: ./config.properties
+Inference address: http://10.129.2.27:8080
+Management address: http://10.129.2.27:8081
+Metrics address: http://10.129.2.27:8082
+Model Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+Initial Models: vgg16=vgg16.mar
+Log dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Metrics dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Netty threads: 0
+Netty client threads: 0
+Default workers per model: 1
+Blacklist Regex: N/A
+Maximum Response Size: 6553500
+Maximum Request Size: 6553500
+Limit Maximum Image Pixels: true
+Prefer direct buffer: false
+Allowed Urls: [file://.*|http(s)?://.*]
+Custom python dependency for model allowed: false
+Enable metrics API: true
+Metrics mode: LOG
+Disable system metrics: false
+Workflow Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+CPP log config: N/A
+Model config: N/A
+System metrics command: default
+Model API enabled: true
+2024-11-23T18:34:50,714 [INFO ] main org.pytorch.serve.ModelServer - 
+Torchserve version: 0.12.0
+TS Home: /home/ub-11/miniconda3/lib/python3.9/site-packages
+Current directory: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16
+Temp directory: /tmp
+Metrics config path: /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml
+Number of GPUs: 1
+Number of CPUs: 64
+Max heap size: 16024 M
+Python executable: /home/ub-11/miniconda3/bin/python
+Config file: ./config.properties
+Inference address: http://10.129.2.27:8080
+Management address: http://10.129.2.27:8081
+Metrics address: http://10.129.2.27:8082
+Model Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+Initial Models: vgg16=vgg16.mar
+Log dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Metrics dir: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/vgg_16/logs
+Netty threads: 0
+Netty client threads: 0
+Default workers per model: 1
+Blacklist Regex: N/A
+Maximum Response Size: 6553500
+Maximum Request Size: 6553500
+Limit Maximum Image Pixels: true
+Prefer direct buffer: false
+Allowed Urls: [file://.*|http(s)?://.*]
+Custom python dependency for model allowed: false
+Enable metrics API: true
+Metrics mode: LOG
+Disable system metrics: false
+Workflow Store: /home/ub-11/Armaan_Puru_Flyt/flyt_src/flyt/torchserve_support/model_store
+CPP log config: N/A
+Model config: N/A
+System metrics command: default
+Model API enabled: true
+2024-11-23T18:34:50,735 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager -  Loading snapshot serializer plugin...
+2024-11-23T18:34:50,735 [INFO ] main org.pytorch.serve.servingsdk.impl.PluginsManager -  Loading snapshot serializer plugin...
+2024-11-23T18:34:50,758 [INFO ] main org.pytorch.serve.ModelServer - Loading initial models: vgg16.mar
+2024-11-23T18:34:50,758 [INFO ] main org.pytorch.serve.ModelServer - Loading initial models: vgg16.mar
+2024-11-23T18:34:57,672 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Adding new version 1.0 for model vgg16
+2024-11-23T18:34:57,672 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Adding new version 1.0 for model vgg16
+2024-11-23T18:34:57,672 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Setting default version to 1.0 for model vgg16
+2024-11-23T18:34:57,672 [DEBUG] main org.pytorch.serve.wlm.ModelVersionedRefs - Setting default version to 1.0 for model vgg16
+2024-11-23T18:34:57,672 [INFO ] main org.pytorch.serve.wlm.ModelManager - Model vgg16 loaded.
+2024-11-23T18:34:57,672 [INFO ] main org.pytorch.serve.wlm.ModelManager - Model vgg16 loaded.
+2024-11-23T18:34:57,672 [WARN ] main org.pytorch.serve.ModelServer - Invalid model config in mar, minWorkers:0, maxWorkers:0
+2024-11-23T18:34:57,672 [WARN ] main org.pytorch.serve.ModelServer - Invalid model config in mar, minWorkers:0, maxWorkers:0
+2024-11-23T18:34:57,673 [DEBUG] main org.pytorch.serve.wlm.ModelManager - updateModel: vgg16, count: 1
+2024-11-23T18:34:57,673 [DEBUG] main org.pytorch.serve.wlm.ModelManager - updateModel: vgg16, count: 1
+2024-11-23T18:34:57,683 [INFO ] main org.pytorch.serve.ModelServer - Initialize Inference server with: EpollServerSocketChannel.
+2024-11-23T18:34:57,683 [INFO ] main org.pytorch.serve.ModelServer - Initialize Inference server with: EpollServerSocketChannel.
+2024-11-23T18:34:57,686 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerLifeCycle - Worker cmdline: [/home/ub-11/miniconda3/bin/python, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/model_service_worker.py, --sock-type, unix, --sock-name, /tmp/.ts.sock.9000, --metrics-config, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml]
+2024-11-23T18:34:57,686 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerLifeCycle - Worker cmdline: [/home/ub-11/miniconda3/bin/python, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/model_service_worker.py, --sock-type, unix, --sock-name, /tmp/.ts.sock.9000, --metrics-config, /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml]
+2024-11-23T18:34:57,763 [INFO ] main org.pytorch.serve.ModelServer - Inference API bind to: http://10.129.2.27:8080
+2024-11-23T18:34:57,763 [INFO ] main org.pytorch.serve.ModelServer - Inference API bind to: http://10.129.2.27:8080
+2024-11-23T18:34:57,763 [INFO ] main org.pytorch.serve.ModelServer - Initialize Management server with: EpollServerSocketChannel.
+2024-11-23T18:34:57,763 [INFO ] main org.pytorch.serve.ModelServer - Initialize Management server with: EpollServerSocketChannel.
+2024-11-23T18:34:57,765 [INFO ] main org.pytorch.serve.ModelServer - Management API bind to: http://10.129.2.27:8081
+2024-11-23T18:34:57,765 [INFO ] main org.pytorch.serve.ModelServer - Management API bind to: http://10.129.2.27:8081
+2024-11-23T18:34:57,766 [INFO ] main org.pytorch.serve.ModelServer - Initialize Metrics server with: EpollServerSocketChannel.
+2024-11-23T18:34:57,766 [INFO ] main org.pytorch.serve.ModelServer - Initialize Metrics server with: EpollServerSocketChannel.
+2024-11-23T18:34:57,767 [INFO ] main org.pytorch.serve.ModelServer - Metrics API bind to: http://10.129.2.27:8082
+2024-11-23T18:34:57,767 [INFO ] main org.pytorch.serve.ModelServer - Metrics API bind to: http://10.129.2.27:8082
+2024-11-23T18:34:58,039 [WARN ] pool-3-thread-1 org.pytorch.serve.metrics.MetricCollector - worker pid is not available yet.
+2024-11-23T18:34:58,039 [WARN ] pool-3-thread-1 org.pytorch.serve.metrics.MetricCollector - worker pid is not available yet.
+2024-11-23T18:34:58,531 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - s_name_part0=/tmp/.ts.sock, s_name_part1=9000, pid=171032
+2024-11-23T18:34:58,533 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Listening on port: /tmp/.ts.sock.9000
+2024-11-23T18:34:58,540 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Successfully loaded /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml.
+2024-11-23T18:34:58,540 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - [PID]171032
+2024-11-23T18:34:58,541 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch worker started.
+2024-11-23T18:34:58,541 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Python runtime: 3.9.18
+2024-11-23T18:34:58,542 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change null -> WORKER_STARTED
+2024-11-23T18:34:58,542 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change null -> WORKER_STARTED
+2024-11-23T18:34:58,554 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Connecting to: /tmp/.ts.sock.9000
+2024-11-23T18:34:58,554 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Connecting to: /tmp/.ts.sock.9000
+2024-11-23T18:34:58,572 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Connection accepted: /tmp/.ts.sock.9000.
+2024-11-23T18:34:58,578 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Flushing req.cmd LOAD repeats 1 to backend at: 1732367098578
+2024-11-23T18:34:58,578 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Flushing req.cmd LOAD repeats 1 to backend at: 1732367098578
+2024-11-23T18:34:58,582 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Looping backend response at: 1732367098582
+2024-11-23T18:34:58,582 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Looping backend response at: 1732367098582
+2024-11-23T18:34:58,632 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - model_name: vgg16, batchSize: 1
+2024-11-23T18:34:58,645 [INFO ] pool-3-thread-1 TS_METRICS - CPUUtilization.Percent:0.0|#Level:Host|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,650 [INFO ] pool-3-thread-1 TS_METRICS - DiskAvailable.Gigabytes:75.40878295898438|#Level:Host|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,650 [INFO ] pool-3-thread-1 TS_METRICS - DiskUsage.Gigabytes:358.5734672546387|#Level:Host|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,651 [INFO ] pool-3-thread-1 TS_METRICS - DiskUtilization.Percent:82.6|#Level:Host|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,652 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUtilization.Percent:0.12212994626282364|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,652 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUsed.Megabytes:20.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,653 [INFO ] pool-3-thread-1 TS_METRICS - GPUUtilization.Percent:0.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,653 [INFO ] pool-3-thread-1 TS_METRICS - MemoryAvailable.Megabytes:50625.4453125|#Level:Host|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,654 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUsed.Megabytes:11983.64453125|#Level:Host|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:58,654 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUtilization.Percent:21.0|#Level:Host|#hostname:synerg,timestamp:1732367098
+2024-11-23T18:34:59,131 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Your torch version is 1.12.1+cu113 which does not support torch.compile
+2024-11-23T18:34:59,132 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - OpenVINO is not enabled
+2024-11-23T18:34:59,132 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - proceeding without onnxruntime
+2024-11-23T18:34:59,133 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch TensorRT not enabled
+2024-11-23T18:35:03,032 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - '/tmp/models/831e51e6150144138f584e11ba06067f/index_to_name.json' is missing. Inference output will not include class name.
+2024-11-23T18:35:03,048 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Backend response time: 4464
+2024-11-23T18:35:03,048 [INFO ] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - Backend response time: 4464
+2024-11-23T18:35:03,049 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change WORKER_STARTED -> WORKER_MODEL_LOADED
+2024-11-23T18:35:03,049 [DEBUG] W-9000-vgg16_1.0 org.pytorch.serve.wlm.WorkerThread - W-9000-vgg16_1.0 State change WORKER_STARTED -> WORKER_MODEL_LOADED
+2024-11-23T18:35:03,049 [INFO ] W-9000-vgg16_1.0 TS_METRICS - WorkerLoadTime.Milliseconds:5371.0|#WorkerName:W-9000-vgg16_1.0,Level:Host|#hostname:synerg,timestamp:1732367103
+2024-11-23T18:35:03,051 [INFO ] W-9000-vgg16_1.0 TS_METRICS - WorkerThreadTime.Milliseconds:9.0|#Level:Host|#hostname:synerg,timestamp:1732367103
+2024-11-23T18:35:58,693 [INFO ] pool-3-thread-1 TS_METRICS - CPUUtilization.Percent:7.7|#Level:Host|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,693 [INFO ] pool-3-thread-1 TS_METRICS - DiskAvailable.Gigabytes:75.40874099731445|#Level:Host|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,694 [INFO ] pool-3-thread-1 TS_METRICS - DiskUsage.Gigabytes:358.5735092163086|#Level:Host|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,695 [INFO ] pool-3-thread-1 TS_METRICS - DiskUtilization.Percent:82.6|#Level:Host|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,695 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUtilization.Percent:7.114069369809477|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,696 [INFO ] pool-3-thread-1 TS_METRICS - GPUMemoryUsed.Megabytes:1165.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,696 [INFO ] pool-3-thread-1 TS_METRICS - GPUUtilization.Percent:0.0|#Level:Host,DeviceId:0|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,697 [INFO ] pool-3-thread-1 TS_METRICS - MemoryAvailable.Megabytes:49137.203125|#Level:Host|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,697 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUsed.Megabytes:13453.88671875|#Level:Host|#hostname:synerg,timestamp:1732367158
+2024-11-23T18:35:58,698 [INFO ] pool-3-thread-1 TS_METRICS - MemoryUtilization.Percent:23.3|#Level:Host|#hostname:synerg,timestamp:1732367158

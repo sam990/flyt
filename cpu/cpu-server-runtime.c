@@ -452,11 +452,11 @@ bool_t cuda_get_device_properties_1_svc(int device, cuda_device_prop_result *res
     return 1;
 }
 
-//        /*int        CUDA_IPC_CLOSE_MEM_HANDLE(ptr)                     = 121;*/
-//        /*ptr_result CUDA_IPC_GET_EVENT_HANDLE(int)                     = 122;*/
-//        /*ptr_result CUDA_IPC_GET_MEM_HANDLE(ptr)                       = 123;*/
-//        /*ptr_result CUDA_IPC_OPEN_EVENT_HANDLE(ptr)                    = 124;*/
-//        /*ptr_result CUDA_IPC_OPEN_MEM_HANDLE(ptr, int)                 = 125;*/
+    //    /*int        CUDA_IPC_CLOSE_MEM_HANDLE(ptr)                     = 121;*/
+    //    /*ptr_result CUDA_IPC_GET_EVENT_HANDLE(int)                     = 122;*/
+    //    /*ptr_result CUDA_IPC_GET_MEM_HANDLE(ptr)                       = 123;*/
+    //    /*ptr_result CUDA_IPC_OPEN_EVENT_HANDLE(ptr)                    = 124;*/
+    //    /*ptr_result CUDA_IPC_OPEN_MEM_HANDLE(ptr, int)                 = 125;*/
 
 /**
  * This call should be ignored

@@ -286,7 +286,8 @@ void __attribute__((constructor)) init_rpc(void)
 #endif // WITH_IB
 }
 void __attribute__((destructor)) deinit_rpc(void)
-{
+{   
+    
     enum clnt_stat retval_1;
     int result;
     if (initialized) {

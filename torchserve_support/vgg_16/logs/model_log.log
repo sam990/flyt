@@ -1,0 +1,26 @@
+2024-11-23T18:26:12,169 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - s_name_part0=/tmp/.ts.sock, s_name_part1=9000, pid=163781
+2024-11-23T18:26:12,171 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Listening on port: /tmp/.ts.sock.9000
+2024-11-23T18:26:12,177 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Successfully loaded /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml.
+2024-11-23T18:26:12,178 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - [PID]163781
+2024-11-23T18:26:12,178 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch worker started.
+2024-11-23T18:26:12,179 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Python runtime: 3.9.18
+2024-11-23T18:26:12,211 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Connection accepted: /tmp/.ts.sock.9000.
+2024-11-23T18:26:12,276 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - model_name: vgg16, batchSize: 1
+2024-11-23T18:26:12,759 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Your torch version is 1.12.1+cu113 which does not support torch.compile
+2024-11-23T18:26:12,760 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - OpenVINO is not enabled
+2024-11-23T18:26:12,760 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - proceeding without onnxruntime
+2024-11-23T18:26:12,761 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch TensorRT not enabled
+2024-11-23T18:26:16,581 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - '/tmp/models/f820e2d0dac44c93a091229d89a3a17f/index_to_name.json' is missing. Inference output will not include class name.
+2024-11-23T18:34:58,531 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - s_name_part0=/tmp/.ts.sock, s_name_part1=9000, pid=171032
+2024-11-23T18:34:58,533 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Listening on port: /tmp/.ts.sock.9000
+2024-11-23T18:34:58,540 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Successfully loaded /home/ub-11/miniconda3/lib/python3.9/site-packages/ts/configs/metrics.yaml.
+2024-11-23T18:34:58,540 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - [PID]171032
+2024-11-23T18:34:58,541 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch worker started.
+2024-11-23T18:34:58,541 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Python runtime: 3.9.18
+2024-11-23T18:34:58,572 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Connection accepted: /tmp/.ts.sock.9000.
+2024-11-23T18:34:58,632 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - model_name: vgg16, batchSize: 1
+2024-11-23T18:34:59,131 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Your torch version is 1.12.1+cu113 which does not support torch.compile
+2024-11-23T18:34:59,132 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - OpenVINO is not enabled
+2024-11-23T18:34:59,132 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - proceeding without onnxruntime
+2024-11-23T18:34:59,133 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - Torch TensorRT not enabled
+2024-11-23T18:35:03,032 [INFO ] W-9000-vgg16_1.0-stdout MODEL_LOG - '/tmp/models/831e51e6150144138f584e11ba06067f/index_to_name.json' is missing. Inference output will not include class name.

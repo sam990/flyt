@@ -35,6 +35,8 @@ docs/ivshmem-channel-notes.self.md
 NOTES-armaan.md
 vm@*
 synthetic_benchmark/*.log
+torchserve_support/image_store
+torchserve_support/model_store
 
 # npm modules
 setup/node_modules

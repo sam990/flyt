@@ -35,6 +35,7 @@ typedef struct __ivshmem_svc_ctx {
     
     pthread_mutex_t poll_mutex_svc;  // Mutex for polling service
     pthread_cond_t poll_cond_var_svc; // Condition variable for polling service
+    int poll_stopped;
 } ivshmem_svc_ctx;
 
 ivshmem_svc_ctx *init_ivshmem_svc(ivshmem_setup_desc args_from_clnt);

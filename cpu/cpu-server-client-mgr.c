@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <cuda_runtime.h>
 #include <sys/mman.h>
+#include <stdatomic.h>
 
 #include "log.h"
 #include "resource-map.h"
@@ -26,21 +27,33 @@ static resource_mg restored_clients;
 
 static int freeResources(cricket_client* client);
 
+// 3 maps to maintain server state of connected clients.
 int init_cpu_server_client_mgr() {
     int ret = 0;
 
+    // in this resource mg, each elem represents 
+    // a pid-xp_fd mapping.
+    // the values in elem are ??pointers?? to the 
+    // true values???
     ret = resource_mg_init(&pid_to_xp_fd, 0);
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to initialize pid_to_xp_fd resource manager");
         return ret;
     }
 
+    // same as above, init 2 lists
+    // on heap as part of the resource_mg, pointed
+    // to by void * stored in global static data section.
+    // 
     ret = resource_mg_init(&xp_fd_to_client, 0);
     if (ret != 0) {
         resource_mg_free(&pid_to_xp_fd);
         LOGE(LOG_ERROR, "Failed to initialize xp_fd_to_client resource manager");
         return ret;
     }
+
+    // not sure what kind of mapping this is, 
+    // but theres client struct for sure.
     ret = resource_mg_init(&restored_clients, 0);
     if (ret != 0) {
         resource_mg_free(&pid_to_xp_fd);
@@ -65,9 +78,8 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
         LOGE(LOG_ERROR, "Failed to allocate memory for new client");
         return NULL;
     }
-    client->pid = pid;
+    client->pid = pid; // will be negative in the tcp handle for an shm rpc
 
-    
     client->default_stream = NULL; // create a default stream
 
     cudaError_t err = cudaStreamCreateWithFlags((cudaStream_t *)&client->default_stream, cudaStreamNonBlocking);
@@ -77,6 +89,7 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
         return NULL;
     }
 
+    // each client can create cuda streams
     client->custom_streams = init_resource_map(INIT_STREAM_SLOTS);
     if (client->custom_streams == NULL) {
         cudaStreamDestroy(client->default_stream);
@@ -87,6 +100,7 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
 
     // ivshmem added. Create condvar, mutex.
     if (_ctx) {
+        atomic_store(&(client->got_shutdown), 0);
         client->ivshmem_ctx = _ctx;
         // create the mutex and cond_var
         if (pthread_mutex_init(&(client->ivshmem_ctx->poll_mutex_svc), NULL) != 0) {
@@ -104,10 +118,13 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
             return NULL;
         }
 
+        client->ivshmem_ctx->poll_stopped = 0;
     } else {
         client->ivshmem_ctx = NULL;
     }
 
+    // besides server-wide resource map for all clients,
+    // every client has managed resources as well
     resource_mg_init(&client->gpu_mem, 0);
     resource_mg_init(&client->modules, 0);
     resource_mg_init(&client->functions, 0);
@@ -137,6 +154,8 @@ cricket_client* create_client(int pid, ivshmem_svc_ctx *_ctx) {
 // add <&fd, &client> to xp_fd_to_client map.
 cricket_client* add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *_ctx) {
 
+    // this address is stored in the pid to client
+    // map a well, AS A VALUE.
     cricket_client* client = create_client(pid, _ctx);
     if (client == NULL) {
         LOGE(LOG_ERROR, "Failed to create new client for pid %d", pid);
@@ -145,7 +164,20 @@ cricket_client* add_new_client(int pid, int xp_fd, ivshmem_svc_ctx *_ctx) {
 
     pthread_mutex_lock(&client_mgr_mutex);
 
+    // printf("Adding to pid-xp_fd map region of global data: (%p, %p)\n", (void *)(long)pid, (void *)(long)xp_fd);
+
+    // adding a resource i.e. a pid to xpfd mapping
+    // to the list in this resource mg instance.
+    // ascending order of pid
+    // the input values are just stored in a block of 
+    // the list
     int ret = resource_mg_add_sorted(&pid_to_xp_fd, (void *)(long)pid, (void *)(long)xp_fd);
+
+    // adding a xp_fd to cricket_client mapping to 
+    // the list in this resource mgr instance
+    // ascending order of xp_fd.
+    // the list contains address of the client struct
+    // in heap.
     ret |= resource_mg_add_sorted(&xp_fd_to_client, (void *)(long)xp_fd, client);
 
     if (ret != 0) {
@@ -222,25 +254,31 @@ int remove_client_ptr(cricket_client* client) {
 
     pthread_mutex_lock(&client_mgr_mutex);
     LOGE(LOG_INFO, "removing client ptr from %d \n", client->pid);
-    resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid);
+    resource_mg_remove(&pid_to_xp_fd, (void *)(long)client->pid); // remove entry from the pid to xpfd map
     
     // need to free gpu resources and custom streams
+    // free the actual data
     freeResources(client);
-    //printf("client res freed0\n");
+    // printf("client res freed0\n");
     
 
     // free client
+    // free the pointer to gpu_mem list
     resource_mg_free(&client->gpu_mem);
+    // printf("client res freed1\n");
     free_resource_map(client->custom_streams);
+    // printf("client res freed2\n");
 
     pthread_mutex_lock(&client->modules.mutex);
     pthread_mutex_lock(&client->modules.map_res.mutex);
+    // printf("modules to be freed: %d\n", client->modules.map_res.length);
     for (size_t i = 0; i < client->modules.map_res.length; i++) {
         resource_mg_map_elem *elem = list_get(&client->modules.map_res, i);
+        // free all "modules"
         if(elem != NULL) {
-
                 addr_data_pair_t *pair = (addr_data_pair_t *)elem->cuda_address;
                 free_module_data(pair);
+                printf("freed pair %d\n", i + 1);
 	}
     }
     pthread_mutex_unlock(&client->modules.map_res.mutex);
@@ -277,13 +315,20 @@ int remove_client_ptr(cricket_client* client) {
     resource_mg_free(&client->functions);
 
     pthread_mutex_unlock(&client_mgr_mutex);
-    free(client);
+    // printf("reached almost end\n");
+    printf("Freeing client at addr: %p\n", client);
+
+    // this is FAILING. Why??
+    // No double free...
+    
+    free(client); 
     printf("all freed\n");
     return 0;
 }
 
 int remove_client(int xp_fd) {
-    cricket_client* client = get_client(xp_fd);
+    cricket_client* client = get_client(xp_fd); // pointer to actual client struct on heap.
+    // printf("Address of shm_client in remove: %p\n", client);
     if (client == NULL) {
         LOGE(LOG_ERROR, "Client with xp_fd %d not found", xp_fd);
         return -1;
@@ -292,17 +337,19 @@ int remove_client(int xp_fd) {
     // munmap 
     if (client->ivshmem_ctx) {
         munmap(client->ivshmem_ctx->shm_mmap, client->ivshmem_ctx->shm_proc_size);
+        // free 
+        free(client->ivshmem_ctx);
     }
 
     LOGE(LOG_INFO, "Client with xp_fd %d being removed", xp_fd);
-    int ret = remove_client_ptr(client);
+    int ret = remove_client_ptr(client); // failing here for the shm client.
 
     if (ret != 0) {
         LOGE(LOG_ERROR, "Failed to remove client with xp_fd %d", xp_fd);
         return -1;
     }
 
-    return resource_mg_remove(&xp_fd_to_client, (void *)(long)xp_fd);
+    return resource_mg_remove(&xp_fd_to_client, (void *)(long)xp_fd); // remove the entry from xp_fd map
 }
 
 static int freeResources(cricket_client* client) {
@@ -311,6 +358,7 @@ static int freeResources(cricket_client* client) {
     
     resource_mg_map_elem *map_elem;
 
+    // free every mem allocatoin
     for (size_t i = 0; i < client->gpu_mem.map_res.length; i++) {
         resource_mg_get_element_at(&client->gpu_mem, FALSE, i, (void **)&map_elem);
 
@@ -326,6 +374,7 @@ static int freeResources(cricket_client* client) {
         return -1;
     }
 
+    // destory all streams
     uint64_t stream_idx;
     while ((stream_idx = resource_map_iter_next(stream_iter)) != 0) {
         cudaStreamDestroy((cudaStream_t)resource_map_get_addr(client->custom_streams, (void *)stream_idx));

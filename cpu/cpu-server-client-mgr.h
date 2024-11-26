@@ -3,6 +3,10 @@
  * -----------------------------
  * Exclusively linked to the flyt server
  * backend.
+ * == INVARIANTS ==
+ * 1. Server responses must be written at a fixed offset from the end of the rpc_hdr.
+ * 2. Per-Process shared memory allocation must be > sizeof(rpc_hdr). (what happens for too-large resp?)
+ * 3. 
  */
 
 # ifndef __FLYT_CPU_SERVER_CLIENT_MGR_H
@@ -12,6 +16,7 @@
 #include "resource-mg.h"
 #include "resource-map.h"
 #include "cpu-server-ivshmem.h"
+#include <stdatomic.h>
 
 #define INIT_MEM_SLOTS 4096
 #define INIT_STREAM_SLOTS 16
@@ -96,6 +101,7 @@ typedef struct __cricket_client {
     resource_map* events;
     // further can be added
     ivshmem_svc_ctx *ivshmem_ctx;
+    atomic_int got_shutdown;
 } cricket_client;
 
 typedef uint64_t cricket_client_iter;

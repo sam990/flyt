@@ -332,6 +332,7 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
     LOGE(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %p)", elf.mem_data_val, elf.mem_data_len, module_key);
     CUresult res;
     CUmodule module = NULL;
+    // printf("rpc_elf_load(elf: %p, len: %#x, module_key: %p)\n", elf.mem_data_val, elf.mem_data_len, module_key);
 
     GET_CLIENT_DRV(*result);
 
@@ -346,7 +347,6 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 
     // We add our module using module_key as key. This means a fatbinaryHandle on the client is translated
     // to a CUmodule on the server.
-
     mem_data *elf_args = malloc(sizeof(mem_data));
     elf_args->mem_data_len = elf.mem_data_len;
     elf_args->mem_data_val = malloc(elf.mem_data_len);

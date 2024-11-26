@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <dlfcn.h>
 #include <link.h>
+#include <sys/mman.h>
 #include <sched.h>
 
 #include "cpu-server.h"
@@ -34,6 +35,7 @@
 #include "cpu-server-ivshmem.h"
 #include "cpu-server-dev-mem.h"
 #include "cpu-server-runtime-rpc-shm.h"
+#include <stdatomic.h>
 
 #ifndef likely
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -135,27 +137,38 @@ void begin_poll_svc() {
 // one per client.
 void *rpc_shm_dispatcher(void *arg) {
     cricket_client *client = (cricket_client *)arg;
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);       // Initialize the CPU set
-    CPU_SET(3, &cpuset);     // Set core 0 (adjust the core number as needed)
+    // cpu_set_t cpuset;
+    // CPU_ZERO(&cpuset);       // Initialize the CPU set
+    // CPU_SET(3, &cpuset);     // Set core 0 (adjust the core number as needed)
 
-    // Get the thread ID and set the CPU affinity
-    pthread_t current_thread = pthread_self();
-    if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
-        perror("pthread_setaffinity_np");
-        return NULL;
-    }
+    // // Get the thread ID and set the CPU affinity
+    // pthread_t current_thread = pthread_self();
+    // if (pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset) != 0) {
+    //     perror("pthread_setaffinity_np");
+    //     return NULL;
+    // }
 
     while (1) {
         // printf("Server waiting for notif, client %d\n", client->pid);
         for (;;) {
+            // check for client shutdown
+            if (client->got_shutdown) {
+                pthread_mutex_lock(&(client->ivshmem_ctx->poll_mutex_svc));
+                client->ivshmem_ctx->poll_stopped = 1;
+                pthread_cond_signal(&(client->ivshmem_ctx->poll_cond_var_svc));
+                pthread_mutex_unlock(&(client->ivshmem_ctx->poll_mutex_svc));
+                return NULL;
+            }
+
             if (*((uint8_t *)client->ivshmem_ctx->shm_mmap + 1) == 1) {
                 break; // got notif
             }
+
             // clflush((uint8_t *)client->ivshmem_ctx->shm_mmap + 1);
             usleep(1);
         }
         
+        msync(client->ivshmem_ctx->shm_mmap, sizeof(rpc_shm_header_t), MS_INVALIDATE);
         volatile rpc_shm_header_t *rpc_hdr_svc = (rpc_shm_header_t *)(client->ivshmem_ctx->shm_mmap);
 
         // clear poll_s
@@ -167,23 +180,113 @@ void *rpc_shm_dispatcher(void *arg) {
 
 
         // read the cmd
-        //printf("cmd: %d\nFor client %d\n", rpc_hdr_svc->rpc_cmd, client->pid);
+        printf("cmd: %d\nFor client %d\n", rpc_hdr_svc->rpc_cmd, client->pid);
         switch (rpc_hdr_svc->rpc_cmd) {
+            case CUDA_CHOOSE_DEVICE: {
+                int_result result;
+                rpc_shm_cuda_choose_device_1_svc(rpc_hdr_svc, &result, client);
+                break;
+            }
+
+            case CUDA_DEVICE_GET_ATTRIBUTE: {
+
+            }
+
+            case CUDA_DEVICE_GET_BY_PCI_BUS_ID: {
+
+            }
+
+            case CUDA_DEVICE_GET_CACHE_CONFIG: {
+
+            }
+
+            case CUDA_DEVICE_GET_LIMIT: {
+
+            }
+
+            case CUDA_DEVICE_GET_P2P_ATTRIBUTE: {
+
+            }
+
+            case CUDA_DEVICE_GET_PCI_BUS_ID: {
+
+            }
+
+            case CUDA_DEVICE_GET_SHARED_MEM_CONFIG: {
+
+            }
+
+            case CUDA_DEVICE_GET_STREAM_PRIORITY_RANGE: {
+
+            }
+
+            case CUDA_DEVICE_GET_TEXTURE_LMW: {
+
+            }
+
+            case CUDA_DEVICE_RESET: {
+
+            }
+
+            case CUDA_DEVICE_SET_CACHE_CONFIG: {
+
+            }
+
+            case CUDA_DEVICE_SET_LIMIT: {
+
+            }
+
+            case CUDA_DEVICE_SET_SHARED_MEM_CONFIG: {
+
+            }
+
+            case CUDA_DEVICE_SYNCHRONIZE: {
+
+            }
+
+            case CUDA_GET_DEVICE: {
+
+            }
+
+
             case CUDA_GET_DEVICE_COUNT: {
                 int_result result;
                 rpc_shm_svc_cuda_get_device_count_1(rpc_hdr_svc, &result, client);
                 // printf("cgdc done\n");
                 break;
             }
+
+            case CUDA_GET_DEVICE_FLAGS: {
+
+            }
             
             case CUDA_GET_DEVICE_PROPERTIES: {
                 // result struct will be memcpied to some location, 
                 // and offset will be written to the result field
                 // before notify.
-                int_result result;
+                cuda_device_prop_result result;
                 rpc_shm_svc_cuda_get_device_properties_1(rpc_hdr_svc, &result, client); 
                 break;
             }
+
+            case CUDA_SET_DEVICE: {
+
+            }
+
+            case CUDA_SET_DEVICE_FLAGS: {
+
+            }
+
+            case CUDA_SET_VALID_DEVICES: {
+
+            }
+
+            case CUDA_GET_ERROR_NAME: {
+
+            }
+
+
+
         }
             
     }
@@ -209,12 +312,42 @@ bool_t rpc_deinit_1_svc(int *result, struct svc_req *rqstp)
 
     // now you can remove client.
     // remove the tcp handle
-    remove_client(rqstp->rq_xprt->xp_fd);
 
     // remove its shm handle
-    // if (shm_exists) {
-    //     remove_client(-rqstp->rq_xprt->xp_fd);
-    // }
+    if (shm_exists) {
+        // get client struct
+        // we will follow the xpfd => pid => client * path.
+        cricket_client *client = get_client(-rqstp->rq_xprt->xp_fd); // note '-'
+        printf("Address of shm_client in deinit: %p\n", client);
+        if (client == NULL) {
+            LOGE(LOG_ERROR, "error getting client");
+            *result = 1;
+            return 1;
+        }
+
+        // atomic update flag
+        atomic_store(&(client->got_shutdown), 1);
+
+        pthread_mutex_lock(&client->ivshmem_ctx->poll_mutex_svc);
+        while (!client->ivshmem_ctx->poll_stopped) {
+            pthread_cond_wait(&(client->ivshmem_ctx->poll_cond_var_svc), &(client->ivshmem_ctx->poll_mutex_svc));
+        }
+        pthread_mutex_unlock(&client->ivshmem_ctx->poll_mutex_svc);
+
+        // shm handler -xpfd
+        // theres some issue with the client
+        // pointer of the shm client handler.
+        // during free.
+        // THIS NEEDS TO BE FIXED, causing server crash
+        // remove_client(-rqstp->rq_xprt->xp_fd); 
+
+        // tcp handler -pid
+        remove_client(rqstp->rq_xprt->xp_fd);
+
+        printf("remove client done\n");
+    } else {
+        remove_client(rqstp->rq_xprt->xp_fd);
+    }
 
     // finally, signal condvar2 for threads to resume
     // pthread_mutex_lock(&poll_pause_mutex);
@@ -243,6 +376,7 @@ bool_t rpc_init_1_svc(int pid, ivshmem_setup_desc iv_stat, int *result, struct s
         ivshmem_ctx = init_ivshmem_svc(iv_stat); // mark the region with the pid of the process in shm.
 
         // create client with negative xp_fd
+        // and true pid
         int rpc_shm_xp_fd = -(rqstp->rq_xprt->xp_fd);
         client_shm = add_new_client(pid, rpc_shm_xp_fd, ivshmem_ctx); 
 
@@ -251,6 +385,19 @@ bool_t rpc_init_1_svc(int pid, ivshmem_setup_desc iv_stat, int *result, struct s
         // GET_CLIENT ONLY USES XP_FD, SO PID IS IRRELEVANT FOR TCP DISPATCH
         client_tcp = add_new_client(-pid, rqstp->rq_xprt->xp_fd, NULL); 
 
+        // In the shm case
+        // 1. pid to xpfd map:
+        // -------------------
+        // -pid becomes some very large key, so it will be at the end of the map list
+        // <pid, -k> : for shm handle // normal location
+        // <-pid, k> : for tcp handle // vl will be at end of list, large void * for negative key.
+        //
+        // 2. xpfd to client map:
+        // ---------------------
+        // <-xpfd, client1 *>: for the shm handle // at end of list
+        // <xpfd, client2 *>: for the tcp handle. // normal location.
+        // 
+        // KEY POINT: A unique client entry and mapping for the tcp and shm.
         if (!(client_shm && client_tcp)) {
             LOGE(LOG_ERROR, "Failed to initialize client manager for pid %d", pid);
             *result = 1;
@@ -415,7 +562,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     char *command = NULL;
     act.sa_handler = int_handler;
     printf("welcome to cricket!\n");
-    //init_log(LOG_LEVEL, __FILE__);
+    // init_log(LOG_LEVEL, __FILE__);
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
     sigaction(SIGINT, &act, NULL);
 

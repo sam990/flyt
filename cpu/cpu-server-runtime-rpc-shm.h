@@ -43,7 +43,7 @@ typedef struct rpc_shm_header {
     uint8_t num_args;
     uint8_t __pad2[3];
 
-    struct rpc_shm_arg rpc_args[16]; // max 16 rpc args allowed.
+    struct rpc_shm_arg rpc_args[8]; // max 16 rpc args allowed.
 
     volatile rpc_shm_response_t rpc_response_desc;
     uint8_t rpc_magic_end;
@@ -73,6 +73,8 @@ inline void clflush(volatile void *p)
 
 // CUDA Runtime API
 #define CUDA_CHOOSE_DEVICE 101
+void rpc_shm_cuda_choose_device_1_svc(volatile rpc_shm_header_t *rpc_hdr_svc, int_result *res, cricket_client *client);
+
 #define CUDA_DEVICE_GET_ATTRIBUTE 102
 #define CUDA_DEVICE_GET_BY_PCI_BUS_ID 103
 #define CUDA_DEVICE_GET_CACHE_CONFIG 104
@@ -94,11 +96,13 @@ void rpc_shm_svc_cuda_get_device_count_1(volatile rpc_shm_header_t *rpc_hdr_svc,
 #define CUDA_GET_DEVICE_FLAGS 119
 
 #define CUDA_GET_DEVICE_PROPERTIES 120
-void rpc_shm_svc_cuda_get_device_properties_1(volatile rpc_shm_header_t *rpc_hdr_svc, int_result *res, cricket_client *client);
+void rpc_shm_svc_cuda_get_device_properties_1(volatile rpc_shm_header_t *rpc_hdr_svc, cuda_device_prop_result *res, cricket_client *client);
 
 #define CUDA_SET_DEVICE 126
 #define CUDA_SET_DEVICE_FLAGS 127
 #define CUDA_SET_VALID_DEVICES 128
+
+
 #define CUDA_GET_ERROR_NAME 140
 #define CUDA_GET_ERROR_STRING 141
 #define CUDA_GET_LAST_ERROR 142
