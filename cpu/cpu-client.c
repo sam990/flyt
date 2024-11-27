@@ -375,8 +375,6 @@ void __attribute__((destructor)) deinit_rpc(void)
     if (clnt != NULL) {
        clnt_destroy(clnt);
     }
-
-    sigaction(SIGINT, &old_action, NULL);
 }
 
 

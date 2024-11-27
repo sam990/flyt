@@ -357,7 +357,6 @@ CUresult cuDevicePrimaryCtxGetState(CUdevice dev, unsigned int* flags, int* acti
     FUNC_BEGIN(t1);
     retval = rpc_cudeviceprimaryctxgetstate_1(dev, &result, clnt);
     LOGE(LOG_DEBUG, "%s = %d, results %d %d", __FUNCTION__, result.err,
-    LOGE(LOG_DEBUG, "%s = %d, results %d %d", __FUNCTION__, result.err,
                                         result.dint_result_u.data.i1,
                                         result.dint_result_u.data.i2);
     FUNC_END(t1);
@@ -945,7 +944,6 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
 
 #if CUDA_VERSION >= 12000
 #undef cuGetProcAddress
-CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags) 
 CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags) 
 {
 	enum clnt_stat retval;

@@ -35,7 +35,7 @@ struct ClientMessageTypeId {
     send_id: i64,
     recv_id: i64,
     gid: i32,
-    virt_server: RwLock<Option<VirtServer>>,
+    // virt_server: RwLock<Option<VirtServer>>,
     clnt_shm_ctx: Option<IvshmemCtx>,
 }
 
@@ -299,7 +299,7 @@ impl VCudaClientManager {
                     send_id: client_pid as i64,
                     recv_id: receive_id as i64,
                     gid: gid as i32,
-                    virt_server: RwLock::new(None),
+                    // virt_server: RwLock::new(None),
                     clnt_shm_ctx: None,
                 };
 
@@ -308,7 +308,7 @@ impl VCudaClientManager {
                 match virt_server_getter(gid as i32, sm_core as i32, true) {
                     Some((address, rpc_id)) => {
                         let vserver = VirtServer {address: address.clone(), rpc_id: rpc_id};
-                        client_msgid.virt_server.write().unwrap().replace(vserver.clone());
+                        // client_msgid.virt_server.write().unwrap().replace(vserver.clone());
 
                         // temp, hardcode backend and shm_enable.
                         // perhaps virt_server must contain these parameters.
