@@ -11,6 +11,7 @@
 #include "resource-mg.h"
 #include "gsched.h"
 #include "cpu-server-client-mgr.h"
+#include "cpu-server-client-mgr.h"
 
 #define WITH_RECORDER
 #include "api-recorder.h"
@@ -97,6 +98,7 @@ bool_t rpc_cudnnqueryruntimeerror_1_svc(ptr handle, int mode, int_result *result
     GSCHED_RETAIN;
     result->err = cudnnQueryRuntimeError(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnStatus_t*)&result->int_result_u.data, (cudnnErrQueryMode_t)mode, tag);
     GSCHED_RELEASE;
     return 1;
@@ -136,6 +138,7 @@ bool_t rpc_cudnndestroy_1_svc(ptr handle, int *result, struct svc_req *rqstp)
     GSCHED_RETAIN;
     *result = cudnnDestroy(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle));
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -157,7 +160,16 @@ bool_t rpc_cudnnsetstream_1_svc(ptr handle, ptr streamId, int *result, struct sv
 
     GET_STREAM(stream_ptr, streamId, *result);
 
+
+    GET_CLIENT(*result);
+
+    void *stream_ptr;
+
+    GET_STREAM(stream_ptr, streamId, *result);
+
     *result = cudnnSetStream(
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudaStream_t)stream_ptr);
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudaStream_t)stream_ptr);
     GSCHED_RELEASE;
@@ -171,6 +183,7 @@ bool_t rpc_cudnngetstream_1_svc(ptr handle, ptr_result *result, struct svc_req *
 
     GSCHED_RETAIN;
     result->err = cudnnGetStream(
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudaStream_t*)&result->ptr_result_u.ptr);
 
@@ -209,6 +222,7 @@ bool_t rpc_cudnnsettensor4ddescriptor_1_svc(ptr tensorDesc, int format, int data
     GSCHED_RETAIN;
     *result = cudnnSetTensor4dDescriptor(
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         (cudnnTensorFormat_t)format,
         (cudnnDataType_t)dataType,
         n, c, h, w);
@@ -236,6 +250,7 @@ bool_t rpc_cudnnsettensor4ddescriptorex_1_svc(ptr tensorDesc, int dataType, int 
     GSCHED_RETAIN;
     *result = cudnnSetTensor4dDescriptorEx(
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         (cudnnDataType_t)dataType,
         n, c, h, w, nStride, cStride, hStride, wStride);
     GSCHED_RELEASE;
@@ -249,6 +264,7 @@ bool_t rpc_cudnngettensor4ddescriptor_1_svc(ptr tensorDesc, int9_result *result,
 
     GSCHED_RETAIN;
     result->err = cudnnGetTensor4dDescriptor(
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         (cudnnDataType_t*)&result->int9_result_u.data[0],
         &result->int9_result_u.data[1],
@@ -283,6 +299,7 @@ bool_t rpc_cudnnsettensornddescriptor_1_svc(ptr tensorDesc, int dataType, int nb
     GSCHED_RETAIN;
     *result = cudnnSetTensorNdDescriptor(
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         (cudnnDataType_t)dataType,
         nbDims,
         (const int*)dimA.mem_data_val,
@@ -312,6 +329,7 @@ bool_t rpc_cudnnsettensornddescriptorex_1_svc(ptr tensorDesc, int format, int da
     GSCHED_RETAIN;
     *result = cudnnSetTensorNdDescriptorEx(
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         (cudnnTensorFormat_t)format,   
         (cudnnDataType_t)dataType,
         nbDims,
@@ -333,6 +351,7 @@ bool_t rpc_cudnngettensornddescriptor_1_svc(ptr tensorDesc, int nbDimsRequested,
     GSCHED_RETAIN;
     result->err = cudnnGetTensorNdDescriptor(
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         nbDimsRequested,
         (cudnnDataType_t*)result->mem_result_u.data.mem_data_val,
         (int*)&result->mem_result_u.data.mem_data_val[sizeof(cudnnDataType_t)],
@@ -349,6 +368,7 @@ bool_t rpc_cudnngettensorsizeinbytes_1_svc(ptr tensorDesc, sz_result *result, st
     GSCHED_RETAIN;
     result->err = cudnnGetTensorSizeInBytes(
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
         &result->sz_result_u.data);
     GSCHED_RELEASE;
     return 1;
@@ -362,6 +382,7 @@ bool_t rpc_cudnndestroytensordescriptor_1_svc(ptr tensorDesc, int *result, struc
 
     GSCHED_RETAIN;
     *result = cudnnDestroyTensorDescriptor(
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc));
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
@@ -401,6 +422,7 @@ bool_t rpc_cudnnsetfilter4ddescriptor_1_svc(ptr filterDesc, int dataType, int fo
     GSCHED_RETAIN;
     *result = cudnnSetFilter4dDescriptor(
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         (cudnnDataType_t)dataType,
         (cudnnTensorFormat_t)format,
         k, c, h, w);
@@ -415,6 +437,7 @@ bool_t rpc_cudnngetfilter4ddescriptor_1_svc(ptr filterDesc, int6_result *result,
 
     GSCHED_RETAIN;
     result->err = cudnnGetFilter4dDescriptor(
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         (cudnnDataType_t*)&result->int6_result_u.data[0],
         (cudnnTensorFormat_t*)&result->int6_result_u.data[1],
@@ -446,6 +469,7 @@ bool_t rpc_cudnnsetfilternddescriptor_1_svc(ptr filterDesc, int dataType, int fo
     GSCHED_RETAIN;
     *result = cudnnSetFilterNdDescriptor(
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         (cudnnDataType_t)dataType,
         (cudnnTensorFormat_t)format,
         nbDims,
@@ -467,6 +491,7 @@ bool_t rpc_cudnngetfilternddescriptor_1_svc(ptr filterDesc, int nbDimsRequested,
     GSCHED_RETAIN;
     result->err = cudnnGetFilterNdDescriptor(
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         nbDimsRequested,
         (cudnnDataType_t*)result->mem_result_u.data.mem_data_val,
         (cudnnTensorFormat_t*)&result->mem_result_u.data.mem_data_val[sizeof(cudnnDataType_t)],
@@ -481,6 +506,7 @@ bool_t rpc_cudnngetfiltersizeinbytes_1_svc(ptr filterDesc, sz_result *result, st
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
     result->err = cudnnGetFilterSizeInBytes(
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         &result->sz_result_u.data);
     GSCHED_RELEASE;
@@ -505,10 +531,14 @@ bool_t rpc_cudnntransformfilter_1_svc(ptr handle, ptr transDesc, cudnn_scaling_t
     *result = cudnnTransformFilter(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (const cudnnTensorTransformDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensortransform, (void*)transDesc),
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (const cudnnTensorTransformDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensortransform, (void*)transDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
+        (const cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)srcDesc),
         (const cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)srcDesc),
         (const void*)srcData,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
+        (const cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)destDesc),
         (const cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)destDesc),
         (void*)destData);
     GSCHED_RELEASE;
@@ -524,6 +554,7 @@ bool_t rpc_cudnndestroyfilterdescriptor_1_svc(ptr filterDesc, int *result, struc
 
     GSCHED_RETAIN;
     *result = cudnnDestroyFilterDescriptor(
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc));
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
@@ -564,6 +595,7 @@ bool_t rpc_cudnnsetpooling2ddescriptor_1_svc(ptr poolingDesc, int mode, int maxp
     GSCHED_RETAIN;
     *result = cudnnSetPooling2dDescriptor(
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnPoolingMode_t)mode,
         (cudnnNanPropagation_t)maxpoolingNanOpt,
         windowHeight, windowWidth,
@@ -580,6 +612,7 @@ bool_t rpc_cudnngetpooling2ddescriptor_1_svc(ptr poolingDesc, int8_result *resul
 
     GSCHED_RETAIN;
     result->err = cudnnGetPooling2dDescriptor(
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnPoolingMode_t*)&result->int8_result_u.data[0],
         (cudnnNanPropagation_t*)&result->int8_result_u.data[1],
@@ -616,6 +649,7 @@ bool_t rpc_cudnnsetpoolingnddescriptor_1_svc(ptr poolingDesc, int mode, int maxp
     GSCHED_RETAIN;
     *result = cudnnSetPoolingNdDescriptor(
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnPoolingMode_t)mode,
         (cudnnNanPropagation_t)maxpoolingNanOpt,
         nbDims,
@@ -650,6 +684,7 @@ bool_t rpc_cudnngetpoolingnddescriptor_1_svc(ptr poolingDesc, int nbDimsRequeste
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
     result->err = cudnnGetPoolingNdDescriptor(
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         nbDimsRequested,
         (cudnnPoolingMode_t*)result->mem_result_u.data.mem_data_val[offsets[0]],
         (cudnnNanPropagation_t*)result->mem_result_u.data.mem_data_val[offsets[1]],
@@ -675,6 +710,8 @@ bool_t rpc_cudnngetpoolingndforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTen
     result->err = cudnnGetPoolingNdForwardOutputDim(
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
         nbDims,
         (int*)result->mem_result_u.data.mem_data_val);
     GSCHED_RELEASE;
@@ -686,6 +723,8 @@ bool_t rpc_cudnngetpooling2dforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTen
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
     result->err = cudnnGetPooling2dForwardOutputDim(
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
         (int*)&result->int4_result_u.data[0],
@@ -704,6 +743,7 @@ bool_t rpc_cudnndestroypoolingdescriptor_1_svc(ptr poolingDesc, int *result, str
 
     GSCHED_RETAIN;
     *result = cudnnDestroyPoolingDescriptor(
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc));
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
@@ -739,6 +779,7 @@ bool_t rpc_cudnnsetactivationdescriptor_1_svc(ptr activationDesc, int mode, int 
     GSCHED_RETAIN;
     *result = cudnnSetActivationDescriptor(
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
+        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         (cudnnActivationMode_t)mode,
         (cudnnNanPropagation_t)reluNanOpt,
         coef);
@@ -753,6 +794,7 @@ bool_t rpc_cudnngetactivationdescriptor_1_svc(ptr activationDesc, int2d1_result 
 
     GSCHED_RETAIN;
     result->err = cudnnGetActivationDescriptor(
+        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         (cudnnActivationMode_t*)&result->int2d1_result_u.data.i[0],
         (cudnnNanPropagation_t*)&result->int2d1_result_u.data.i[1],
@@ -772,6 +814,7 @@ bool_t rpc_cudnnsetactivationdescriptorswishbeta_1_svc(ptr activationDesc, doubl
     GSCHED_RETAIN;
     *result = cudnnSetActivationDescriptorSwishBeta(
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
+        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         swish_beta);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -784,6 +827,7 @@ bool_t rpc_cudnngetactivationdescriptorswishbeta_1_svc(ptr activationDesc, d_res
 
     GSCHED_RETAIN;
     result->err = cudnnGetActivationDescriptorSwishBeta(
+        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         &result->d_result_u.data);
     GSCHED_RELEASE;
@@ -798,6 +842,7 @@ bool_t rpc_cudnndestroyactivationdescriptor_1_svc(ptr activationDesc, int *resul
 
     GSCHED_RETAIN;
     *result = cudnnDestroyActivationDescriptor(
+        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc));
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
@@ -834,6 +879,7 @@ bool_t rpc_cudnnsetlrndescriptor_1_svc(ptr normDesc, unsigned lrnN, double lrnAl
     GSCHED_RETAIN;
     *result = cudnnSetLRNDescriptor(
         (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
+        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
         lrnN,
         lrnAlpha,
         lrnBeta,
@@ -849,6 +895,7 @@ bool_t rpc_cudnngetlrndescriptor_1_svc(ptr normDesc, int1d3_result *result, stru
 
     GSCHED_RETAIN;
     result->err = cudnnGetLRNDescriptor(
+        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
         (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
         (unsigned int*)&result->int1d3_result_u.data.i,
         &result->int1d3_result_u.data.d[0],
@@ -867,12 +914,14 @@ bool_t rpc_cudnndestroylrndescriptor_1_svc(ptr lrnDesc, int *result, struct svc_
     GSCHED_RETAIN;
     *result = cudnnDestroyLRNDescriptor(
         (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)lrnDesc));
+        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)lrnDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
 }
 
+bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
 bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc, cudnn_scaling_t alpha, ptr xDesc, ptr x, cudnn_scaling_t beta, ptr yDesc, ptr y, int *result, struct svc_req *rqstp)
 {
     RECORD_API(rpc_cudnnpoolingforward_1_argument);
@@ -891,6 +940,8 @@ bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc, cudnn_scaling_
     GET_CLIENT(*result)
 
     *result = cudnnPoolingForward(
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
@@ -922,6 +973,8 @@ bool_t rpc_cudnnactivationforward_1_svc(ptr handle, ptr activationDesc, cudnn_sc
     GET_CLIENT(*result)
 
     *result = cudnnActivationForward(
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
@@ -956,6 +1009,8 @@ bool_t rpc_cudnnlrncrosschannelforward_1_svc(ptr handle, ptr normDesc, int lrnMo
     *result = cudnnLRNCrossChannelForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
         (cudnnLRNMode_t)lrnMode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
@@ -988,6 +1043,7 @@ bool_t rpc_cudnnsoftmaxforward_1_svc(ptr handle, int algo, int mode, cudnn_scali
 
     *result = cudnnSoftmaxForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnSoftmaxAlgorithm_t)algo,
         (cudnnSoftmaxMode_t)mode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
@@ -1012,6 +1068,9 @@ bool_t rpc_cudnngetconvolutionndforwardoutputdim_1_svc(ptr convDesc, ptr inputTe
         return 0;
     }
     result->err = cudnnGetConvolutionNdForwardOutputDim(
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
         (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
@@ -1045,7 +1104,43 @@ bool_t rpc_cudnndestroyconvolutiondescriptor_1_svc(ptr convDesc, int *result, st
     GSCHED_RETAIN;
     *result = cudnnDestroyConvolutionDescriptor(
         (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc));
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc));
     // TODO: Remove from resource manager
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+bool_t rpc_cudnnsetconvolutionmathtype_1_svc(ptr convDesc, int mathType, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsetconvolutionmathtype_1_argument);
+    RECORD_NARG(convDesc);
+    RECORD_NARG(mathType);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnSetConvolutionMathType(
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnMathType_t)mathType);
+    GSCHED_RELEASE;
+    RECORD_RESULT(integer, *result);
+    return 1;
+}
+
+
+bool_t rpc_cudnnsetconvolutiongroupcount_1_svc(ptr convDesc, int groupCount, int *result, struct svc_req *rqstp)
+{
+    RECORD_API(rpc_cudnnsetconvolutiongroupcount_1_argument);
+    RECORD_NARG(convDesc);
+    RECORD_NARG(groupCount);
+
+    LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GSCHED_RETAIN;
+    *result = cudnnSetConvolutionGroupCount(
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        groupCount);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1109,6 +1204,7 @@ bool_t rpc_cudnnsetconvolutionnddescriptor_1_svc(ptr convDesc, int arrayLength, 
     GSCHED_RETAIN;
     *result = cudnnSetConvolutionNdDescriptor(
         (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
         arrayLength,
         (const int*)padA.mem_data_val,
         (const int*)filterStrideA.mem_data_val,
@@ -1130,6 +1226,11 @@ bool_t rpc_cudnngetconvolutionforwardalgorithm_v7_1_svc(ptr handle, ptr srcDesc,
         return 0;
     }
     result->err = cudnnGetConvolutionForwardAlgorithm_v7(
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)srcDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)destDesc),
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)srcDesc),
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
@@ -1157,6 +1258,11 @@ bool_t rpc_cudnnfindconvolutionforwardalgorithm_1_svc(ptr handle, ptr xDesc, ptr
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
         (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
         requestedAlgoCount,
         (int*)result->mem_result_u.data.mem_data_val,
         (cudnnConvolutionFwdAlgoPerf_t*)(result->mem_result_u.data.mem_data_val + sizeof(int)));
@@ -1169,6 +1275,11 @@ bool_t rpc_cudnngetconvolutionforwardworkspacesize_1_svc(ptr handle, ptr xDesc, 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
     result->err = cudnnGetConvolutionForwardWorkspaceSize(
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
+        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
         (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
@@ -1205,6 +1316,7 @@ bool_t rpc_cudnnconvolutionforward_1_svc(ptr handle, cudnn_scaling_t alpha, ptr 
 
     *result = cudnnConvolutionForward(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
         (const void*)x,
@@ -1240,6 +1352,7 @@ bool_t rpc_cudnnaddtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr aDesc, pt
 
     *result = cudnnAddTensor(
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)aDesc),
         (const void*)A,
@@ -1268,6 +1381,7 @@ bool_t rpc_cudnntransformtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr xDe
     GET_CLIENT(*result)
 
     *result = cudnnTransformTensor(
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
         (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
@@ -1340,6 +1454,7 @@ bool_t rpc_cudnnbackenddestroydescriptor_1_svc(ptr descriptor, int *result, stru
     GSCHED_RETAIN;
     *result = cudnnBackendDestroyDescriptor(
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
+        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -1355,6 +1470,7 @@ bool_t rpc_cudnnbackendinitialize_1_svc(ptr descriptor, int *result, struct svc_
     GSCHED_RETAIN;
     *result = cudnnBackendInitialize(
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
+        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -1368,6 +1484,7 @@ bool_t rpc_cudnnbackendfinalize_1_svc(ptr descriptor, int *result, struct svc_re
 
     GSCHED_RETAIN;
     *result = cudnnBackendFinalize(
+        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -1402,6 +1519,7 @@ bool_t rpc_cudnnbackendsetattribute_1_svc(
     GSCHED_RETAIN;
     *result = cudnnBackendSetAttribute(
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor),
+        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor),
         (cudnnBackendAttributeName_t)attributeName,
         (cudnnBackendAttributeType_t)attributeType,
         elementCount,
@@ -1431,6 +1549,7 @@ bool_t rpc_cudnnbackendgetattribute_1_svc(ptr descriptor, int attributeName, int
     GSCHED_RETAIN;
     result->err = cudnnBackendGetAttribute(
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor),
+        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor),
         (cudnnBackendAttributeName_t)attributeName,
         (cudnnBackendAttributeType_t)attributeType,
         requestedElementCount,
@@ -1455,7 +1574,11 @@ bool_t rpc_cudnnbackendexecute_1_svc(ptr handle, ptr executionPlan, ptr variantP
         (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)executionPlan),
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)variantPack));
+        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)executionPlan),
+        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)variantPack));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
 }
+

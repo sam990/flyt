@@ -18,6 +18,8 @@
 #include "cpu-server-cusolver.h"
 #include "cpu-server-client-mgr.h"
 #include "gsched.h"
+#include "cpu-server-client-mgr.h"
+#include "gsched.h"
 
 
 
@@ -43,6 +45,7 @@ int cusolver_deinit(void)
 bool_t rpc_cusolverdncreate_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cusolverDnCreate");
 
@@ -50,11 +53,13 @@ bool_t rpc_cusolverdncreate_1_svc(ptr_result *result, struct svc_req *rqstp)
     RECORD_RESULT(ptr_result_u, *result);
     resource_mg_create(&rm_cusolver, (void*)result->ptr_result_u.ptr);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t rpc_cusolverdnsetstream_1_svc(ptr handle, ptr stream, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(rpc_cusolverdnsetstream_1_argument);
     RECORD_ARG(1, handle);
@@ -68,13 +73,23 @@ bool_t rpc_cusolverdnsetstream_1_svc(ptr handle, ptr stream, int *result, struct
 
     *result = cusolverDnSetStream(resource_mg_get_or_null(&rm_cusolver, (void*)handle),
                                   (cudaStream_t)stream_ptr);
+
+    GET_CLIENT(*result)
+
+    void *stream_ptr;
+    GET_STREAM(stream_ptr, stream, *result);
+
+    *result = cusolverDnSetStream(resource_mg_get_or_null(&rm_cusolver, (void*)handle),
+                                  (cudaStream_t)stream_ptr);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t rpc_cusolverdndgetrf_buffersize_1_svc(ptr handle, int m, int n, ptr A, int lda, int_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cusolverDnDgetrf_buffersize");
 
@@ -85,11 +100,13 @@ bool_t rpc_cusolverdndgetrf_buffersize_1_svc(ptr handle, int m, int n, ptr A, in
                                               A,
                                               lda, &result->int_result_u.data);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t rpc_cusolverdndgetrf_1_svc(ptr handle, int m, int n, ptr A, int lda, ptr Workspace, ptr devIpiv, ptr devInfo, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cusolverDnDgetrf");
 
@@ -108,6 +125,7 @@ bool_t rpc_cusolverdndgetrf_1_svc(ptr handle, int m, int n, ptr A, int lda, ptr 
 
 bool_t rpc_cusolverdndgetrs_1_svc(ptr handle, int trans, int n, int nrhs, ptr A, int lda, ptr devIpiv, ptr B, int ldb, ptr devInfo, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cusolverDnDgetrs");
 
@@ -131,11 +149,14 @@ bool_t rpc_cusolverdndgetrs_1_svc(ptr handle, int trans, int n, int nrhs, ptr A,
 bool_t rpc_cusolverdndestroy_1_svc(ptr handle, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(handle);
     LOGE(LOG_DEBUG, "cusolverDnDestroy");
     *result = cusolverDnDestroy(resource_mg_get_or_null(&rm_cusolver, (void*)handle));
+    *result = cusolverDnDestroy(resource_mg_get_or_null(&rm_cusolver, (void*)handle));
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
+#include <cuda_runtime_api.h>
 #include <cudaGL.h>
 #include <cudaEGL.h>
 #include <vdpau/vdpau.h>
@@ -19,9 +20,9 @@
 #include "cpu-elf2.h"
 
 
-//DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, CUoutput_mode, outputMode)
-//DEF_FN(CUresult, cuProfilerStart)
-//DEF_FN(CUresult, cuProfilerStop)
+DEF_FN(CUresult, cuProfilerInitialize, const char*, configFile, const char*, outputFile, int, outputMode)
+DEF_FN(CUresult, cuProfilerStart)
+DEF_FN(CUresult, cuProfilerStop)
 DEF_FN(CUresult, cuVDPAUGetDevice, CUdevice*, pDevice, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
 #undef cuVDPAUCtxCreate
 DEF_FN(CUresult, cuVDPAUCtxCreate, CUcontext*, pCtx, unsigned int, flags, CUdevice, device, VdpDevice, vdpDevice, VdpGetProcAddress*, vdpGetProcAddress)
@@ -76,6 +77,7 @@ CUresult cuMemAlloc(CUdeviceptr* dptr, size_t bytesize)
     return result.err;
 }
 
+// not api-virtualised yet.
 // not api-virtualised yet.
 #undef cuMemAllocPitch
 DEF_FN(CUresult, cuMemAllocPitch, CUdeviceptr*, dptr, size_t*, pPitch, size_t, WidthInBytes, size_t, Height, unsigned int, ElementSizeBytes)
@@ -355,6 +357,7 @@ CUresult cuDevicePrimaryCtxGetState(CUdevice dev, unsigned int* flags, int* acti
     FUNC_BEGIN(t1);
     retval = rpc_cudeviceprimaryctxgetstate_1(dev, &result, clnt);
     LOGE(LOG_DEBUG, "%s = %d, results %d %d", __FUNCTION__, result.err,
+    LOGE(LOG_DEBUG, "%s = %d, results %d %d", __FUNCTION__, result.err,
                                         result.dint_result_u.data.i1,
                                         result.dint_result_u.data.i2);
     FUNC_END(t1);
@@ -396,6 +399,7 @@ CUresult cuCtxGetCurrent(CUcontext *pctx)
     FUNC_END();
     TIMER_ADD_INCREMENT(t1, rpc_cuctxgetcurrent_1);
 	if (retval != RPC_SUCCESS) {
+		LOGE(LOG_DEBUG, "[rpc] %s failed.", __FUNCTION__);
 		LOGE(LOG_DEBUG, "[rpc] %s failed.", __FUNCTION__);
         return CUDA_ERROR_UNKNOWN;
 	}
@@ -942,6 +946,7 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
 #if CUDA_VERSION >= 12000
 #undef cuGetProcAddress
 CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags) 
+CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuint64_t flags) 
 {
 	enum clnt_stat retval;
     ptr_result result;
@@ -955,6 +960,7 @@ CUresult cuGetProcAddress(const char* symbol, void** pfn, int cudaVersion, cuuin
     // Pytorch uses the 11.3 API of this function which does not have the symbolStatus parameter
     // Because we do not support API versioning yet and to avoid segfaults, we ignore this parameter for now.
     //*symbolStatus = CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT;
+    return CUDA_SUCCESS;
     return CUDA_SUCCESS;
 }
 #endif

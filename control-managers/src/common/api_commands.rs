@@ -3,26 +3,37 @@ pub struct FlytApiCommand;
 
 
 impl FlytApiCommand {
+    pub const PING: &'static str = "PING";
     pub const CLIENTD_VCUDA_PAUSE: &'static str = "CLIENTD_VCUDA_PAUSE";
     pub const CLIENTD_VCUDA_CHANGE_VIRT_SERVER: &'static str = "CLIENTD_VCUDA_CHANGE_VIRT_SERVER";
     pub const CLIENTD_VCUDA_RESUME: &'static str = "CLIENTD_VCUDA_RESUME";
-    pub const PING: &'static str = "PING";
+    pub const CLIENTD_RMGR_ZERO_VCUDA_CLIENTS: &'static str = "CLIENTD_RMGR_ZERO_VCUDA_CLIENTS";
     pub const CLIENTD_RMGR_CONNECT: &'static str = "CLIENTD_RMGR_CONNECT";
+    pub const CLIENTD_RMGR_DISCONNECT: &'static str = "CLIENTD_RMGR_DISCONNECT";
     pub const RMGR_CLIENTD_PAUSE: &'static str = "RMGR_CLIENTD_PAUSE";
     pub const RMGR_CLIENTD_RESUME: &'static str = "RMGR_CLIENTD_RESUME";
     pub const RMGR_CLIENTD_CHANGE_VIRT_SERVER: &'static str = "RMGR_CLIENTD_CHANGE_VIRT_SERVER";
-    pub const CLIENTD_RMGR_ZERO_VCUDA_CLIENTS: &'static str = "CLIENTD_RMGR_ZERO_VCUDA_CLIENTS";
     pub const RMGR_CLIENTD_DEALLOC_VIRT_SERVER: &'static str = "RMGR_CLIENTD_DEALLOC_VIRT_SERVER";
     pub const RMGR_SNODE_DEALLOC_VIRT_SERVER: &'static str = "RMGR_SNODE_DEALLOC_VIRT_SERVER";
     pub const RMGR_SNODE_SEND_GPU_INFO: &'static str = "RMGR_SNODE_SEND_GPU_INFO";
     pub const RMGR_SNODE_ALLOC_VIRT_SERVER: &'static str = "RMGR_SNODE_ALLOC_VIRT_SERVER";
     pub const RMGR_SNODE_CHANGE_RESOURCES: &'static str = "RMGR_SNODE_CHANGE_RESOURCES";
+    pub const RMGR_SNODE_CHECKPOINT: &'static str = "RMGR_SNODE_CHECKPOINT";
+    pub const RMGR_SNODE_RESTORE: &'static str = "RMGR_SNODE_RESTORE";
+    pub const RMGR_SNODE_SEND_METRICS: &'static str = "RMGR_SNODE_SEND_METRICS";
+    pub const SNODE_VIRTS_DEALLOC: &'static str = "SNODE_VIRTS_DEALLOC";
     pub const SNODE_VIRTS_CHANGE_RESOURCES: &'static str = "SNODE_VIRTS_CHANGE_RESOURCES";
     pub const SNODE_VIRTS_CHECKPOINT: &'static str = "SNODE_VIRTS_CHECKPOINT";
     pub const SNODE_VIRTS_RESTORE: &'static str = "SNODE_VIRTS_RESTORE";
-    pub const SNODE_VIRTS_DEALLOC: &'static str = "SNODE_VIRTS_DEALLOC";
-    pub const RMGR_SNODE_CHECKPOINT: &'static str = "RMGR_SNODE_CHECKPOINT";
-    pub const RMGR_SNODE_RESTORE: &'static str = "RMGR_SNODE_RESTORE";
+    pub const SNODE_SEND_METRICS_THROUGHPUT: &'static str = "SNODE_SEND_METRICS_THROUGHPUT";
+    pub const SNODE_SEND_METRICS_UTILIZATION: &'static str = "SNODE_SEND_METRICS_UTILIZATION";
+}
+
+pub struct MetricsCommand;
+
+impl MetricsCommand {
+    pub const CLIENTD_MMGR_UPSCALE: &'static str = "CLIENTD_MMGR_UPSCALE";
+    pub const CLIENTD_MMGR_DOWNSCALE: &'static str = "CLIENTD_MMGR_DOWNSCALE";
 }
 
 pub struct FrontEndCommand;
@@ -36,4 +47,8 @@ impl FrontEndCommand {
     pub const CHANGE_SM_CORES_AND_MEMORY: &'static str = "CHANGE_SM_CORES_AND_MEMORY";
     pub const MIGRATE_VIRT_SERVER: &'static str = "MIGRATE_VIRT_SERVER";
     pub const MIGRATE_VIRT_SERVER_AUTO: &'static str = "MIGRATE_VIRT_SERVER_AUTO";
+    pub const INCREASE_RESOURCES: &'static str = "INCREASE_RESOURCES";
+    pub const DECREASE_RESOURCES: &'static str = "DECREASE_RESOURCES";
+    pub const ENABLE_VM_GROUPING: &'static str = "ENABLE_VM_GROUPING";
+    pub const DISABLE_VM_GROUPING: &'static str = "DISABLE_VM_GROUPING";
 }

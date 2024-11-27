@@ -22,6 +22,8 @@
 const char* CLIENTD_VCUDA_PAUSE = "CLIENTD_VCUDA_PAUSE";
 const char* CLIENTD_VCUDA_CHANGE_VIRT_SERVER = "CLIENTD_VCUDA_CHANGE_VIRT_SERVER";
 const char* CLIENTD_VCUDA_RESUME = "CLIENTD_VCUDA_RESUME";
+const char* CLIENTD_RMGR_CONNECT = "CLIENTD_RMGR_CONNECT";
+const char* CLIENTD_RMGR_DISCONNECT = "CLIENTD_RMGR_DISCONNECT";
 const char* PING = "PING";
 
 
@@ -110,7 +112,6 @@ char* get_virt_server_info(int mqueue_id, uint64_t recv_type) {
     return NULL;
 }
 
-
 void init_handler_thread(int clientd_mqueue_id) {
     pthread_create(&handler_thread, NULL, cpu_client_mgr_handler, (void*)((long)clientd_mqueue_id));
 }
@@ -119,6 +120,25 @@ void stop_client_mgr() {
     keep_handler_alive = 0;
     pthread_join(handler_thread, NULL);
 }
+
+int get_sm_core_value() {
+    const char *sm_core_str = getenv("SM_CORE");
+    if (sm_core_str) {
+        char *endptr;
+        long value = strtol(sm_core_str, &endptr, 10);
+
+        // Check if the entire string was converted to a number
+        if (*endptr == '\0' && errno != ERANGE) {
+            return (int)value;  // Return the valid integer value
+        } else {
+            // Handle error if the string was not a valid integer
+            fprintf(stderr, "Invalid value for SM_CORE: %s\n", sm_core_str);
+            return -1;
+        }
+    }
+    return -1;  // Return -1 if the environment variable is not set
+}
+
 
 server_info_t *parse_server_str(char *server_str) {
     server_info_t *res = malloc(sizeof(server_info_t));
@@ -182,39 +202,18 @@ server_info_t *init_client_mgr() {
         exit(EXIT_FAILURE);
     }
 
-    pid_t pid = getpid();
-    printf("here, pid=%d\n", pid);
+    uint64_t recv_id = msg_recv_id();
+    uint64_t send_id = msg_send_id();
+    int sm_core = get_sm_core_value();
 
-    // send ID: the recvID of a the messageQ endpoint
-    // that this process is sending to. 
-    // ---
-    // recv_id: The id that other mQ enpoints must send to
-    // This enables the message ueue backend to have
-    // multiple processes reading and writing.
-    uint64_t recv_id = msg_recv_id(); // == getpid(), different per process
-    uint64_t send_id = msg_send_id(); // different per process
-
-    printf("here, send_id=%d\n", send_id);
-
-    struct msgbuf_uint32 msg;
+    struct msgbuf msg;
     msg.mtype = 1;
-    msg.data = htonl(pid);
+    strncpy(msg.msg.cmd, CLIENTD_RMGR_CONNECT, sizeof(msg.msg.cmd));
+    sprintf(msg.msg.data, "%d,%d", recv_id,sm_core);
 
-    printf("here, htonl pid=%d\n", msg.data);
+    msgsnd(clientd_mqueue_id, &msg, sizeof(msg.msg), 0);
 
-    // send pid to cluster manager.
-    if (msgsnd(clientd_mqueue_id, &msg, sizeof(msg.data), 0) == -1) {
-        LOGE(LOG_ERROR, "ERROR: send pid to cmgr failed: %s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    printf("here2\n");
-
-    // wait for serverIP from clustermgr.
-    // also get shm_enabled, shm_be_path
-    // via strdup.
     char *virt_server_info = get_virt_server_info(clientd_mqueue_id, recv_id);
-    printf("From Control Plane: %s#\n", virt_server_info);
-    printf("sup\n");
     
     if (virt_server_info == NULL) {
         return NULL;

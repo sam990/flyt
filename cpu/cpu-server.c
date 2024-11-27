@@ -43,16 +43,36 @@ int shm_enabled = 1;
 #endif //WITH_IB
 
 extern gsched_fixed_t sched_fixed;
+extern gsched_fixed_t sched_fixed;
 
 unsigned long prog=0, vers=0;
 
 extern void rpc_cd_prog_1(struct svc_req *rqstp, register SVCXPRT *transp);
 
+/*
 void int_handler(int signal) {
     if (socktype == UNIX) {
         unlink(CD_SOCKET_PATH);
     }
     LOG(LOG_INFO, "have a nice day!\n");
+    svc_exit();
+}
+*/
+void int_handler(int sig) {
+    printf("Received signal %d\n", sig);
+    void *array[20];
+    size_t size;
+
+    if (socktype == UNIX) {
+        unlink(CD_SOCKET_PATH);
+    }
+    LOG(LOG_INFO, "have a nice day!\n");
+    // Get void*'s for all entries on the stack
+    size = backtrace(array, 20);
+
+    // Print all the frames to stderr
+    fprintf(stderr, "Error: signal %d:\n", sig);
+    backtrace_symbols_fd(array, size, STDERR_FILENO);
     svc_exit();
 }
 
@@ -136,6 +156,10 @@ int cricket_server_checkpoint(int dump_memory)
     //     LOGE(LOG_ERROR, "server_runtime_checkpoint returned %d", ret);
     //     goto error;
     // }
+    // if ((ret = server_runtime_checkpoint(ckp_path, dump_memory, prog, vers)) != 0) {
+    //     LOGE(LOG_ERROR, "server_runtime_checkpoint returned %d", ret);
+    //     goto error;
+    // }
 
     LOG(LOG_INFO, "checkpoint successfully created.");
     return 0;
@@ -208,6 +232,7 @@ bool_t rpc_dlopen_1_svc(char *path, int *result, struct svc_req *rqstp)
 }
 
 void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t num_sm_cores, size_t memory, uint32_t thread_mode)
+void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t num_sm_cores, size_t memory, uint32_t thread_mode)
 {
     int ret = 1;
     register SVCXPRT *transp;
@@ -220,7 +245,31 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     printf("welcome to cricket!\n");
     //init_log(LOG_LEVEL, __FILE__);
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);
+    /*
+    //sigaction(SIGINT, &act, NULL);
     sigaction(SIGINT, &act, NULL);
+    sigaction(SIGPIPE, &act, NULL);
+    sigaction(SIGABRT, &act, NULL);
+    sigaction(SIGSEGV, &act, NULL);
+    sigaction(SIGBUS, &act, NULL);
+    */
+
+    // List of signals to capture
+    int signals[] = {
+        SIGINT, SIGTERM, SIGSEGV, SIGILL, SIGABRT, SIGFPE,
+	SIGBUS, SIGILL, SIGPROF, SIGSYS,
+        SIGQUIT, SIGHUP, SIGPIPE, SIGALRM, SIGUSR1, SIGUSR2
+        // Add other signals as needed
+    };
+    size_t num_signals = sizeof(signals) / sizeof(signals[0]);
+
+    // Register handler for each signal
+    for (size_t i = 0; i < num_signals; i++) {
+        if (sigaction(signals[i], &act, NULL) == -1) {
+            perror("sigaction");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     #ifdef WITH_IB
     char client[256];
@@ -243,6 +292,7 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
 
     #endif //WITH_IB
 
+    InitializeInjection();
 
     if (getenv("CRICKET_DISABLE_RPC")) {
         LOG(LOG_INFO, "RPC server was disable by setting CRICKET_DISABLE_RPC");
@@ -365,11 +415,13 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
         goto cleanup2;        
     }
     
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (server_nvml_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_nvml failed.");
         goto cleanup1;
     }
 
+    LOGE(LOG_INFO, "initializing server_runtime.");
     if (server_cudnn_init(restore) != 0) {
         LOGE(LOG_ERROR, "initializing server_nvml failed.");
         goto cleanup0;
@@ -444,6 +496,9 @@ void cricket_main(size_t prog_num, size_t vers_num, uint32_t gpu_id, uint32_t nu
     pmap_unset(prog, vers);
     svc_destroy(transp);
     unlink(CD_SOCKET_PATH);
+
+    cleanup_shared_resources();
+
     LOG(LOG_DEBUG, "have a nice day!");
     exit(ret);
 }

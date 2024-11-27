@@ -17,6 +17,7 @@
 #include "api-recorder.h"
 #include "cpu-server-cublas.h"
 #include "cpu-server-client-mgr.h"
+#include "cpu-server-client-mgr.h"
 #include "gsched.h"
 
 int cublas_init(int bypass, resource_mg *memory)
@@ -45,6 +46,9 @@ bool_t rpc_cublascreate_1_svc(ptr_result *result, struct svc_req *rqstp)
 
     GSCHED_RETAIN;
     result->err = cublasCreate_v2((cublasHandle_t*)&result->ptr_result_u.ptr);
+    if (resource_mg_create(&rm_cublas, (void*)result->ptr_result_u.ptr) != 0) {
+      LOGE(LOG_ERROR, "error in resource manager");
+    }
     if (resource_mg_create(&rm_cublas, (void*)result->ptr_result_u.ptr) != 0) {
       LOGE(LOG_ERROR, "error in resource manager");
     }
@@ -77,6 +81,8 @@ bool_t rpc_cublasdgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
     RECORD_ARG(14, ldc);
     LOGE(LOG_DEBUG, "cublasDgemm(%p, %d, %d, %d, %d, %d, %d, %f, %p, %d, %p, %d, %f, %p, %d)",
         handle, transa, transb, m, n, k, lda, alpha, A, lda, B, ldb, beta, C, ldc);
+    LOGE(LOG_DEBUG, "cublasDgemm(%p, %d, %d, %d, %d, %d, %d, %f, %p, %d, %p, %d, %f, %p, %d)",
+        handle, transa, transb, m, n, k, lda, alpha, A, lda, B, ldb, beta, C, ldc);
     GSCHED_RETAIN;
 
     GET_CLIENT(*result);
@@ -89,6 +95,8 @@ bool_t rpc_cublasdgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
                     B, ldb, &beta,
                     C, ldc
     );
+    //cudaDeviceSynchronize();
+    //LOGE(LOG_INFO, "MatGet last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -100,6 +108,7 @@ bool_t rpc_cublasdestroy_1_svc(ptr handle, int *result, struct svc_req *rqstp)
     RECORD_SINGLE_ARG(handle);
     LOGE(LOG_DEBUG, "cublasDestroy_v2");
     GSCHED_RETAIN;
+    *result = cublasDestroy_v2(resource_mg_get_or_null(&rm_cublas, (void*)handle));
     *result = cublasDestroy_v2(resource_mg_get_or_null(&rm_cublas, (void*)handle));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -144,7 +153,15 @@ bool_t rpc_cublassetstream_1_svc(ptr handle, ptr streamId, int *result, struct s
     void *stream_ptr;
     GET_STREAM(stream_ptr, streamId, *result);
 
+
+    GET_CLIENT(*result);
+
+    void *stream_ptr;
+    GET_STREAM(stream_ptr, streamId, *result);
+
     *result = cublasSetStream(
+        resource_mg_get_or_null(&rm_cublas, (void*)handle),
+        (cudaStream_t)stream_ptr);
         resource_mg_get_or_null(&rm_cublas, (void*)handle),
         (cudaStream_t)stream_ptr);
     GSCHED_RELEASE;
@@ -160,6 +177,7 @@ bool_t rpc_cublassetmathmode_1_svc(ptr handle, int mode, int *result, struct svc
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
     *result = cublasSetMathMode(
+        resource_mg_get_or_null(&rm_cublas, (void*)handle),
         resource_mg_get_or_null(&rm_cublas, (void*)handle),
         (cublasMath_t)mode);
     GSCHED_RELEASE;
@@ -188,7 +206,8 @@ bool_t rpc_cublassgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
     RECORD_ARG(12, beta);
     RECORD_ARG(13, C);
     RECORD_ARG(14, ldc);
-    LOGE(LOG_DEBUG, "cublasSgemm");
+    LOGE(LOG_DEBUG, "cublasSgemm handle %p alpha %f beta %f", handle, alpha, beta);
+    printf( "cublasSgemm 3 handle %p alpha %3f beta %3f\n", handle, alpha, beta);
     GSCHED_RETAIN;
 #if CUBLAS_VERSION >= 11000
 
@@ -202,10 +221,22 @@ bool_t rpc_cublassgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
                     B, ldb, &beta,
                     C, ldc
     );
+    //cudaDeviceSynchronize();
 #else
-    LOGE(LOG_ERROR, "cublassetworkspace not supported in this version");
+    LOGE(LOG_ERROR, "cublasSgemm not supported in this version");
     *result = -1;
 #endif
+    LOGE(LOG_DEBUG, "cublasSgemm return %s", cudaGetErrorString(*result));
+    //cudaDeviceSynchronize();
+    //LOGE(LOG_INFO, "MatGet last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
+    /*
+    if (*result != cudaSuccess) {
+	    static int errcount = 0;
+	    errcount++;
+	    printf("faking cound %d\n", errcount);
+	    *result = cudaSuccess;
+    }
+    */
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -243,6 +274,8 @@ bool_t rpc_cublassgemv_1_svc(ptr handle, int trans, int m,
                     x, incx, &beta,
                     y, incy
     );
+    //cudaDeviceSynchronize();
+    //LOGE(LOG_INFO, "MatGet last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -280,6 +313,8 @@ bool_t rpc_cublasdgemv_1_svc(ptr handle, int trans, int m,
                     x, incx, &beta,
                     y, incy
     );
+    //cudaDeviceSynchronize();
+    //LOGE(LOG_INFO, "MatGet last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;
@@ -322,6 +357,8 @@ bool_t rpc_cublassgemmex_1_svc(ptr handle, int transa, int transb, int m, int n,
                     B, (cudaDataType_t)Btype, ldb, &beta,
                     C, (cudaDataType_t)Ctype, ldc
     );
+    //cudaDeviceSynchronize();
+    //LOGE(LOG_INFO, "MatGet last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
     return 1;

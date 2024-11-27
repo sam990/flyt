@@ -1,0 +1,287 @@
+#[path = "../common/mod.rs"]
+mod common;
+
+extern crate shmem;
+
+use std::collections::{HashMap};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+use shmem::shm::SharedMem;
+use std::io::Write;
+use std::net::TcpStream;
+use crate::common::api_commands::MetricsCommand;
+use common::{config::CLMGR_CONFIG_PATH, utils::Utils};
+
+// Struct to hold function-specific data.
+#[derive(Debug, Clone)]
+struct FunctionData {
+    name: String,
+    upper_threshold: f64,
+    lower_threshold: f64,
+    spike_count: usize,
+    metrics: Vec<f64>,
+}
+
+// Struct to hold PID-specific data.
+#[derive(Debug)]
+struct PIDData {
+    functions: HashMap<String, FunctionData>,
+    read_interval: u64,
+    last_read_time: Instant,
+}
+
+// Struct to manage the metrics handler.
+pub struct Metrics {
+    shared_memory: Arc<Mutex<SharedMem>>,
+    pids: Arc<Mutex<HashMap<u32, PIDData>>>,
+    default_time_interval: u64,
+    address: String,
+    scaleupfactor: u16,
+    scaledownfactor: u16,
+}
+
+impl Metrics {
+    pub fn new(default_interval: u64, shared_memory_path: String, server_address: &String, scaleup_factor: u16, scaledown_factor: u16) -> Self {
+        let shared_memory = Arc::new(Mutex::new(
+            SharedMem::create(shared_memory_path, 1024).expect("Failed to create shared memory"),
+        ));
+        Metrics {
+            shared_memory,
+            pids: Arc::new(Mutex::new(HashMap::new())),
+            default_time_interval: default_interval,
+            address: server_address.clone(),
+            scaleupfactor: scaleup_factor,
+            scaledownfactor: scaledown_factor,
+
+        }
+    }
+
+    fn handle_start_command(&self, pid: u32, read_interval: u64) {
+        let mut pids = self.pids.lock().unwrap();
+        pids.entry(pid)
+            .or_insert(PIDData {
+                functions: HashMap::new(),
+                read_interval,
+                last_read_time: Instant::now(),
+            });
+    }
+
+    fn handle_fn_init_command(
+        &self,
+        pid: u32,
+        function_name: String,
+        upper_threshold: f64,
+        lower_threshold: f64,
+        spike_count: usize,
+    ) {
+        let mut pids = self.pids.lock().unwrap();
+        if let Some(pid_data) = pids.get_mut(&pid) {
+            pid_data.functions.insert(
+                function_name.clone(),
+                FunctionData {
+                    name: function_name,
+                    upper_threshold,
+                    lower_threshold,
+                    spike_count,
+                    metrics: Vec::new(),
+                },
+            );
+        }
+    }
+
+    fn handle_log_command(&self, pid: u32, function_name: String, metric: f64) {
+        let mut pids = self.pids.lock().unwrap();
+        if let Some(pid_data) = pids.get_mut(&pid) {
+            if let Some(function_data) = pid_data.functions.get_mut(&function_name) {
+                function_data.metrics.push(metric);
+                if function_data.metrics.len() > function_data.spike_count {
+                    function_data.metrics.remove(0);
+                }
+
+                let all_above = function_data.metrics.iter().all(|&m| m > function_data.upper_threshold);
+                let all_below = function_data.metrics.iter().all(|&m| m < function_data.lower_threshold);
+
+                if all_above {
+                    self.send_scale_command(pid, true);
+                } else if all_below {
+                    self.send_scale_command(pid, false);
+                }
+            }
+        }
+    }
+
+    fn handle_stop_command(&self, pid: u32) {
+        let mut pids = self.pids.lock().unwrap();
+        pids.remove(&pid);
+    }
+
+    fn send_scale_command(&self, _pid: u32, upscale: bool) {
+        let stream = TcpStream::connect(self.address.clone());
+
+        let mut stream = match stream {
+            Ok(stream) => stream,
+            Err(error) => {
+                log::error!("Error connecting to server: {}", error);
+                return;
+            }
+        };
+
+        let message = if upscale { 
+            format!( "{}\n{}\n", MetricsCommand::CLIENTD_MMGR_UPSCALE, self.scaleupfactor)
+        } else {
+            format!( "{}\n{}\n", MetricsCommand::CLIENTD_MMGR_DOWNSCALE, self.scaledownfactor)
+        };
+
+        if let Err(e) = stream.write_all(message.as_bytes()) {
+            log::error!("Error writing to stream: {}", e);
+            return;
+        }
+
+        log::debug!("Scaling resource upscale: {}", message);
+    }
+
+    fn read_from_shared_memory(&self) -> Option<String> {
+        // Map the shared memory to a slice of bytes
+        let mut memory_slice = self.shared_memory.map().except("Failed to map shared memory");
+
+        // Lock the memory for reading
+        let data = memory_slice.lock();
+
+        // Convert the byte slice to a string
+        let result = std::str::from_utf8(&data)
+            .ok()  // Converts the result to Option<&str>
+            .map(|s| s.to_string());
+        Some(result.unwrap())
+    }
+    fn handle_command(&self, line: &str) {
+        let mut parts = line.trim().split_whitespace();
+        if let Some(command) = parts.next() {
+            match command {
+                "START" => {
+                    let pid: u32 = parts.next().unwrap().parse().unwrap();
+                    let interval: u64 = parts.next().map_or(self.default_time_interval, |s| s.parse().unwrap_or(self.default_time_interval));
+                    {
+                        self.handle_start_command(pid, interval);
+                    }
+                    println!("START command received for PID {} with interval {}", pid, interval);
+                }
+                "FN_INIT" => {
+                    let pid: u32 = parts.next().unwrap().parse().unwrap();
+                    let func_name = parts.next().unwrap().to_string();
+                    let upper_threshold: f64 = parts.next().unwrap().parse().unwrap();
+                    let lower_threshold: f64 = parts.next().unwrap().parse().unwrap();
+                    let spike_count: usize = parts.next().unwrap().parse().unwrap();
+                    {
+                        self.handle_fn_init_command(pid, func_name.clone(), upper_threshold, lower_threshold, spike_count);
+                    }
+                    println!(
+                        "FN_INIT command received for PID {} and function {}",
+                        pid, func_name
+                    );
+
+                }
+                "LOG" => {
+                    let pid: u32 = parts.next().unwrap().parse().unwrap();
+                    let func_name = parts.next().unwrap().to_string();
+                    let metric: f64 = parts.next().unwrap().parse().unwrap();
+                    {
+                        self.handle_log_command(pid, func_name, metric);
+                    }
+                }
+                "STOP" => {
+                    let pid: u32 = parts.next().unwrap().parse().unwrap();
+                    {
+                        self.handle_stop_command(pid);
+                    }
+                    println!("STOP command received for PID {}", pid);
+                }
+                _ => {
+                    println!("Unknown command received: {}", command);
+                }
+            }
+        }
+    }
+    fn read_pid_data(&self, pid: u32) {
+        // Logic to read and process data for the given PID
+        println!("Reading data for PID: {}", pid);
+
+        // Update the last read time for the PID
+        let mut pids = self.pids.lock().unwrap();
+        if let Some(pid_data) = pids.get_mut(&pid) {
+            pid_data.last_read_time = Instant::now();
+        }
+    }
+
+    fn find_next_read_interval(&self) -> Duration {
+        let pids_data = self.pids.lock().unwrap();
+        let now = Instant::now();
+
+        // Calculate the remaining time for each PID
+        pids_data
+            .values()  // Iterate over the values in the HashMap (PIDData)
+            .map(|pid_data| {
+                let elapsed = now.duration_since(pid_data.last_read_time);
+                if elapsed.as_secs() >= pid_data.read_interval {
+                    Duration::ZERO
+                } else {
+                    Duration::from_secs(pid_data.read_interval - elapsed.as_secs())
+                }
+            })
+            .min()  // Find the minimum duration
+            .unwrap_or(Duration::from_secs(self.default_time_interval))  // Return the minimum or default interval
+    }
+
+    pub fn start_monitor(&self) {
+
+        loop {
+            let next_read_interval = self.find_next_read_interval();
+
+            if next_read_interval.is_zero() {
+                if let Some(command) = self.read_from_shared_memory() {
+                    self.handle_command(&command);
+                }
+
+            }
+
+            thread::sleep(next_read_interval);
+
+        }
+    }
+
+    pub fn get_metrics_mgr_address() -> (String, u16) {
+        let config = Utils::load_config_file(CLMGR_CONFIG_PATH);
+
+        (config["resource-manager"]["address"].as_str().unwrap().to_string(), 
+         config["resource-manager"]["metrics-port"].as_integer().unwrap() as u16)
+    }
+
+    pub fn get_shared_memory_path() -> String {
+        let config = Utils::load_config_file(CLMGR_CONFIG_PATH);
+
+        return config["resource-metrics"]["log-file"].as_str().unwrap().to_string();
+    }
+
+    pub fn get_metric_thresholds() -> (u16, u16, u16) {
+        let config = Utils::load_config_file(CLMGR_CONFIG_PATH);
+
+        (config["resource-metrics"]["scaleup-factor"].as_integer().unwrap() as u16, 
+         config["resource-metrics"]["scaledown-factor"].as_integer().unwrap() as u16, 
+         config["resource-metrics"]["metric-interval"].as_integer().unwrap() as u16)
+    }
+}
+
+/*
+fn main() {
+    let shared_memory_path = String::from("/path/to/shared/memory");
+    let metrics_handler = Metrics::new(60, shared_memory_path);
+
+    // Example of starting the metrics handler in a separate thread
+    let metrics_handler_thread = thread::spawn(move || {
+        metrics_handler.run();
+    });
+
+    // Wait for the thread to finish
+    metrics_handler_thread.join().unwrap();
+}
+*/

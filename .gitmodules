@@ -2,8 +2,6 @@
 	path = submodules/libtirpc
 	url = https://github.com/m-santh/libtirpc.git
     ignore = dirty
-[submodule "submodules/patchelf"]
-	path = submodules/patchelf
-	url = https://github.com/NixOS/patchelf.git
-	ignore = dirty
-	branch = 0.17.2
+[submodule "synthetic_benchmark/toml11"]
+	path = synthetic_benchmark/toml11
+	url = https://github.com/m-santh/toml11.git

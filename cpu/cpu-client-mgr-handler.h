@@ -13,6 +13,7 @@ server_info_t *parse_server_str(char *server_str);
 
 server_info_t *init_client_mgr();
 void stop_client_mgr();
+void deinit_client_mgr();
 
 void change_server(server_info_t *server_info); // in cpu-client.c
 void resume_connection(void); // in cpu-client.c

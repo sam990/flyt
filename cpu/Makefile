@@ -3,10 +3,12 @@ SERVER = cricket-rpc-server
 SERVER_LIB = cricket-server.so
 #RPC client library
 CLIENT = cricket-client.so
+# METRICS = libprofiler.so
 CLIENT_TARGET_LIB = libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS)
 CLIENT_STATIC = cricket-client-static.a
 
 CUDA_SRC = /usr/local/cuda
+METRICS_SRC = $(CURDIR)/metrics
 LIBTIRPC_PREFIX = ../submodules/libtirpc/install
 SUBMODULE_LIBS = ../submodules/lib
 
@@ -54,7 +56,8 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-client-mgr.c \
 			 cpu-server-ivshmem.c \
 			 flyt-cr.c \
-			 cpu-server-dev-mem.c \
+			 cpu-server-mem_manager.c \
+			 cpu-server-dev-mem.c
 
 SRC_SERVER_LIB = server-library.c
 SRC_SERVER_EXE = server-exe.c
@@ -95,6 +98,7 @@ OBJ_CLIENT = $(SRC_CLIENT:%.c=%.o)
 RPCGEN_FLAGS = -C -M -N
 INC_FLAGS += -I$(LIBTIRPC_PREFIX)/include/tirpc
 INC_FLAGS += -I$(CUDA_SRC)/include
+#INC_FLAGS += -I$(METRICS_SRC)/include
 
 LIB_FLAGS += -L$(LIBTIRPC_PREFIX)/lib
 LIB_FLAGS += -L$(CUDA_SRC)/lib64
@@ -142,11 +146,11 @@ $(CLIENT_STATIC): $(OBJ_CLIENT)
 $(CLIENT) : $(OBJ_CLIENT) 
 	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(CLIENT_LD_FLAGS)
 
-$(SERVER_LIB) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
-	$(LD) $(CC_FLAGS) -shared -o $@ $^ $(SERVER_BIN_LD_FLAGS)
+$(METRICS) : 
+	cd $(METRICS_SRC) && $(MAKE)
 
-$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o)
-	$(LD) $(CC_FLAGS) -o $@ $^ $(SERVER_BIN_LD_FLAGS)
+$(SERVER) : $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o) $(METRICS)
+	$(LD) $(CC_FLAGS) -o $@ $(OBJ_SERVER) $(SRC_SERVER_EXE:%.c=%.o) $(LIBTIRPC_PREFIX)/lib/libtirpc.a $(SERVER_BIN_LD_FLAGS) $(SERVER_METRICS_FLAGS)
 
 $(RPC_H) : $(RPC_DEF)
 	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -h -o $@ $<
@@ -164,7 +168,7 @@ $(RPC_XDR) : $(RPC_DEF)
 	rm -f $@ && $(RPCGEN) $(RPCGEN_FLAGS) -c -o $@ $<
 
 %.o : %.c $(RPC_H)
-	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LD_FLAGS) 
+	$(CC) $(CC_FLAGS) -c -fpic -o $@ $< $(LIB_FLAGS) 
 
 clean:
 	 rm -f $(RPC_H) $(RPC_CLIENT) $(RPC_SERVER) $(RPC_SERVER_MOD) $(RPC_XDR) $(OBJ_CLIENT) $(OBJ_SERVER) $(SERVER) $(SERVER_LIB) $(CLIENT) $(SRC_SERVER_EXE:%.c=%.o) $(CLIENT_STATIC)

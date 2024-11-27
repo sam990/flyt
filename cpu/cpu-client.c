@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <signal.h>
 
 // For TCP socket
 #include <arpa/inet.h>
@@ -311,6 +312,7 @@ void __attribute__((constructor)) init_rpc(void)
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
 }
+
 void __attribute__((destructor)) deinit_rpc(void)
 {
     enum clnt_stat retval_1;
@@ -367,9 +369,14 @@ void __attribute__((destructor)) deinit_rpc(void)
 #endif // WITH_API_CNT
     }
 
+    LOGE(LOG_DEBUG, "before deinit client mgr");
+    deinit_client_mgr();
+
     if (clnt != NULL) {
        clnt_destroy(clnt);
     }
+
+    sigaction(SIGINT, &old_action, NULL);
 }
 
 
@@ -382,7 +389,7 @@ void *dlopen(const char *filename, int flag)
     void *ret = NULL;
     struct link_map *map;
     int has_kernel = 0;
-    LOG(LOG_DBG(1), "intercepted dlopen(%s, %d)", filename, flag);
+    LOG(LOG_DBG(1), "My intercepted dlopen(%s, %d)", filename, flag);
 
     if (filename == NULL) {
         return dlopen_orig(filename, flag);
@@ -425,6 +432,7 @@ void *dlopen(const char *filename, int flag)
 
 int dlclose(void *handle)
 {
+    LOGE(LOG_DEBUG, "############ __dlclose(handle=%p\n", handle);
     if (handle == NULL) {
         LOGE(LOG_ERROR, "[dlclose] handle NULL");
         return -1;
@@ -531,7 +539,6 @@ void **__cudaRegisterFatBinary(void *fatCubin)
     }
     rpc_fat.mem_data_len = fatbin_size;
     LOGE(LOG_DEBUG, "Fatbin Size: %lu\n", fatbin_size);
-
 
     // CUDA registers an atexit handler for fatbin cleanup that accesses
     // the fatbin data structure. Let's allocate some zeroes to avoid segfaults.

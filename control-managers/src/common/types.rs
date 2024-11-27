@@ -1,5 +1,26 @@
-use std::io::{BufReader, Read, Write};
+use std::{io::{BufReader, Read, Write}, time::Duration};
 
+
+#[derive(Debug, Clone)]
+pub struct IncResourcesResult {
+    pub success: bool,
+    pub sm_cores: u32,
+    pub memory: u64,
+    pub error: String,
+    pub time_taken: Duration
+}
+
+impl Default for IncResourcesResult {
+    fn default() -> Self {
+        Self {
+            success: false,
+            sm_cores: 0,
+            memory: 0,
+            error: String::new(),
+            time_taken: Duration::new(0, 0)
+        }
+    }
+}
 
 
 #[derive(Debug, Clone, Copy)]
@@ -69,7 +90,7 @@ impl MqueueClientControlCommand {
         Some(Self::from_bytes(bytes.try_into().unwrap()))
     }
 
-    fn vec_to_string(vec: &[u8]) -> String {
+    pub fn vec_to_string(vec: &[u8]) -> String {
         let mut v = Vec::<u8>::new();
         for i in vec {
             if *i == 0 {

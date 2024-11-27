@@ -10,6 +10,7 @@
     if (list_append(&api_records, (void**)&record) != 0) { \
         LOGE(LOG_ERROR, "list allocation failed."); \
     } \
+    memset(record, 0, sizeof(api_record_t)); \
     record->function = rqstp->rq_proc; \
     record->arg_size = 0; \
     record->arguments = NULL; \
@@ -21,6 +22,7 @@
     if (list_append(&api_records, (void**)&record) != 0) { \
         LOGE(LOG_ERROR, "list allocation failed."); \
     } \
+    memset(record, 0, sizeof(api_record_t)); \
     if ( (arguments = malloc(sizeof(ARG_TYPE))) == NULL) { \
         LOGE(LOG_ERROR, "list arguments allocation failed"); \
     } \

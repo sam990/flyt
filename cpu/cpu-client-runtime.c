@@ -457,7 +457,7 @@ cudaError_t cudaGetDeviceProperties(struct cudaDeviceProp* prop, int device)
     if (result.err != 0) {
         return result.err;
     }
-    // if (memcpy(prop, result.mem_result_u.data.mem_data_val, sizeof(struct cudaDeviceProp)) == NULL) {
+    //if (memcpy(prop, result.cuda_device_prop_result_u.data, sizeof(struct cudaDeviceProp)) == NULL) {
     //FIXME: Don't know why, but pytorch expects a different definition of cudaDeviceProp, which is only 728 bytes long
     // copying to userspace.
     if (memcpy(prop, result.cuda_device_prop_result_u.data, 728) == NULL) {
@@ -1153,6 +1153,7 @@ cudaError_t cudaLaunchKernel(const void* func, dim3 gridDim, dim3 blockDim, void
 
     for (i=0; i < kernel_infos.length; ++i) {
         if (list_at(&kernel_infos, i, (void**)&info) != 0) {
+            LOGE(LOG_ERROR, "error getting element at %d", i);
             LOGE(LOG_ERROR, "error getting element at %d", i);
             return cudaErrorInvalidDeviceFunction;
         }
@@ -2399,6 +2400,59 @@ cudaError_t cudaProfilerStop(void)
     }
     return result;
 }
+
+
+cudaError_t cudaMallocAsync ( void** devPtr, size_t size, cudaStream_t hStream ) {
+    LOGE(LOG_ERROR, "cudaMallocAsync Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaFreeAsync ( void* devPtr, cudaStream_t hStream ) {
+    LOGE(LOG_ERROR, "cudaFreeAsync Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolTrimTo ( cudaMemPool_t memPool, size_t minBytesToKeep ) {
+    LOGE(LOG_ERROR, "cudaMemPoolTrimTo Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolGetAttribute ( cudaMemPool_t memPool, enum cudaMemPoolAttr attr, void* value ) {
+    LOGE(LOG_ERROR, "cudaMemPoolGetAttribute Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolSetAttribute ( cudaMemPool_t memPool, enum cudaMemPoolAttr attr, void* value ) {
+    LOGE(LOG_ERROR, "cudaMemPoolSetAttribute Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaDeviceGetDefaultMemPool ( cudaMemPool_t* memPool, int  device ) {
+    LOGE(LOG_ERROR, "cudaDeviceGetDefaultMemPool Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaMemPoolSetAccess ( cudaMemPool_t memPool, const struct cudaMemAccessDesc* descList, size_t count ) {
+    LOGE(LOG_ERROR, "cudaMemPoolSetAccess Not implemented");
+    return cudaErrorUnknown;
+}
+
+DEF_FN(CUresult, __cudaInitModule, long, ptr)
+DEF_FN(CUresult, __cudaPopCallConfiguration, long, arg1, long, arg2, long, arg3, long, arg4)
+DEF_FN(CUresult, __cudaPushCallConfiguration, long, arg1, int, arg2, long, arg3, int, arg4, long, arg5, long, arg6)
+DEF_FN(CUresult, __cudaRegisterFatBinaryEnd, long, arg1)
+DEF_FN(cudaError_t, cudaGraphDebugDotPrint, cudaGraph_t, graph, const char*, path, unsigned int, flags)
+
+cudaError_t cudaStreamGetCaptureInfo(cudaStream_t stream, enum cudaStreamCaptureStatus *captureStatus_out, unsigned long long *id_out, cudaGraph_t *graph_out, const cudaGraphNode_t **dependencies_out, size_t *numDependencies_out) {
+    LOGE(LOG_ERROR, "cudaStreamGetCaptureInfo Not implemented");
+    return cudaErrorUnknown;
+}
+
+cudaError_t cudaGraphInstantiateWithFlags(cudaGraphExec_t* pGraphExec, cudaGraph_t graph, unsigned long long flags ) {
+    LOGE(LOG_ERROR, "cudaGraphInstantiateWithFlags Not implemented");
+    return cudaErrorUnknown;
+}
+
 
 
 cudaError_t cudaMallocAsync ( void** devPtr, size_t size, cudaStream_t hStream ) {

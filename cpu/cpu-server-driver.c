@@ -25,12 +25,26 @@
         return 1; \
     }
 
+#include "cpu-server-resource-controller.h"
+#include "cpu-server-dev-mem.h"
+#include "cpu-server-client-mgr.h"
+
+#define GET_CLIENT_DRV(err) \
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd); \
+    if (client == NULL) { \
+        LOGE(LOG_ERROR, "client not found"); \
+        err = CUDA_ERROR_NOT_INITIALIZED; \
+        GSCHED_RELEASE; \
+        return 1; \
+    }
+
 
 int server_driver_init(int restore)
 {
     #ifdef WITH_IB
     #endif //WITH_IB
    
+    return 0;
     return 0;
 }
 
@@ -330,8 +344,14 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 {
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %p)", elf.mem_data_val, elf.mem_data_len, module_key);
+    GSCHED_RETAIN;
+    LOGE(LOG_DEBUG, "rpc_elf_load(elf: %p, len: %#x, module_key: %p)", elf.mem_data_val, elf.mem_data_len, module_key);
     CUresult res;
     CUmodule module = NULL;
+
+    GET_CLIENT_DRV(*result);
+
+    LOGE(LOG_DEBUG, "client: %p, client pid: %d", client, client->pid);
 
     GET_CLIENT_DRV(*result);
 
@@ -340,6 +360,7 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
     if ((res = cuModuleLoadData(&module, elf.mem_data_val)) != CUDA_SUCCESS) {
         LOGE(LOG_ERROR, "cuModuleLoadData failed: %d", res);
         *result = res;
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
@@ -369,10 +390,34 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 
         *result = -1;
         GSCHED_RELEASE;
+
+    mem_data *elf_args = malloc(sizeof(mem_data));
+    elf_args->mem_data_len = elf.mem_data_len;
+    elf_args->mem_data_val = malloc(elf.mem_data_len);
+    memcpy(elf_args->mem_data_val, elf.mem_data_val, elf.mem_data_len);
+
+    addr_data_pair_t *module_info = malloc(sizeof(addr_data_pair_t));
+    module_info->addr = module;
+    module_info->reg_data.type = MODULE_LOAD_DATA;
+    module_info->reg_data.size = sizeof(mem_data);
+    module_info->reg_data.data = elf_args;
+
+    LOGE(LOG_DEBUG, "module: %p, module_info: %p, elfargs: %p", module, module_info, elf_args);
+
+    if (resource_mg_add_sorted(&client->modules, (void*)module_key, (void*)module_info) != 0) {
+        LOGE(LOG_ERROR, "resource_mg_create failed");
+
+        free(elf_args->mem_data_val);
+        free(elf_args);
+        free(module_info);
+
+        *result = -1;
+        GSCHED_RELEASE;
         return 1;
     }
 
     *result = 0;
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -382,7 +427,9 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
 bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "rpc_elf_unload(elf_handle: %p)", elf_handle);
+    addr_data_pair_t* module = NULL;
     addr_data_pair_t* module = NULL;
     CUresult res;
 
@@ -392,6 +439,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
     if (resource_mg_get(&client->modules, (void*)elf_handle, (void *)&module) != 0) {
         LOG(LOG_ERROR, "resource_mg_get failed");
         *result = -1;
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
@@ -405,10 +453,12 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
     // }
 
     if ((res = cuModuleUnload(module->addr)) != CUDA_SUCCESS) {
+    if ((res = cuModuleUnload(module->addr)) != CUDA_SUCCESS) {
         const char *errstr;
         cuGetErrorString(res, &errstr);
         LOG(LOG_ERROR, "cuModuleUnload failed: %s (%d)", errstr, res);
         *result = res;
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
@@ -419,7 +469,15 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
 
     resource_mg_remove(&client->modules, (void*)elf_handle);
    
+
+    free(((mem_data*)module->reg_data.data)->mem_data_val);
+    free(module->reg_data.data);
+    free(module);
+
+    resource_mg_remove(&client->modules, (void*)elf_handle);
+   
     *result = 0;
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -431,8 +489,13 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     GSCHED_RETAIN;
     addr_data_pair_t *module = NULL;
     RECORD_API_STR(rpc_register_function_1_argument, 2);
+    GSCHED_RETAIN;
+    addr_data_pair_t *module = NULL;
+    RECORD_API_STR(rpc_register_function_1_argument, 2);
     RECORD_ARG(1, fatCubinHandle);
     RECORD_ARG(2, hostFun);
+    RECORD_ARG_STR(3, deviceFun);
+    RECORD_ARG_STR(4, deviceName);
     RECORD_ARG_STR(3, deviceFun);
     RECORD_ARG_STR(4, deviceName);
     RECORD_ARG(5, thread_limit);
@@ -441,13 +504,23 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
     
     GET_CLIENT_DRV(result->err);
 
+    
+    GET_CLIENT_DRV(result->err);
+
     //resource_mg_print(&rm_modules);
+    if (resource_mg_get(&client->modules, (void*)fatCubinHandle, (void *)&module) != 0) {
     if (resource_mg_get(&client->modules, (void*)fatCubinHandle, (void *)&module) != 0) {
         LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         result->err = -1;
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 1;
     }
+
+    CUfunction func_d_ptr;
+
+    result->err = cuModuleGetFunction(&func_d_ptr,
+                    module->addr,
 
     CUfunction func_d_ptr;
 
@@ -474,6 +547,7 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
 
     RECORD_RESULT(ptr_result_u, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -481,6 +555,7 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
 bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress, char *deviceName, int ext, size_t size,
                         int constant, int global, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(rpc_register_var_1_argument);
     RECORD_ARG(1, fatCubinHandle);
@@ -498,6 +573,9 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
 
     GET_CLIENT_DRV(*result);
 
+
+    GET_CLIENT_DRV(*result);
+
     
     CUdeviceptr dptr = 0;
     size_t d_size = 0;
@@ -505,17 +583,40 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
     addr_data_pair_t *module = NULL;
 
     if (resource_mg_get(&client->modules, (void*)fatCubinHandle, (void *)&module) != 0) {
+    addr_data_pair_t *module = NULL;
+
+    if (resource_mg_get(&client->modules, (void*)fatCubinHandle, (void *)&module) != 0) {
         LOGE(LOG_ERROR, "%p not found in resource manager - we cannot call a function from an unknown module.", fatCubinHandle);
         *result = -1;
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
     if ((res = cuModuleGetGlobal(&dptr, &d_size, module->addr, deviceName)) != CUDA_SUCCESS) {
+    if ((res = cuModuleGetGlobal(&dptr, &d_size, module->addr, deviceName)) != CUDA_SUCCESS) {
         LOGE(LOG_ERROR, "cuModuleGetGlobal failed: %d", res);
         *result = 1;
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 1;
     }
+
+
+    var_register_args_t *reg_args = malloc(sizeof(var_register_args_t));
+
+    reg_args->module = (void*)fatCubinHandle;
+    reg_args->deviceName = strdup(deviceName);
+    reg_args->size = d_size;
+    reg_args->data = NULL;
+
+
+    addr_data_pair_t *var_info = malloc(sizeof(addr_data_pair_t));
+    var_info->addr = (void *)dptr;
+    var_info->reg_data.type = MODULE_GET_GLOBAL;
+    var_info->reg_data.size = sizeof(var_register_args_t);
+    var_info->reg_data.data = (void *)reg_args;
+
+    if (resource_mg_add_sorted(&client->vars, (void*)hostVar, (void*)var_info) != 0) {
 
 
     var_register_args_t *reg_args = malloc(sizeof(var_register_args_t));
@@ -537,11 +638,15 @@ bool_t rpc_register_var_1_svc(ptr fatCubinHandle, ptr hostVar, ptr deviceAddress
         free(reg_args->deviceName);
         free(reg_args);
         free(var_info);
+        free(reg_args->deviceName);
+        free(reg_args);
+        free(var_info);
         *result = 1;
     } else {
         *result = 0;
     }
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -558,12 +663,19 @@ bool_t rpc_cudevicegetcount_1_svc(int_result *result, struct svc_req *rqstp)
     // return 1 always
     result->err = CUDA_SUCCESS;
     result->int_result_u.data = 1;
+    // result->err = cuDeviceGetCount(&result->int_result_u.data);
+    // return 1 always
+    result->err = CUDA_SUCCESS;
+    result->int_result_u.data = 1;
     return 1;
 }
 
 bool_t rpc_cuinit_1_svc(int argp, int *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    // *result = cuInit(argp);
+    // dont do anything
+    *result = CUDA_SUCCESS;
     // *result = cuInit(argp);
     // dont do anything
     *result = CUDA_SUCCESS;
@@ -585,9 +697,15 @@ bool_t rpc_cudeviceget_1_svc(int ordinal, int_result *result, struct svc_req *rq
         return 1;
     }
 
+    if (ordinal != 0) {
+        result->err = CUDA_ERROR_INVALID_DEVICE;
+        return 1;
+    }
+
     GSCHED_RETAIN;
     result->err = cuDeviceGet(&result->int_result_u.data, ordinal);
     GSCHED_RELEASE;
+    LOG(LOG_DEBUG, " return valud: %d %s", result->int_result_u.data, __FUNCTION__);
     return 1;
 }
 
@@ -629,6 +747,7 @@ bool_t rpc_cudevicegetuuid_1_svc(int dev, str_result *result, struct svc_req *rq
         memcpy(result->str_result_u.str, uuid.bytes, 16);
     }
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -643,6 +762,7 @@ bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
         LOG(LOG_DEBUG, "ctxapi version: %d", version);
     }
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -650,6 +770,9 @@ bool_t rpc_cuctxgetcurrent_1_svc(ptr_result *result, struct svc_req *rqstp)
 bool_t rpc_cuctxsetcurrent_1_svc(uint64_t ptr, int *result, struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    // *result = cuCtxSetCurrent((struct CUctx_st*)ptr);
+    // do nothing
+    *result = CUDA_SUCCESS;
     // *result = cuCtxSetCurrent((struct CUctx_st*)ptr);
     // do nothing
     *result = CUDA_SUCCESS;
@@ -661,6 +784,9 @@ bool_t rpc_cudeviceprimaryctxretain_1_svc(int dev, ptr_result *result,
                                           struct svc_req *rqstp)
 {
     LOG(LOG_DEBUG, "%s", __FUNCTION__);
+    // result->err = cuDevicePrimaryCtxRetain((struct CUctx_st**)&result->ptr_result_u.ptr, dev);
+    // do nothing
+    result->err = CUDA_SUCCESS;
     // result->err = cuDevicePrimaryCtxRetain((struct CUctx_st**)&result->ptr_result_u.ptr, dev);
     // do nothing
     result->err = CUDA_SUCCESS;
@@ -686,7 +812,19 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
         return 1;
     }
 
+
+    GET_CLIENT_DRV(result->err);
+
+    addr_data_pair_t *module_ptr = NULL;
+    if (resource_mg_get(&client->modules, (void*)module, (void *)&module_ptr) != 0) {
+        LOGE(LOG_ERROR, "module not found in resource manager");
+        result->err = CUDA_ERROR_INVALID_HANDLE;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
     result->err = cuModuleGetFunction((CUfunction*)&result->ptr_result_u.ptr,
+                    (CUmodule)module_ptr,
                     (CUmodule)module_ptr,
                     name);
 
@@ -712,6 +850,7 @@ bool_t rpc_cumodulegetfunction_1_svc(uint64_t module, char *name, ptr_result *re
     
     RECORD_RESULT(ptr_result_u, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -719,14 +858,19 @@ bool_t rpc_cumoduleloaddata_1_svc(mem_data mem, ptr_result *result,
                                      struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(mem_data);
     RECORD_SINGLE_ARG(mem);
     LOG(LOG_DEBUG, "%s(%p, %#0zx)", __FUNCTION__, mem.mem_data_val, mem.mem_data_len);
 
     GET_CLIENT_DRV(result->err);
 
+
+    GET_CLIENT_DRV(result->err);
+
     result->err = cuModuleLoadData((CUmodule*)&result->ptr_result_u.ptr, mem.mem_data_val);
     if (result->err != 0) {
+        const char *err_str = NULL;
         const char *err_str = NULL;
         cuGetErrorName(result->err, &err_str);
         LOGE(LOG_DEBUG, "cuModuleLoadData result: %s", err_str);
@@ -751,7 +895,28 @@ bool_t rpc_cumoduleloaddata_1_svc(mem_data mem, ptr_result *result,
             result->err = CUDA_ERROR_UNKNOWN;
         }
     }
+    else {
+        mem_data *elf_args = malloc(sizeof(mem_data));
+        elf_args->mem_data_len = mem.mem_data_len;
+        elf_args->mem_data_val = malloc(mem.mem_data_len);
+        memcpy(elf_args->mem_data_val, mem.mem_data_val, mem.mem_data_len);
+        
+        addr_data_pair_t *module_info = malloc(sizeof(addr_data_pair_t));
+        module_info->addr = (void*)result->ptr_result_u.ptr;
+        module_info->reg_data.type = MODULE_LOAD_DATA;
+        module_info->reg_data.data = elf_args;
+        module_info->reg_data.size = sizeof(mem_data);
+
+        if (resource_mg_add_sorted(&client->modules, (void*)result->ptr_result_u.ptr, (void*)module_info) != 0) {
+            LOGE(LOG_ERROR, "resource_mg_create failed");
+            free(elf_args->mem_data_val);
+            free(elf_args);
+            free(module_info);
+            result->err = CUDA_ERROR_UNKNOWN;
+        }
+    }
     RECORD_RESULT(ptr_result_u, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -759,14 +924,19 @@ bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
                                      struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(char*);
     RECORD_SINGLE_ARG(path);
     LOG(LOG_DEBUG, "%s(%s)", __FUNCTION__, path);
 
     GET_CLIENT_DRV(result->err);
 
+
+    GET_CLIENT_DRV(result->err);
+
     result->err = cuModuleLoad((CUmodule*)&result->ptr_result_u.ptr, path);
     if (result->err != 0) {
+        const char *err_str = NULL;
         const char *err_str = NULL;
         cuGetErrorName(result->err, &err_str);
         LOGE(LOG_DEBUG, "cuModuleLoad result: %s", err_str);
@@ -787,7 +957,24 @@ bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
         }
     
     }
+    else {
+        addr_data_pair_t *module_info = malloc(sizeof(addr_data_pair_t));
+        module_info->addr = (void*)result->ptr_result_u.ptr;
+        module_info->reg_data.type = MODULE_LOAD;
+        module_info->reg_data.data = strdup(path);
+        module_info->reg_data.size = strlen(path) + 1;
+
+        if (resource_mg_add_sorted(&client->modules, (void*)result->ptr_result_u.ptr, (void*)module_info) != 0) {
+            LOGE(LOG_ERROR, "resource_mg_create failed");
+            cuModuleUnload((CUmodule)result->ptr_result_u.ptr);
+            free(module_info->reg_data.data);
+            free(module_info);
+            result->err = CUDA_ERROR_UNKNOWN;
+        }
+    
+    }
     RECORD_RESULT(ptr_result_u, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -799,6 +986,32 @@ bool_t rpc_cumoduleunload_1_svc(ptr module, int *result,
     RECORD_SINGLE_ARG(module);
     LOG(LOG_DEBUG, "%s(%p)", __FUNCTION__, (void*)module);
     GSCHED_RETAIN;
+
+    GET_CLIENT_DRV(*result);
+
+    addr_data_pair_t *module_ptr = NULL;
+    
+
+    if (resource_mg_get(&client->modules, (void*)module, (void *)&module_ptr) != 0){
+        LOGE(LOG_ERROR, "module not found in resource manager");
+        *result = CUDA_ERROR_INVALID_HANDLE;
+        GSCHED_RELEASE; 
+        return 1;
+    }
+
+    *result = cuModuleUnload((CUmodule)module_ptr->addr);
+
+    if (*result == CUDA_SUCCESS) {
+
+        if (resource_mg_remove(&client->modules, (void*)module) != 0) {
+            LOGE(LOG_ERROR, "resource_mg_remove failed");
+            *result = CUDA_ERROR_UNKNOWN;
+        }
+        else {
+            free_module_data(module_ptr);
+        }
+    }
+
 
     GET_CLIENT_DRV(*result);
 
@@ -852,6 +1065,7 @@ bool_t rpc_cudeviceprimaryctxgetstate_1_svc(int dev, dint_result *result,
     GSCHED_RETAIN;
     result->err = cuDevicePrimaryCtxGetState(dev, &(result->dint_result_u.data.i1),
                                             &(result->dint_result_u.data.i2));
+    LOGE(LOG_DEBUG, "flags: %d, active: %d", result->dint_result_u.data.i1,
     LOGE(LOG_DEBUG, "flags: %d, active: %d", result->dint_result_u.data.i1,
                                            result->dint_result_u.data.i2);
     GSCHED_RELEASE;
@@ -965,6 +1179,10 @@ bool_t rpc_cuctxgetdevice_1_svc(int_result *result, struct svc_req *rqstp)
     // return 0
     result->int_result_u.data = 0;
     result->err = CUDA_SUCCESS;
+    // result->err = cuCtxGetDevice((CUdevice*)&result->int_result_u.data);
+    // return 0
+    result->int_result_u.data = 0;
+    result->err = CUDA_SUCCESS;
     GSCHED_RELEASE;
     return 1;
 }
@@ -983,9 +1201,14 @@ bool_t rpc_cumemcpyhtod_1_svc(uint64_t dptr, mem_data hptr, int *result,
 bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ, unsigned int sharedMemBytes, uint64_t hStream, mem_data args, int* result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     void **cuda_args;
     uint16_t *arg_offsets;
     size_t param_num;
+
+
+    GET_CLIENT_DRV(*result);
+
 
 
     GET_CLIENT_DRV(*result);
@@ -994,11 +1217,13 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
         LOGE(LOG_ERROR, "param.mem_data_val is NULL");
         *result = CUDA_ERROR_INVALID_VALUE;
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 1;
     }
     if (args.mem_data_len < sizeof(size_t)) {
         LOGE(LOG_ERROR, "param.mem_data_len is too small");
         *result = CUDA_ERROR_INVALID_VALUE;
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
@@ -1007,6 +1232,7 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
     if (args.mem_data_len < sizeof(size_t)+sizeof(uint16_t)*param_num) {
         LOGE(LOG_ERROR, "param.mem_data_len is too small");
         *result = CUDA_ERROR_INVALID_VALUE;
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
@@ -1019,6 +1245,24 @@ bool_t rpc_culaunchkernel_1_svc(uint64_t f, unsigned int gridDimX, unsigned int 
         LOGE(LOG_DEBUG, "arg: %p (%d)", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
+    void *f_ptr = NULL;
+    if (resource_mg_get(&client->functions, (void*)f, &f_ptr) != 0) {
+        LOGE(LOG_ERROR, "function not found in resource manager");
+        *result = CUDA_ERROR_INVALID_HANDLE;
+        free(cuda_args);
+        GSCHED_RELEASE;
+        return 1;
+    }
+
+    LOGE(LOG_DEBUG, "cuLaunchKernel(func=%p->%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", f, f_ptr, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ, cuda_args, sharedMemBytes, (void*)hStream);
+    
+    cudaStream_t target_stream = hStream ? resource_map_get_addr(client->custom_streams, (void *)hStream) : client->default_stream;
+
+    LOGE(LOG_DEBUG, "target_stream: %p", target_stream);
+
+
+
+    *result = cuLaunchKernel((CUfunction)f_ptr,
     void *f_ptr = NULL;
     if (resource_mg_get(&client->functions, (void*)f, &f_ptr) != 0) {
         LOGE(LOG_ERROR, "function not found in resource manager");

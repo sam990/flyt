@@ -1,9 +1,16 @@
 [resource-manager]
 address = "10.129.131.247" # should be same as on servnode config.
 port = 12402
+metrics-port = 12403
 
 [vcuda-client]
 process-monitor-period = 60
 
 [ipc]
 mqueue-path = "/tmp/flyt-client-mgr"
+
+[resource-metrics]
+scaleup-factor = 60
+scaledown-factor = 60
+metric-interval = 3
+log-file = "/tmp/flyt_shmem.log"

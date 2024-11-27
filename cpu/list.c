@@ -34,6 +34,7 @@ int list_init(list *l, size_t element_size)
         return 1;
     }
     pthread_mutex_init(&l->mutex, &attr);
+    pthread_mutex_init(&l->mutex, &attr);
     l->element_size = element_size;
     l->capacity = INITIAL_CAPACITY;
     l->length = 0LL;
@@ -121,6 +122,9 @@ int list_free(list *l)
     pthread_mutex_lock(&l->mutex);
     l->capacity = 0;
     l->length = 0;
+    pthread_mutex_lock(&l->mutex);
+    l->capacity = 0;
+    l->length = 0;
     free(l->elements);
     l->elements = NULL;
     pthread_mutex_destroy(&l->mutex);
@@ -129,6 +133,7 @@ int list_free(list *l)
     return 0;
 }
 
+/*
 /*
 int list_free_elements(list *l)
 {
@@ -142,6 +147,7 @@ int list_free_elements(list *l)
     return 0;
 }
 */
+*/
 
 int list_append(list *l, void **new_element)
 {
@@ -152,17 +158,28 @@ int list_append(list *l, void **new_element)
         return 1;
     }
     pthread_mutex_lock(&l->mutex);
+    pthread_mutex_lock(&l->mutex);
     if (l->capacity == l->length) {
+        void *nlist = realloc(l->elements, l->capacity*2*l->element_size);
+        if (nlist== NULL) {
         void *nlist = realloc(l->elements, l->capacity*2*l->element_size);
         if (nlist== NULL) {
             LOGE(LOG_ERROR, "realloc failed.");
             /* the old pointer remains valid */
     	    pthread_mutex_unlock(&l->mutex);
+    	    pthread_mutex_unlock(&l->mutex);
             return 1;
         }
         l->elements = nlist;
+        l->elements = nlist;
         l->capacity *= 2;
     }
+#if 0
+    if (l->capacity > (2^12)) {
+	    LOGE(LOG_WARNING, "beyond memory size 12 bits");
+	    //return 1;
+    }
+#endif
     if (new_element != NULL) {
         *new_element = list_get(l, l->length++);
     }
@@ -205,8 +222,14 @@ int list_at(list *l, size_t at, void **element)
         return 1;
     }
     pthread_mutex_lock(&l->mutex);
+    if (at < 0) {
+        LOGE(LOG_ERROR, "index parameter cannot be NULL");
+        return 1;
+    }
+    pthread_mutex_lock(&l->mutex);
     if (at >= l->length) {
         LOGE(LOG_ERROR, "accessing list out of bounds");
+        pthread_mutex_unlock(&l->mutex);
         pthread_mutex_unlock(&l->mutex);
         return 1;
     }
@@ -235,8 +258,15 @@ int list_insert(list *l, size_t at, void *new_element)
         return 1;
     }
     pthread_mutex_lock(&l->mutex);
+    if(new_element == NULL) {
+        LOGE(LOG_ERROR, "new element is NULL");
+        return 1;
+    }
+    pthread_mutex_lock(&l->mutex);
     if (at > l->length) {
         LOGE(LOG_ERROR, "accessing list out of bounds");
+        val = 1;
+	goto out;
         val = 1;
 	goto out;
     }
@@ -245,9 +275,20 @@ int list_insert(list *l, size_t at, void *new_element)
         val = list_append_copy(l, new_element);
 	if (val != 0)
 	    goto out;
+
+        val = list_append_copy(l, new_element);
+	if (val != 0)
+	    goto out;
     }
     else {
+    else {
 
+        if (list_append(l, NULL) != 0) {
+            LOGE(LOG_ERROR, "error while lengthening list");
+            val = 1;
+	    goto out;
+        }
+        memmove(list_get(l, at+1), list_get(l, at), (l->length-at)*l->element_size);
         if (list_append(l, NULL) != 0) {
             LOGE(LOG_ERROR, "error while lengthening list");
             val = 1;
@@ -274,11 +315,14 @@ int list_rm(list *l, size_t at)
         return 1;
     }
     pthread_mutex_lock(&l->mutex);
+    pthread_mutex_lock(&l->mutex);
     if (at >= l->length) {
         LOGE(LOG_ERROR, "accessing list out of bounds");
         pthread_mutex_unlock(&l->mutex);
+        pthread_mutex_unlock(&l->mutex);
         return 1;
     }
+    if ((l->length > 1) && (at < l->length-1)) {
     if ((l->length > 1) && (at < l->length-1)) {
         memmove(list_get(l, at), list_get(l, at+1), (l->length-1-at)*l->element_size);
     }

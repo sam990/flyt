@@ -45,6 +45,7 @@ size_t cudnnGetMaxDeviceVersion(void)
     return result;
 }
 
+
 size_t cudnnGetCudartVersion(void)
 {
 #ifdef WITH_API_CNT
@@ -2033,3 +2034,4 @@ cudnnStatus_t cudnnBackendExecute(cudnnHandle_t handle, cudnnBackendDescriptor_t
     }
     return result;
 }
+

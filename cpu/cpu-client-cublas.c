@@ -36,6 +36,7 @@ cublasStatus_t cublasCreate_v2(cublasHandle_t* handle)
     }
     if (result.err == 0) {
         *handle = (cublasHandle_t)result.ptr_result_u.ptr;
+        *handle = (cublasHandle_t)result.ptr_result_u.ptr;
     }
     return result.err;
 }

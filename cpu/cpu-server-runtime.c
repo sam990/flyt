@@ -68,6 +68,7 @@ static int hainfo_getserverindex(void *server_ptr)
 }
 
 int server_runtime_init(int restore, int gpu_id)
+int server_runtime_init(int restore, int gpu_id)
 {
     #ifdef WITH_IB
     #endif //WITH_IB
@@ -84,6 +85,9 @@ int server_runtime_init(int restore, int gpu_id)
         ret &= cusolver_init(1, NULL, NULL);
         ret &= cublas_init(1, NULL);
 	    ret &= cublaslt_init(1, NULL);
+        ret &= cusolver_init(1, NULL, NULL);
+        ret &= cublas_init(1, NULL);
+	    ret &= cublaslt_init(1, NULL);
     } else {
         ret &= resource_mg_init(&rm_events, 0);
         ret &= resource_mg_init(&rm_arrays, 0);
@@ -91,11 +95,20 @@ int server_runtime_init(int restore, int gpu_id)
         ret &= cusolver_init(0, NULL, NULL);
         ret &= cublas_init(0, NULL);
 	    ret &= cublaslt_init(0, NULL);
+        ret &= cusolver_init(0, NULL, NULL);
+        ret &= cublas_init(0, NULL);
+	    ret &= cublaslt_init(0, NULL);
     }
+
+    // metrics
+    //InitializeInjection();
     
     // Make sure runtime API is initialized
     // If we don't do this and use the driver API, it might be unintialized
+    CUresult res = cuInit(0);
+
     cudaError_t cres;
+    if ((cres = cudaSetDevice(gpu_id)) != cudaSuccess) {
     if ((cres = cudaSetDevice(gpu_id)) != cudaSuccess) {
         LOG(LOG_ERROR, "cudaSetDevice failed: %d", cres);
         ret = 1;
@@ -135,7 +148,38 @@ int server_runtime_deinit(void)
 //     }
 //     return 0;
 // }
+// int server_runtime_checkpoint(const char *path, int dump_memory, unsigned long prog, unsigned long vers)
+// {
+//     if (cr_dump_rpc_id(path, prog, vers) != 0) {
+//         LOGE(LOG_ERROR, "error dumping api_records");
+//         return 1;
+//     }
+//     if (cr_dump(path) != 0) {
+//         LOGE(LOG_ERROR, "error dumping api_records");
+//         return 1;
+//     }
+//     if (dump_memory == 1) {
+//         if (cr_dump_memory(path) != 0) {
+//             LOGE(LOG_ERROR, "error dumping memory");
+//             return 1;
+//         }
+//     }
+//     return 0;
+// }
 
+// int server_runtime_restore(const char *path)
+// {
+//     struct timeval start, end;
+//     double time = 0;
+//     gettimeofday(&start, NULL);
+//     if (cr_restore(path, &rm_memory, &rm_streams, &rm_events, &rm_arrays, cusolver_get_rm(), cublas_get_rm()) != 0) {
+//         LOGE(LOG_ERROR, "error restoring api_records");
+//         return 1;
+//     }
+//     gettimeofday(&end, NULL);
+//     time = ((double)((end.tv_sec * 1e6 + end.tv_usec) -
+//                      (start.tv_sec * 1e6 + start.tv_usec)))/1.e6;
+//     LOGE(LOG_INFO, "time: %f", time);
 // int server_runtime_restore(const char *path)
 // {
 //     struct timeval start, end;
@@ -152,6 +196,8 @@ int server_runtime_deinit(void)
 
 //     return 0;
 // }
+//     return 0;
+// }
 
 
 /** implementation for CUDA_REGISTER_FUNCTION(ptr, str, str, str, int)
@@ -159,6 +205,7 @@ int server_runtime_deinit(void)
  */
 bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* deviceFun, char* deviceName, int thread_limit, int* result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaRegisterFunction(%p, %p, %s, %s, %d)", fatCubinHandle, hostFun, deviceFun, deviceName, thread_limit);
     
@@ -188,6 +235,7 @@ bool_t cuda_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* devic
     //                 wSize);
     *result = 0;
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -206,7 +254,9 @@ bool_t cuda_choose_device_1_svc(mem_data prop, int_result *result, struct svc_re
     RECORD_SINGLE_ARG(*cudaProp);
 
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     result->err = cudaChooseDevice(&result->int_result_u.data, cudaProp);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
 
     RECORD_RESULT(integer, result->int_result_u.data);
@@ -216,8 +266,11 @@ bool_t cuda_choose_device_1_svc(mem_data prop, int_result *result, struct svc_re
 bool_t cuda_device_get_attribute_1_svc(int attr, int device, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceGetAttribute");
     result->err = cudaDeviceGetAttribute(&result->int_result_u.data, (enum cudaDeviceAttr)attr, device);
+    LOGE(LOG_DEBUG, "cudaDeviceGetAttribute: ret: %d, attr: %d, val: %d", result->err, attr, result->int_result_u.data);
+    GSCHED_RELEASE;
     LOGE(LOG_DEBUG, "cudaDeviceGetAttribute: ret: %d, attr: %d, val: %d", result->err, attr, result->int_result_u.data);
     GSCHED_RELEASE;
     return 1;
@@ -226,8 +279,10 @@ bool_t cuda_device_get_attribute_1_svc(int attr, int device, int_result *result,
 bool_t cuda_device_get_by_pci_bus_id_1_svc(char* pciBusId, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceGetByPCIBusId");
     result->err = cudaDeviceGetByPCIBusId(&result->int_result_u.data, pciBusId);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -235,10 +290,12 @@ bool_t cuda_device_get_by_pci_bus_id_1_svc(char* pciBusId, int_result *result, s
 bool_t cuda_device_get_cache_config_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     enum cudaFuncCache res;
     LOGE(LOG_DEBUG, "cudaDeviceGetCacheConfig");
     result->err = cudaDeviceGetCacheConfig(&res);
     result->int_result_u.data = (int)res;
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -246,8 +303,10 @@ bool_t cuda_device_get_cache_config_1_svc(int_result *result, struct svc_req *rq
 bool_t cuda_device_get_limit_1_svc(int limit, u64_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceLimit");
     result->err = cudaDeviceGetLimit(&result->u64_result_u.u64, limit);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -257,15 +316,18 @@ bool_t cuda_device_get_limit_1_svc(int limit, u64_result *result, struct svc_req
 bool_t cuda_device_get_p2p_attribute_1_svc(int attr, int srcDevice, int dstDevice, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceGetP2PAttribute");
     result->err = cudaDeviceGetP2PAttribute(&result->int_result_u.data, attr,
                                             srcDevice, dstDevice);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_device_get_pci_bus_id_1_svc(int len, int device, str_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceGetPCIBusId");
     if ((result->str_result_u.str = malloc(len)) == NULL) {
@@ -275,14 +337,17 @@ bool_t cuda_device_get_pci_bus_id_1_svc(int len, int device, str_result *result,
 
     result->err = cudaDeviceGetPCIBusId(result->str_result_u.str, len, device);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_device_get_shared_mem_config_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceGetSharedMemConfig");
     result->err = cudaDeviceGetSharedMemConfig((enum cudaSharedMemConfig*)&result->int_result_u.data);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -290,8 +355,10 @@ bool_t cuda_device_get_shared_mem_config_1_svc(int_result *result, struct svc_re
 bool_t cuda_device_get_stream_priority_range_1_svc(dint_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceGetStreamPriorityRange");
     result->err = cudaDeviceGetStreamPriorityRange(&result->dint_result_u.data.i1,                      &result->dint_result_u.data.i2);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -299,6 +366,7 @@ bool_t cuda_device_get_stream_priority_range_1_svc(dint_result *result, struct s
 bool_t cuda_device_get_texture_lmw_1_svc(cuda_channel_format_desc fmtDesc, int device, u64_result *result, struct svc_req *rqstp)
 {
 #if CUDART_VERSION >= 11000
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     struct cudaChannelFormatDesc desc = {
         .f = fmtDesc.f,
@@ -311,6 +379,7 @@ bool_t cuda_device_get_texture_lmw_1_svc(cuda_channel_format_desc fmtDesc, int d
     result->err = cudaDeviceGetTexture1DLinearMaxWidth(&result->u64_result_u.u64,
                       &desc, device);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 #else
     LOGE(LOG_ERROR, "not compiled with CUDA 11 support");
@@ -321,10 +390,12 @@ bool_t cuda_device_get_texture_lmw_1_svc(cuda_channel_format_desc fmtDesc, int d
 bool_t cuda_device_reset_1_svc(int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaDeviceReset");
     *result = cudaDeviceReset();
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -332,17 +403,20 @@ bool_t cuda_device_reset_1_svc(int *result, struct svc_req *rqstp)
 bool_t cuda_device_set_cache_config_1_svc(int cacheConfig, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(cacheConfig);
     LOGE(LOG_DEBUG, "cudaFuncSetCacheConfig");
     *result = cudaDeviceSetCacheConfig(cacheConfig);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_device_set_limit_1_svc(int limit, size_t value, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_device_set_limit_1_argument);
     RECORD_ARG(1, limit);
@@ -356,17 +430,20 @@ bool_t cuda_device_set_limit_1_svc(int limit, size_t value, int *result, struct 
 bool_t cuda_device_set_shared_mem_config_1_svc(int config, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(config);
     LOGE(LOG_DEBUG, "cudaFuncSetSharedMemConfig");
     *result = cudaDeviceSetSharedMemConfig(config);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaDeviceSynchronize");
@@ -398,7 +475,36 @@ bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
     }
     resource_map_free_iter(iter);
 
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "error getting client");
+        *result = 1;
+        return 1;
+    }
+
+    *result = cudaStreamSynchronize(client->default_stream);
+    if (*result != cudaSuccess) {
+        LOGE(LOG_ERROR, "error synchronizing default stream %d", *result);
+        return 1;
+    }
+
+    resource_map_iter *iter = resource_map_init_iter(client->custom_streams);
+    uint64_t idx;
+    while (iter && (idx = resource_map_iter_next(iter))) {
+
+        cudaStream_t stream_ptr = resource_map_get_addr(client->custom_streams, (void*)idx);
+        
+        *result = cudaStreamSynchronize(stream_ptr);
+        if (*result != cudaSuccess) {
+            LOGE(LOG_ERROR, "error synchronizing custom stream: %d", *result);
+            break;
+        }
+    }
+    resource_map_free_iter(iter);
+
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -406,10 +512,17 @@ bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
 /**
  * Always returns device id 0
  */
+/**
+ * Always returns device id 0
+ */
 bool_t cuda_get_device_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetDevice");
+    result->int_result_u.data = 0;
+    result->err = cudaSuccess;
+    GSCHED_RELEASE;
     result->int_result_u.data = 0;
     result->err = cudaSuccess;
     GSCHED_RELEASE;
@@ -419,8 +532,12 @@ bool_t cuda_get_device_1_svc(int_result *result, struct svc_req *rqstp)
 /**
  * Always return device count 1
  */
+/**
+ * Always return device count 1
+ */
 bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetDeviceCount");
     result->int_result_u.data = 1;
@@ -433,8 +550,10 @@ bool_t cuda_get_device_count_1_svc(int_result *result, struct svc_req *rqstp)
 bool_t cuda_get_device_flags_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetDeviceFlags");
     result->err = cudaGetDeviceFlags((unsigned*)&result->int_result_u.data);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -442,12 +561,15 @@ bool_t cuda_get_device_flags_1_svc(int_result *result, struct svc_req *rqstp)
 bool_t cuda_get_device_properties_1_svc(int device, cuda_device_prop_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetDeviceProperties");
     if (sizeof(result->cuda_device_prop_result_u.data) != sizeof(struct cudaDeviceProp)) {
+        LOGE(LOG_ERROR, "cuda_device_prop_result size mismatch, result %d prop %d", sizeof(result->cuda_device_prop_result_u.data), sizeof(struct cudaDeviceProp));
         LOGE(LOG_ERROR, "cuda_device_prop_result size mismatch, result %d prop %d", sizeof(result->cuda_device_prop_result_u.data), sizeof(struct cudaDeviceProp));
         return 0;
     }
     result->err = cudaGetDeviceProperties((void*)result->cuda_device_prop_result_u.data, device);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -461,14 +583,20 @@ bool_t cuda_get_device_properties_1_svc(int device, cuda_device_prop_result *res
 /**
  * This call should be ignored
  */
+/**
+ * This call should be ignored
+ */
 bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(device);
     LOGE(LOG_DEBUG, "cudaSetDevice(%d)", device);
     *result = cudaSuccess;
+    *result = cudaSuccess;
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -476,12 +604,16 @@ bool_t cuda_set_device_1_svc(int device, int *result, struct svc_req *rqstp)
 bool_t cuda_set_device_flags_1_svc(int flags, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "cudaSetDevice");
     // *result = cudaSetDeviceFlags(flags);
     *result = cudaSuccess;
+    // *result = cudaSetDeviceFlags(flags);
+    *result = cudaSuccess;
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -493,11 +625,13 @@ struct cuda_set_valid_device_param {
 bool_t cuda_set_valid_devices_1_svc(mem_data device_arr, int len, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(struct cuda_set_valid_device_param);
 #ifdef WITH_RECORDER
     int *valid_device = malloc(len*sizeof(int));
     if (valid_device == NULL) {
         LOGE(LOG_ERROR, "malloc failed.");
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 0;
     }
@@ -511,10 +645,12 @@ bool_t cuda_set_valid_devices_1_svc(mem_data device_arr, int len, int *result, s
     if (device_arr.mem_data_len != len*sizeof(int)) {
         LOGE(LOG_ERROR, "mismatch between expected size (%d) and received size (%d)", len*sizeof(int), device_arr.mem_data_len);
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 0;
     }
     *result = cudaSetValidDevices((int*)device_arr.mem_data_val, len);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -525,6 +661,7 @@ bool_t cuda_set_valid_devices_1_svc(mem_data device_arr, int len, int *result, s
 bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     const char* str;
     result->str_result_u.str = malloc(128);
     LOGE(LOG_DEBUG, "cudaGetErrorName");
@@ -532,11 +669,13 @@ bool_t cuda_get_error_name_1_svc(int error, str_result *result, struct svc_req *
     strncpy(result->str_result_u.str, str, 128);
     result->err = 0;
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_get_error_string_1_svc(int error, str_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     const char* str;
     result->str_result_u.str = malloc(128);
@@ -545,14 +684,17 @@ bool_t cuda_get_error_string_1_svc(int error, str_result *result, struct svc_req
     strncpy(result->str_result_u.str, str, 128);
     result->err = 0;
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_get_last_error_1_svc(int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetLastError");
     *result = cudaGetLastError();
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -560,8 +702,10 @@ bool_t cuda_get_last_error_1_svc(int *result, struct svc_req *rqstp)
 bool_t cuda_peek_at_last_error_1_svc(int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaPeekAtLastError");
     *result = cudaPeekAtLastError();
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -571,6 +715,7 @@ bool_t cuda_peek_at_last_error_1_svc(int *result, struct svc_req *rqstp)
 bool_t cuda_ctx_reset_persisting_l2cache_1_svc(int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
 #if CUDART_VERSION >= 11000
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaCtxResetPersistingL2Cache");
@@ -579,9 +724,12 @@ bool_t cuda_ctx_reset_persisting_l2cache_1_svc(int *result, struct svc_req *rqst
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
+    GSCHED_RELEASE;
+    return 1;
 #else
     LOGE(LOG_ERROR, "Compiled without CUDA 11 support");
 #endif
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -599,6 +747,7 @@ bool_t cuda_ctx_reset_persisting_l2cache_1_svc(int *result, struct svc_req *rqst
 bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
 #if CUDART_VERSION >= 11000
     RECORD_API(cuda_stream_copy_attributes_1_argument);
     RECORD_ARG(1, dst);
@@ -613,12 +762,23 @@ bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct s
     GET_STREAM(dst_ptr, dst, *result)
 
     *result = cudaStreamCopyAttributes((cudaStream_t)dst_ptr, (cudaStream_t)src_ptr);
+    void *src_ptr;
+    void *dst_ptr;
+
+    GET_CLIENT(*result)
+
+    GET_STREAM(src_ptr, src, *result)
+    GET_STREAM(dst_ptr, dst, *result)
+
+    *result = cudaStreamCopyAttributes((cudaStream_t)dst_ptr, (cudaStream_t)src_ptr);
 
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 #else
     LOGE(LOG_ERROR, "not compiled with CUDA 11 support");
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 #endif
@@ -626,6 +786,7 @@ bool_t cuda_stream_copy_attributes_1_svc(ptr dst, ptr src, int *result, struct s
 
 bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaStreamCreate");
@@ -654,11 +815,13 @@ bool_t cuda_stream_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 
     RECORD_RESULT(ptr_result_u, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
@@ -689,13 +852,40 @@ bool_t cuda_stream_create_with_flags_1_svc(int flags, ptr_result *result, struct
         server_driver_reload_modules_data(client);
     }
 
+    GET_CLIENT(result->err)
+
+    cudaStream_t newStream;
+
+    result->err = cudaStreamCreateWithFlags(&newStream, flags);
+    
+    if (result->err == cudaSuccess) {
+
+        stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
+
+        args->type = STREAM_CREATE_TYPE_FLAGS;
+        args->flags = flags;
+
+        LOGE(LOG_DEBUG, "stream %p created with flags %d", newStream, flags);
+
+        if (resource_map_add(client->custom_streams, (void*)newStream, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error adding stream to resource manager");
+            free(args);
+            result->err = cudaErrorInvalidValue;
+            cudaStreamDestroy(newStream);
+        }
+
+        server_driver_reload_modules_data(client);
+    }
+
     RECORD_RESULT(ptr_result_u, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_stream_create_with_priority_1_argument);
     RECORD_ARG(1, flags);
@@ -725,15 +915,41 @@ bool_t cuda_stream_create_with_priority_1_svc(int flags, int priority, ptr_resul
         }
 
         server_driver_reload_modules_data(client);
+
+    GET_CLIENT(result->err)
+
+    cudaStream_t newStream;
+
+    result->err = cudaStreamCreateWithPriority(&newStream, flags, priority);
+
+    if (result->err == cudaSuccess) {
+        stream_create_args_t *args = malloc(sizeof(stream_create_args_t));
+        args->type = STREAM_CREATE_TYPE_PRIORITY;
+        args->flags = flags;
+        args->priority = priority;
+
+        LOGE(LOG_DEBUG, "stream %p created with flags %d and priority %d", newStream, flags, priority);
+
+        if (resource_map_add(client->custom_streams, (void*)newStream, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error adding stream to resource manager");
+            result->err = cudaErrorInvalidValue;
+            free(args);
+            cudaStreamDestroy(newStream);
+        }
+
+        server_driver_reload_modules_data(client);
     }
     
+    
     RECORD_RESULT(ptr_result_u, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(stream);
@@ -748,7 +964,18 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
     if (*result == cudaSuccess) {
         resource_map_unset(client->custom_streams, (void*)stream);
     }
+    cudaStream_t stream_ptr;
+    
+    GET_CLIENT(*result)
+
+    GET_STREAM(stream_ptr, stream, *result)
+
+    *result = cudaStreamDestroy(stream_ptr);
+    if (*result == cudaSuccess) {
+        resource_map_unset(client->custom_streams, (void*)stream);
+    }
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -764,7 +991,15 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 bool_t cuda_stream_get_flags_1_svc(ptr hStream, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaStreamGetFlags");
+    cudaStream_t stream_ptr;
+
+    GET_CLIENT(result->err)
+
+    GET_STREAM(stream_ptr, hStream, result->err)
+
+    result->err = cudaStreamGetFlags(stream_ptr,
     cudaStream_t stream_ptr;
 
     GET_CLIENT(result->err)
@@ -774,11 +1009,13 @@ bool_t cuda_stream_get_flags_1_svc(ptr hStream, int_result *result, struct svc_r
     result->err = cudaStreamGetFlags(stream_ptr,
                                      (unsigned*)&result->int_result_u.data);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaStreamGetPriority");
 
@@ -787,9 +1024,17 @@ bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct sv
     GET_CLIENT(result->err)
     GET_STREAM(stream_ptr, hStream, result->err)
 
+
+    cudaStream_t stream_ptr;
+    
+    GET_CLIENT(result->err)
+    GET_STREAM(stream_ptr, hStream, result->err)
+
     result->err = cudaStreamGetPriority(
        stream_ptr,
+       stream_ptr,
       &result->int_result_u.data);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -797,7 +1042,13 @@ bool_t cuda_stream_get_priority_1_svc(ptr hStream, int_result *result, struct sv
 bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaStreamIsCapturing");
+    cudaStream_t stream_ptr;
+    
+    GET_CLIENT(result->err)
+    GET_STREAM(stream_ptr, stream, result->err)
+
     cudaStream_t stream_ptr;
     
     GET_CLIENT(result->err)
@@ -805,7 +1056,9 @@ bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc
 
     result->err = cudaStreamIsCapturing(
       stream_ptr,
+      stream_ptr,
       (enum cudaStreamCaptureStatus*)&result->int_result_u.data);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -813,7 +1066,15 @@ bool_t cuda_stream_is_capturing_1_svc(ptr stream, int_result *result, struct svc
 bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaStreamQuery");
+    cudaStream_t stream_ptr;
+    
+    GET_CLIENT(*result)
+    GET_STREAM(stream_ptr, hStream, *result)
+
+    *result = cudaStreamQuery(stream_ptr);
+    GSCHED_RELEASE;
     cudaStream_t stream_ptr;
     
     GET_CLIENT(*result)
@@ -830,6 +1091,7 @@ bool_t cuda_stream_query_1_svc(ptr hStream, int *result, struct svc_req *rqstp)
 bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(uint64_t);
     RECORD_SINGLE_ARG(stream);
     LOGE(LOG_DEBUG, "cudaStreamSynchronize");
@@ -843,11 +1105,13 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rq
     *result = cudaStreamSynchronize(stream_ptr);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_stream_wait_event_1_argument);
     RECORD_ARG(1, stream);
@@ -872,8 +1136,11 @@ bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, int *resul
     *result = cudaStreamWaitEvent(
       stream_ptr,
       event_ptr,
+      stream_ptr,
+      event_ptr,
       flags);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -881,12 +1148,14 @@ bool_t cuda_stream_wait_event_1_svc(ptr stream, ptr event, int flags, int *resul
 bool_t cuda_thread_exchange_stream_capture_mode_1_svc(int mode, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(mode);
     LOGE(LOG_DEBUG, "cudaThreadExchangeStreamCaptureMode");
     result->int_result_u.data = mode;
     result->err = cudaThreadExchangeStreamCaptureMode((void*)&result->int_result_u.data);
     RECORD_RESULT(integer, result->int_result_u.data);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -896,13 +1165,24 @@ bool_t cuda_thread_exchange_stream_capture_mode_1_svc(int mode, int_result *resu
 bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaEventCreate");
-    result->err = cudaEventCreate((struct CUevent_st**)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
+
+    GET_CLIENT(result->err)
+
+    cudaEvent_t event_ptr;
+    result->err = cudaEventCreate(&event_ptr);
+
+    if(result->err == cudaSuccess) {
+        if (resource_map_add(client->gpu_events, (void*)event_ptr, NULL, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error adding event to resource manager");
+            result->err = cudaErrorInvalidValue;
+            cudaEventDestroy(event_ptr);
+	}
     }
     RECORD_RESULT(ptr_result_u, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -910,20 +1190,29 @@ bool_t cuda_event_create_1_svc(ptr_result *result, struct svc_req *rqstp)
 bool_t cuda_event_create_with_flags_1_svc(int flags, ptr_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(flags);
     LOGE(LOG_DEBUG, "cudaEventCreateWithFlags");
-    result->err = cudaEventCreateWithFlags((struct CUevent_st**)&result->ptr_result_u.ptr, flags);
-    if (resource_mg_create(&rm_events, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
+    GET_CLIENT(result->err)
+    cudaEvent_t event_ptr;
+    result->err = cudaEventCreateWithFlags(&event_ptr, flags);
+    if(result->err == cudaSuccess) {
+        if (resource_map_add(client->gpu_events, (void*)event_ptr, NULL, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error adding event to resource manager");
+            result->err = cudaErrorInvalidValue;
+            cudaEventDestroy(event_ptr);
+	}
     }
     RECORD_RESULT(ptr_result_u, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(event);
@@ -951,6 +1240,7 @@ bool_t cuda_event_destroy_1_svc(ptr event, int *result, struct svc_req *rqstp)
 bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaEventElapsedTime");
 
     cudaEvent_t start_ptr;
@@ -973,11 +1263,15 @@ bool_t cuda_event_elapsed_time_1_svc(ptr start, ptr end, float_result *result, s
       start_ptr,
       end_ptr);
     GSCHED_RELEASE;
+      start_ptr,
+      end_ptr);
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_event_query_1_svc(ptr event, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(event);
@@ -994,11 +1288,13 @@ bool_t cuda_event_query_1_svc(ptr event, int *result, struct svc_req *rqstp)
     *result = cudaEventQuery(event_ptr);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_event_record_1_argument);
     RECORD_ARG(1, event);
@@ -1021,11 +1317,13 @@ bool_t cuda_event_record_1_svc(ptr event, ptr stream, int *result, struct svc_re
     *result = cudaEventRecord(event_ptr, stream_ptr);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
 #if CUDART_VERSION >= 11000
     RECORD_API(cuda_event_record_with_flags_1_argument);
@@ -1050,12 +1348,16 @@ bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int 
     *result = cudaEventRecordWithFlags(
       event_ptr,
       stream_ptr,
+      event_ptr,
+      stream_ptr,
       flags);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 #else
     LOGE(LOG_ERROR, "compiled without CUDA 11 support");
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 #endif
@@ -1063,6 +1365,7 @@ bool_t cuda_event_record_with_flags_1_svc(ptr event, ptr stream, int flags, int 
 
 bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(event);
@@ -1079,6 +1382,7 @@ bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqst
     *result = cudaEventSynchronize(event_ptr);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -1086,6 +1390,7 @@ bool_t cuda_event_synchronize_1_svc(ptr event, int *result, struct svc_req *rqst
 
 bool_t cuda_func_get_attributes_1_svc(ptr func, mem_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaFuncGetAttributes");
 
@@ -1196,10 +1501,123 @@ bool_t cuda_func_get_attributes_1_svc(ptr func, mem_result *result, struct svc_r
         (CUfunction)func_ptr->addr);
     
     result->mem_result_u.data.mem_data_val = (char*)attr;
+
+    GET_CLIENT(result->err)
+
+    addr_data_pair_t *func_ptr;
+    if (resource_mg_get(&client->functions, (void*)func, (void**)&func_ptr) != 0) {
+        LOGE(LOG_ERROR, "error getting function");
+        result->err = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
+    LOGE(LOG_DEBUG, "cudaFuncGetAttributes(orig_fuuc=%p,func=%p)", func, func_ptr->addr);
+
+    // result->mem_result_u.data.mem_data_val =
+    //     malloc(sizeof(struct cudaFuncAttributes));
+    // result->mem_result_u.data.mem_data_len = sizeof(struct cudaFuncAttributes);
+
+    // result->err = cudaFuncGetAttributes(
+    //   (struct cudaFuncAttributes*) result->mem_result_u.data.mem_data_val,
+    //   (void*)func_ptr->addr);
+
+    struct cudaFuncAttributes *attr = malloc(sizeof(struct cudaFuncAttributes));
+    memset(attr, 0, sizeof(struct cudaFuncAttributes));
+
+    int val;
+
+    result->err = cuFuncGetAttribute(
+        &attr->maxThreadsPerBlock,
+        CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &val,
+        CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+        (CUfunction)func_ptr->addr);
+
+    attr->sharedSizeBytes = val;
+
+    result->err != cuFuncGetAttribute(
+        &val,
+        CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES,
+        (CUfunction)func_ptr->addr);
+    
+    attr->constSizeBytes = val;
+
+    result->err != cuFuncGetAttribute(
+        &val,
+        CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+        (CUfunction)func_ptr->addr);
+    
+    attr->localSizeBytes = val;
+    
+    result->err != cuFuncGetAttribute(
+        &attr->numRegs,
+        CU_FUNC_ATTRIBUTE_NUM_REGS,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->ptxVersion,
+        CU_FUNC_ATTRIBUTE_PTX_VERSION,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->binaryVersion,
+        CU_FUNC_ATTRIBUTE_BINARY_VERSION,
+        (CUfunction)func_ptr->addr);
+        
+    result->err != cuFuncGetAttribute(
+        &attr->maxDynamicSharedSizeBytes,
+        CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->preferredShmemCarveout,
+        CU_FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->clusterDimMustBeSet,
+        CU_FUNC_ATTRIBUTE_CLUSTER_SIZE_MUST_BE_SET,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->requiredClusterWidth,
+        CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_WIDTH,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->requiredClusterHeight,
+        CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_HEIGHT,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->requiredClusterDepth,
+        CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_DEPTH,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->nonPortableClusterSizeAllowed,
+        CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED,
+        (CUfunction)func_ptr->addr);
+    
+    result->err != cuFuncGetAttribute(
+        &attr->clusterSchedulingPolicyPreference,
+        CU_FUNC_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE,
+        (CUfunction)func_ptr->addr);
+    
+    result->mem_result_u.data.mem_data_val = (char*)attr;
     result->mem_result_u.data.mem_data_len = sizeof(struct cudaFuncAttributes);
+
 
     /* func is a pointer to program memory. It will be static across executions,
      * so we do not need a resource manager */
+
+    LOGE(LOG_DEBUG, "cudaFuncGetAttributes result: %d", result->err);
+
+    GSCHED_RELEASE;
 
     LOGE(LOG_DEBUG, "cudaFuncGetAttributes result: %d", result->err);
 
@@ -1210,6 +1628,7 @@ bool_t cuda_func_get_attributes_1_svc(ptr func, mem_result *result, struct svc_r
 bool_t cuda_func_set_attributes_1_svc(ptr func, int attr, int value, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_func_set_attributes_1_argument);
     RECORD_ARG(1, func);
     RECORD_ARG(2, attr);
@@ -1218,11 +1637,13 @@ bool_t cuda_func_set_attributes_1_svc(ptr func, int attr, int value, int *result
     *result = cudaFuncSetAttribute((void*)func, attr, value);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_func_set_cache_config_1_svc(ptr func, int cacheConfig, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_func_set_cache_config_1_argument);
     RECORD_ARG(1, func);
@@ -1231,11 +1652,13 @@ bool_t cuda_func_set_cache_config_1_svc(ptr func, int cacheConfig, int *result, 
     *result = cudaFuncSetCacheConfig((void*)func, cacheConfig);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_func_set_shared_mem_config_1_svc(ptr func, int config, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_func_set_shared_mem_config_1_argument);
     RECORD_ARG(1, func);
@@ -1244,11 +1667,13 @@ bool_t cuda_func_set_shared_mem_config_1_svc(ptr func, int config, int *result, 
     *result = cudaFuncSetSharedMemConfig((void*)func, config);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim, mem_data args, size_t sharedMem, ptr stream, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_launch_cooperative_kernel_1_argument);
     RECORD_ARG(1, func);
@@ -1261,6 +1686,9 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
 
     GET_CLIENT(*result)
 
+
+    GET_CLIENT(*result)
+
     dim3 cuda_gridDim = {gridDim.x, gridDim.y, gridDim.z};
     dim3 cuda_blockDim = {blockDim.x, blockDim.y, blockDim.z};
     void **cuda_args;
@@ -1270,7 +1698,15 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
     cuda_args = malloc(param_num*sizeof(void*));
     for (size_t i = 0; i < param_num; ++i) {
         cuda_args[i] = args.mem_data_val+sizeof(size_t)+param_num*sizeof(uint16_t)+arg_offsets[i];
-//    LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
+	/*
+	    if(arg_offsets[1] == 8) {
+	    void *extPtr = get_mem_cuda_addr_withoffset(client->gpu_mem_ext, &client->gpu_mem, *(void **)cuda_args[i]);
+	    if (extPtr != NULL) {
+	    	*(void **)cuda_args[i] = extPtr;
+	    }
+	    }
+	    */
+        LOGE(LOG_DEBUG, "arg: %p (%d)\n", *(void**)cuda_args[i], *(int*)cuda_args[i]);
     }
 
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel(func=%p, gridDim=[%d,%d,%d], blockDim=[%d,%d,%d], args=%p, sharedMem=%d, stream=%p)", func, cuda_gridDim.x, cuda_gridDim.y, cuda_gridDim.z, cuda_blockDim.x, cuda_blockDim.y, cuda_blockDim.z, cuda_args, sharedMem, (void*)stream);
@@ -1288,13 +1724,19 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
 
     *result = cudaLaunchCooperativeKernel(
       func_ptr,
+      func_ptr,
       cuda_gridDim,
       cuda_blockDim,
       cuda_args,
       sharedMem,
       stream_ptr);
     RECORD_RESULT(integer, *result);
+
+    update_client_metric_throughput(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
+
+    update_client_metric_utilization();
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel result: %d", *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -1309,6 +1751,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
                                 int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_launch_kernel_1_argument);
     RECORD_ARG(1, func);
     RECORD_ARG(2, gridDim);
@@ -1316,6 +1759,9 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     RECORD_DATA(args.mem_data_len, args.mem_data_val);
     RECORD_ARG(5, sharedMem);
     RECORD_ARG(6, stream);
+
+    GET_CLIENT(*result)
+
 
     GET_CLIENT(*result)
 
@@ -1356,9 +1802,17 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     // target_stream = (cudaStream_t)client->default_stream;
 
     *result = cuLaunchKernel((CUfunction)func_ptr->addr,
+    
+    cudaStream_t target_stream;
+    GET_STREAM(target_stream, stream, *result)
+    // cudaStreamCreateWithFlags(&target_stream, cudaStreamNonBlocking);
+    // target_stream = (cudaStream_t)client->default_stream;
+
+    *result = cuLaunchKernel((CUfunction)func_ptr->addr,
                             gridDim.x, gridDim.y, gridDim.z,
                             blockDim.x, blockDim.y, blockDim.z,
                             sharedMem,
+                            target_stream,
                             target_stream,
                             cuda_args, NULL);
 
@@ -1369,9 +1823,15 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     //   cuda_args,
     //   sharedMem,
     //   resource_mg_get(&rm_streams, (void*)stream));
+
+    //cudaDeviceSynchronize();
+    //printf("Get last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
     free(cuda_args);
     RECORD_RESULT(integer, *result);
+    update_client_metric_throughput(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
+    update_client_metric_utilization();
     LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -1396,14 +1856,30 @@ bool_t cuda_occupancy_available_dsmpb_1_svc(ptr func, int numBlocks, int blockSi
         return 1;
     }
 
+    GSCHED_RETAIN;
+
+    GET_CLIENT(result->err)
+
+    addr_data_pair_t *func_ptr;
+    if (resource_mg_get(&client->functions, (void*)func, (void**)&func_ptr) != 0) {
+        LOGE(LOG_ERROR, "error getting function");
+        result->err = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
 #if CUDART_VERSION >= 11000
     LOGE(LOG_DEBUG, "cudaOccupancyAvailableDynamicSMemPerBlock");
+    result->err = cuOccupancyAvailableDynamicSMemPerBlock(
+        &result->u64_result_u.u64, (void*)func_ptr->addr, numBlocks, blockSize);
+    GSCHED_RELEASE;
     result->err = cuOccupancyAvailableDynamicSMemPerBlock(
         &result->u64_result_u.u64, (void*)func_ptr->addr, numBlocks, blockSize);
     GSCHED_RELEASE;
     return 1;
 #else
     LOGE(LOG_ERROR, "compiled without CUDA 11 support");
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 #endif
@@ -1423,7 +1899,22 @@ bool_t cuda_occupancy_max_active_bpm_1_svc(ptr func, int blockSize, size_t dynam
         return 1;
     }
 
+    GSCHED_RETAIN;
+
+    GET_CLIENT(result->err)
+
+    addr_data_pair_t *func_ptr;
+    if (resource_mg_get(&client->functions, (void*)func, (void**)&func_ptr) != 0) {
+        LOGE(LOG_ERROR, "error getting function");
+        result->err = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
     LOGE(LOG_DEBUG, "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
+    result->err =  cuOccupancyMaxActiveBlocksPerMultiprocessor(
+        &result->int_result_u.data, (void*)func_ptr->addr, blockSize, dynamicSMemSize);
+    GSCHED_RELEASE;
     result->err =  cuOccupancyMaxActiveBlocksPerMultiprocessor(
         &result->int_result_u.data, (void*)func_ptr->addr, blockSize, dynamicSMemSize);
     GSCHED_RELEASE;
@@ -1444,7 +1935,22 @@ bool_t cuda_occupancy_max_active_bpm_with_flags_1_svc(ptr func, int blockSize, s
         return 1;
     }
 
+    GSCHED_RETAIN;
+
+    GET_CLIENT(result->err)
+
+    addr_data_pair_t *func_ptr;
+    if (resource_mg_get(&client->functions, (void*)func, (void**)&func_ptr) != 0) {
+        LOGE(LOG_ERROR, "error getting function");
+        result->err = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
     LOGE(LOG_DEBUG, "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags");
+    result->err = cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags (
+        &result->int_result_u.data, (void*)func_ptr->addr, blockSize, dynamicSMemSize, flags);
+    GSCHED_RELEASE;
     result->err = cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags (
         &result->int_result_u.data, (void*)func_ptr->addr, blockSize, dynamicSMemSize, flags);
     GSCHED_RELEASE;
@@ -1455,6 +1961,7 @@ bool_t cuda_occupancy_max_active_bpm_with_flags_1_svc(ptr func, int blockSize, s
 
 bool_t cuda_array_get_info_1_svc(ptr array, mem_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaArrayGetInfo");
     result->mem_result_u.data.mem_data_len =
@@ -1476,9 +1983,19 @@ bool_t cuda_array_get_info_1_svc(ptr array, mem_result *result, struct svc_req *
         return 1;
     }
 
+    cudaArray_t array_ptr;
+    if (resource_mg_get(&rm_arrays, (void*)array, (void**)&array_ptr) != 0) {
+        LOGE(LOG_ERROR, "error getting array");
+        result->err = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
     result->err = cudaArrayGetInfo(desc,
                                    extent,
                                    flags,
+                                   array_ptr);
+    GSCHED_RELEASE;
                                    array_ptr);
     GSCHED_RELEASE;
     return 1;
@@ -1486,6 +2003,7 @@ bool_t cuda_array_get_info_1_svc(ptr array, mem_result *result, struct svc_req *
 
 bool_t cuda_array_get_sparse_properties_1_svc(ptr array, mem_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
 #if CUDART_VERSION >= 11000
     LOGE(LOG_DEBUG, "cudaArrayGetSparseProperties");
@@ -1503,13 +2021,24 @@ bool_t cuda_array_get_sparse_properties_1_svc(ptr array, mem_result *result, str
         return 1;
     }
 
+    cudaArray_t array_ptr;
+    if (resource_mg_get(&rm_arrays, (void*)array, (void**)&array_ptr) != 0) {
+        LOGE(LOG_ERROR, "error getting array");
+        result->err = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
     result->err = cudaArrayGetSparseProperties(
       sparseProperties,
+      array_ptr);
+    GSCHED_RELEASE;
       array_ptr);
     GSCHED_RELEASE;
     return 1;
 #else
     LOGE(LOG_ERROR, "not compiled with CUDA 11 support");
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 #endif
@@ -1518,6 +2047,7 @@ bool_t cuda_array_get_sparse_properties_1_svc(ptr array, mem_result *result, str
 bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(devPtr);
     int index = hainfo_getserverindex((void*)devPtr);
@@ -1525,6 +2055,14 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
     uint64_t arg;
     api_record_t *r;
     LOGE(LOG_DEBUG, "cudaFree");
+
+    cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
+    if (client == NULL) {
+        LOGE(LOG_ERROR, "error getting client");
+        *result = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
 
     cricket_client *client = get_client(rqstp->rq_xprt->xp_fd);
     if (client == NULL) {
@@ -1605,11 +2143,13 @@ bool_t cuda_free_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
     //}
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_free_array_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(devPtr);
@@ -1626,7 +2166,20 @@ bool_t cuda_free_array_1_svc(ptr devPtr, int *result, struct svc_req *rqstp)
     PRIMARY_CTX_RETAIN;
     *result = cudaFreeArray(array_ptr);
     PRIMARY_CTX_RELEASE;
+
+    cudaArray_t array_ptr;
+    if (resource_mg_get(&rm_arrays, (void*)devPtr, (void**)&array_ptr) != 0) {
+        LOGE(LOG_ERROR, "error getting array");
+        *result = cudaErrorInvalidValue;
+        GSCHED_RELEASE;
+        return 1;
+    }
+
+    PRIMARY_CTX_RETAIN;
+    *result = cudaFreeArray(array_ptr);
+    PRIMARY_CTX_RELEASE;
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -1635,11 +2188,13 @@ bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
 {
     //TODO: Do we need to use a resource manager here? Not sure yet.
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(index);
     *result = cudaErrorInitializationError;
     if (socktype != UNIX) {
         *result = cudaSuccess;
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
@@ -1655,6 +2210,7 @@ bool_t cuda_free_host_1_svc(int index, int *result, struct svc_req *rqstp)
     }
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -1668,8 +2224,10 @@ bool_t cuda_get_symbol_address_1_svc(ptr symbol, ptr_result *result, struct svc_
     //TODO: Does the returned device address space address change across
     // executions? If yes we need to manage it using a device manager.
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetSymbolAddress");
     result->err = cudaGetSymbolAddress((void**)&result->ptr_result_u.ptr, (void*)symbol);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -1678,14 +2236,17 @@ bool_t cuda_get_symbol_size_1_svc(ptr symbol, u64_result *result, struct svc_req
 {
     //Symbol is in host address space
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaGetSymbolSize");
     result->err = cudaGetSymbolSize(&result->u64_result_u.u64, (void*)symbol);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     //TODO: Make checkpointable. Implement reattaching of shm segment.
     int fd_shm;
@@ -1700,6 +2261,7 @@ bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result,
     result->err = cudaErrorMemoryAllocation;
 
     if (socktype == UNIX || (shm_enabled && cpu_utils_is_local_connection(rqstp))) { //Use local shared memory
+        if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_cnt) == -1) {
         if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_cnt) == -1) {
             LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
             goto out;
@@ -1758,11 +2320,13 @@ bool_t cuda_host_alloc_1_svc(size_t size, unsigned int flags, sz_result *result,
 out:
     RECORD_RESULT(sz_result_u, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_host_alloc_regshm_1_svc(size_t hainfo_idx, ptr client_ptr, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     char *shm_name = NULL;
     RECORD_API(cuda_host_alloc_regshm_1_argument);
@@ -1777,6 +2341,7 @@ bool_t cuda_host_alloc_regshm_1_svc(size_t hainfo_idx, ptr client_ptr, int *resu
         goto out;
     }
     if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_idx) == -1) {
+    if (asprintf(&shm_name, "/crickethostalloc-%zu", hainfo_idx) == -1) {
         LOGE(LOG_ERROR, "asprintf failed: %s", strerror(errno));
         goto out;
     }
@@ -1787,6 +2352,7 @@ out:
     free(shm_name);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -1794,10 +2360,12 @@ out:
 bool_t cuda_host_get_device_pointer_1_svc(ptr pHost, int flags, ptr_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaHostGetDevicePointer");
     //TODO: implement correctly using the resouce manager
     //result->err = cudaHostGetDevicePointer((void**)&result->ptr_result_u.ptr, (void*)pHost, flags);
     result->err = cudaErrorUnknown;
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -1805,10 +2373,12 @@ bool_t cuda_host_get_device_pointer_1_svc(ptr pHost, int flags, ptr_result *resu
 bool_t cuda_host_get_flags_1_svc(ptr pHost, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaHostGetFlags");
     //TODO: implement correctly using the resouce manager
     //result->err = cudaHostFlags(&result->int_result_u.data, (void*)pHost);
     result->err = cudaErrorUnknown;
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -1819,6 +2389,7 @@ bool_t cuda_host_get_flags_1_svc(ptr pHost, int_result *result, struct svc_req *
 //here we will register new ib region 
 bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 {   
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(size_t);
     RECORD_SINGLE_ARG(argp);
@@ -1879,6 +2450,7 @@ bool_t cuda_malloc_1_svc(size_t argp, ptr_result *result, struct svc_req *rqstp)
 
 bool_t cuda_malloc_3d_1_svc(size_t depth, size_t height, size_t width, pptr_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_malloc_3d_1_argument);
     RECORD_ARG(1, depth);
@@ -1943,6 +2515,7 @@ bool_t cuda_malloc_3d_array_1_svc(cuda_channel_format_desc desc, size_t depth, s
                                 .width = width};
     LOGE(LOG_DEBUG, "cudaMalloc3DArray");
     PRIMARY_CTX_RETAIN;
+    PRIMARY_CTX_RETAIN;
     result->err = cudaMalloc3DArray((void*)&result->ptr_result_u.ptr, &cuda_desc, extent, flags);
     PRIMARY_CTX_RELEASE;
     if (result->err == cudaSuccess && get_gpu_memory_usage() > get_mem_limit()) {
@@ -1950,15 +2523,24 @@ bool_t cuda_malloc_3d_array_1_svc(cuda_channel_format_desc desc, size_t depth, s
         cudaFree((void*)result->ptr_result_u.ptr);
         result->err = cudaErrorMemoryAllocation;
     }
+    PRIMARY_CTX_RELEASE;
+    if (result->err == cudaSuccess && get_gpu_memory_usage() > get_mem_limit()) {
+        LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
+        cudaFree((void*)result->ptr_result_u.ptr);
+        result->err = cudaErrorMemoryAllocation;
+    }
     resource_mg_create(&rm_arrays, (void*)result->ptr_result_u.ptr);
+    //resource_map_add(client->gpu_mem, (void*)pptr.ptr, args, (void**)&(result->pptr_result_u.ptr.ptr));
 
     RECORD_RESULT(integer, result->err);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_malloc_array_1_svc(cuda_channel_format_desc desc, size_t width, size_t height, int flags, ptr_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_malloc_array_1_argument);
     RECORD_ARG(1, desc);
@@ -1973,7 +2555,14 @@ bool_t cuda_malloc_array_1_svc(cuda_channel_format_desc desc, size_t width, size
       .z = desc.z};
     LOGE(LOG_DEBUG, "cudaMallocArray");
     PRIMARY_CTX_RETAIN;
+    PRIMARY_CTX_RETAIN;
     result->err = cudaMallocArray((void*)&result->ptr_result_u.ptr, &cuda_desc, width, height, flags);
+    PRIMARY_CTX_RELEASE;
+    if (result->err == cudaSuccess && get_gpu_memory_usage() > get_mem_limit()) {
+        LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
+        cudaFree((void*)result->ptr_result_u.ptr);
+        result->err = cudaErrorMemoryAllocation;
+    }
     PRIMARY_CTX_RELEASE;
     if (result->err == cudaSuccess && get_gpu_memory_usage() > get_mem_limit()) {
         LOGE(LOG_ERROR, "Memory allocation not allowed, out of memory.");
@@ -1984,6 +2573,7 @@ bool_t cuda_malloc_array_1_svc(cuda_channel_format_desc desc, size_t width, size
 
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
@@ -1993,6 +2583,7 @@ bool_t cuda_malloc_array_1_svc(cuda_channel_format_desc desc, size_t width, size
 
 bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_malloc_pitch_1_argument);
     RECORD_ARG(1, width);
@@ -2032,6 +2623,7 @@ bool_t cuda_malloc_pitch_1_svc(size_t width, size_t height, ptrsz_result *result
 bool_t cuda_mem_advise_1_svc(ptr devPtr, size_t count, int advice, int device, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_mem_advise_1_argument);
     RECORD_ARG(1, devPtr);
     RECORD_ARG(2, count);
@@ -2046,13 +2638,24 @@ bool_t cuda_mem_advise_1_svc(ptr devPtr, size_t count, int advice, int device, i
 
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_mem_get_info_1_svc(dsz_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaMemGetInfo");
+
+    // result->err = cudaMemGetInfo(&result->dsz_result_u.data.sz1,
+    //                          &result->dsz_result_u.data.sz2);
+
+    result->dsz_result_u.data.sz1 = get_mem_free();
+    result->dsz_result_u.data.sz2 = get_mem_limit();
+    result->err = cudaSuccess;
+
+    GSCHED_RELEASE;
 
     // result->err = cudaMemGetInfo(&result->dsz_result_u.data.sz1,
     //                          &result->dsz_result_u.data.sz2);
@@ -2068,12 +2671,14 @@ bool_t cuda_mem_get_info_1_svc(dsz_result *result, struct svc_req *rqstp)
 bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, ptr stream, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_mem_prefetch_async_1_argument);
     RECORD_ARG(1, devPtr);
     RECORD_ARG(2, count);
     RECORD_ARG(3, dstDevice);
     RECORD_ARG(4, stream);
 
+    GET_CLIENT(*result)
     LOGE(LOG_DEBUG, "cudaMemPrefetchAsync");
 
     *result = cudaMemPrefetchAsync(
@@ -2081,6 +2686,7 @@ bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, pt
       count, dstDevice, (void*)stream);
 
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2090,8 +2696,22 @@ bool_t cuda_mem_prefetch_async_1_svc(ptr devPtr, size_t count, int dstDevice, pt
 
 /* CUDA_MEMCPY Family */
 
+void hex_dump(const char *data, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        // Print the hex representation of each byte
+        printf("%02X ", (unsigned char)data[i]);
+
+        // Optionally add spacing for readability
+        if ((i + 1) % 16 == 0) {
+            printf("\n");
+        }
+    }
+    printf("\n");
+}
+
 bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memcpy_htod_1_argument);
     RECORD_ARG(1, ptr);
@@ -2103,11 +2723,13 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
         LOGE(LOG_ERROR, "data size mismatch");
         *result = cudaErrorUnknown;
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 1;
     }
 #ifdef WITH_MEMCPY_REGISTER
     if ((*result = cudaHostRegister(mem.mem_data_val, size, cudaHostRegisterMapped)) != cudaSuccess) {
         LOGE(LOG_ERROR, "cudaHostRegister failed: %d.", *result);
+        GSCHED_RELEASE;
         GSCHED_RELEASE;
         return 1;
     }
@@ -2119,11 +2741,13 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
       size,
       cudaMemcpyHostToDevice);
     LOGE(LOG_DEBUG, "cudaMemcpyHtoD result: %d", *result);
+    LOGE(LOG_DEBUG, "cudaMemcpyHtoD result: %d", *result);
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(mem.mem_data_val);
 #endif
 
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2132,6 +2756,7 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
 bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, dint_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_memcpy_mt_htod_1_argument);
     RECORD_ARG(1, dest);
     RECORD_ARG(2, size);
@@ -2139,17 +2764,23 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, din
 
     LOGE(LOG_DEBUG, "cudaMemcpyMTHtoD");
     
+    
     mt_memcpy_server_t *server;
     if (list_append(&mt_memcpy_list, (void**)&server) != 0) {
         LOGE(LOG_ERROR, "list_append failed.");
         result->err = cudaErrorUnknown;
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 1;
     }
     pthread_mutex_lock(&mt_memcpy_list.mutex);
     if (mt_memcpy_init_server(server, (void*)dest, size, MT_MEMCPY_HTOD, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
+    pthread_mutex_lock(&mt_memcpy_list.mutex);
+    if (mt_memcpy_init_server(server, (void*)dest, size, MT_MEMCPY_HTOD, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
+        pthread_mutex_unlock(&mt_memcpy_list.mutex);
+        GSCHED_RELEASE;
         pthread_mutex_unlock(&mt_memcpy_list.mutex);
         GSCHED_RELEASE;
         return 1;
@@ -2158,14 +2789,17 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, din
     result->dint_result_u.data.i2 = mt_memcpy_list.length - 1;
     result->err = 0;
     pthread_mutex_unlock(&mt_memcpy_list.mutex);
+    pthread_mutex_unlock(&mt_memcpy_list.mutex);
 
     RECORD_RESULT(integer, result->err);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint_result *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memcpy_mt_dtoh_1_argument);
     RECORD_ARG(1, src);
@@ -2178,12 +2812,17 @@ bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint
         LOGE(LOG_ERROR, "list_append failed.");
         result->err = cudaErrorUnknown;
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 1;
     }
     pthread_mutex_lock(&mt_memcpy_list.mutex);
     if (mt_memcpy_init_server(server, (void*)src, size, MT_MEMCPY_DTOH, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
+    pthread_mutex_lock(&mt_memcpy_list.mutex);
+    if (mt_memcpy_init_server(server, (void*)src, size, MT_MEMCPY_DTOH, thread_num, rqstp->rq_xprt->xp_fd) != 0) {
         LOGE(LOG_ERROR, "mt_memcpy_init_server failed.");
         result->err = cudaErrorUnknown;
+        pthread_mutex_unlock(&mt_memcpy_list.mutex);
+        GSCHED_RELEASE;
         pthread_mutex_unlock(&mt_memcpy_list.mutex);
         GSCHED_RELEASE;
         return 1;
@@ -2192,14 +2831,17 @@ bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint
     result->dint_result_u.data.i2 = mt_memcpy_list.length - 1;
     result->err = 0;
     pthread_mutex_unlock(&mt_memcpy_list.mutex);
+    pthread_mutex_unlock(&mt_memcpy_list.mutex);
 
     RECORD_RESULT(integer, result->err);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_memcpy_mt_sync_1_svc(int id, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaMemcpyMTSync");
@@ -2209,11 +2851,13 @@ bool_t cuda_memcpy_mt_sync_1_svc(int id, int *result, struct svc_req *rqstp)
         LOGE(LOG_ERROR, "list_at failed.");
         *result = cudaErrorUnknown;
         GSCHED_RELEASE;
+        GSCHED_RELEASE;
         return 1;
     }
 
     *result = mt_memcpy_sync_server(server);
 
+    pthread_mutex_lock(&mt_memcpy_list.mutex);
     pthread_mutex_lock(&mt_memcpy_list.mutex);
     if (id == mt_memcpy_list.length - 1) {
         list_rm(&mt_memcpy_list, id);
@@ -2223,8 +2867,10 @@ bool_t cuda_memcpy_mt_sync_1_svc(int id, int *result, struct svc_req *rqstp)
         }
     }
     pthread_mutex_unlock(&mt_memcpy_list.mutex);
+    pthread_mutex_unlock(&mt_memcpy_list.mutex);
 
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2232,6 +2878,7 @@ bool_t cuda_memcpy_mt_sync_1_svc(int id, int *result, struct svc_req *rqstp)
 
 bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memcpy_dtod_1_argument);
     RECORD_ARG(1, dst);
@@ -2247,6 +2894,7 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
       size, cudaMemcpyDeviceToDevice);
 
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2273,6 +2921,7 @@ void* ib_thread(void* arg)
 //the device ptr points to used device mem as is (as void*)
 bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     index = hainfo_getserverindex((void*)device_ptr);
     RECORD_API(cuda_memcpy_ib_1_argument);
@@ -2319,6 +2968,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     }
 out:
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2374,6 +3024,7 @@ bool_t cuda_memcpy_ivshmem_1_svc(int shm_offset, int iter_offset, ptr true_devic
 bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_memcpy_shm_1_argument);
     RECORD_ARG(1, index);
     RECORD_ARG(2, device_ptr);
@@ -2393,8 +3044,10 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
     }
 
 
+
     if (kind == cudaMemcpyHostToDevice) {
         *result = cudaMemcpy(
+          (void *)device_ptr,
           (void *)device_ptr,
           hainfo[index].server_ptr,
           size,
@@ -2403,11 +3056,13 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
         *result = cudaMemcpy(
           hainfo[index].server_ptr,
           (void *)device_ptr,
+          (void *)device_ptr,
           size,
           kind);
     }
 out:
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2416,12 +3071,15 @@ out:
 bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     //Does not need to be recorded because doesn't change device state
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH(%p, %zu)", ptr, size);
 
 
     result->mem_result_u.data.mem_data_len = size;
     result->mem_result_u.data.mem_data_val = malloc(size);
+
+
 
 
 #ifdef WITH_MEMCPY_REGISTER
@@ -2432,11 +3090,13 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
     }
 #endif
 
+
     result->err = cudaMemcpy(
       result->mem_result_u.data.mem_data_val,
       (void *)ptr,
       size,
       cudaMemcpyDeviceToHost);
+    LOGE(LOG_DEBUG, "cudaMemcpyDtoH result: %d", result->err);
     LOGE(LOG_DEBUG, "cudaMemcpyDtoH result: %d", result->err);
 #ifdef WITH_MEMCPY_REGISTER
     cudaHostUnregister(result->mem_result_u.data.mem_data_val);
@@ -2445,6 +3105,7 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
         free(result->mem_result_u.data.mem_data_val);
     }
 out:
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2503,6 +3164,7 @@ bool_t cuda_memcpy_to_symbol_shm_1_svc(int index, ptr device_ptr, size_t size, s
 bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_memset_1_argument);
     RECORD_ARG(1, devPtr);
     RECORD_ARG(2, value);
@@ -2515,11 +3177,13 @@ bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struc
       count);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, size_t height, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memset_2d_1_argument);
     RECORD_ARG(1, devPtr);
@@ -2537,11 +3201,13 @@ bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, s
       height);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t width, size_t height, ptr stream, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memset_2d_async_1_argument);
     RECORD_ARG(1, devPtr);
@@ -2565,13 +3231,16 @@ bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t wi
       width,
       height,
       (cudaStream_t)stream_ptr);
+      (cudaStream_t)stream_ptr);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize, int value, size_t depth, size_t height, size_t width, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memset_3d_1_argument);
     RECORD_ARG(1, pitch);
@@ -2594,11 +3263,13 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
     *result = cudaMemset3D(pptr, value, extent);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
+    GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize, int value, size_t depth, size_t height, size_t width, ptr stream, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memset_3d_async_1_argument);
     RECORD_ARG(1, pitch);
@@ -2625,13 +3296,16 @@ bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t
                                 .height = height,
                                 .width = width};
     *result = cudaMemset3DAsync(pptr, value, extent, (cudaStream_t)stream_ptr);
+    *result = cudaMemset3DAsync(pptr, value, extent, (cudaStream_t)stream_ptr);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
 
 bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, int *result, struct svc_req *rqstp)
 {
+    GSCHED_RETAIN;
     GSCHED_RETAIN;
     RECORD_API(cuda_memset_async_1_argument);
     RECORD_ARG(1, devPtr);
@@ -2650,7 +3324,9 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, 
       value,
       count,
       (cudaStream_t)stream_ptr);
+      (cudaStream_t)stream_ptr);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2663,8 +3339,10 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, 
 bool_t cuda_device_can_access_peer_1_svc(int device, int peerDevice, int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDeviceCanAccessPeer");
     result->err = cudaDeviceCanAccessPeer(&result->int_result_u.data, device, peerDevice);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2672,11 +3350,13 @@ bool_t cuda_device_can_access_peer_1_svc(int device, int peerDevice, int_result 
 bool_t cuda_device_disable_peer_access_1_svc(int peerDevice, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(int);
     RECORD_SINGLE_ARG(peerDevice);
     LOGE(LOG_DEBUG, "cudaDeviceDisablePeerAccess");
     *result = cudaDeviceDisablePeerAccess(peerDevice);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2684,12 +3364,14 @@ bool_t cuda_device_disable_peer_access_1_svc(int peerDevice, int *result, struct
 bool_t cuda_device_enable_peer_access_1_svc(int peerDevice, int flags, int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_API(cuda_device_enable_peer_access_1_argument);
     RECORD_ARG(1, peerDevice);
     RECORD_ARG(2, flags);
     LOGE(LOG_DEBUG, "cudaDeviceEnablePeerAccess");
     *result = cudaDeviceEnablePeerAccess(peerDevice, flags);
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2699,8 +3381,10 @@ bool_t cuda_device_enable_peer_access_1_svc(int peerDevice, int flags, int *resu
 bool_t cuda_driver_get_version_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaDriverGetVersion");
     result->err = cudaDriverGetVersion(&result->int_result_u.data);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2708,8 +3392,10 @@ bool_t cuda_driver_get_version_1_svc(int_result *result, struct svc_req *rqstp)
 bool_t cuda_runtime_get_version_1_svc(int_result *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     LOGE(LOG_DEBUG, "cudaRuntimeGetVersion");
     result->err = cudaRuntimeGetVersion(&result->int_result_u.data);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2761,10 +3447,12 @@ bool_t cuda_register_fat_binary_end_1_svc(ptr cubinHandle, int *result, struct s
 bool_t cuda_profiler_start_1_svc(int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaProfilerStart");
     *result = cudaProfilerStart();
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
@@ -2772,10 +3460,12 @@ bool_t cuda_profiler_start_1_svc(int *result, struct svc_req *rqstp)
 bool_t cuda_profiler_stop_1_svc(int *result, struct svc_req *rqstp)
 {
     GSCHED_RETAIN;
+    GSCHED_RETAIN;
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "cudaProfilerStop");
     *result = cudaProfilerStop();
     RECORD_RESULT(integer, *result);
+    GSCHED_RELEASE;
     GSCHED_RELEASE;
     return 1;
 }
