@@ -206,7 +206,7 @@ void __attribute__((constructor)) init_rpc(void)
 
     if (initialized) {
         LOGE(LOG_ERROR, "constructor being called twice ");
-	//return;
+	return;
     }
 
     LOG(LOG_DBG(1), "log level is %d", LOG_LEVEL);

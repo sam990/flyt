@@ -544,6 +544,7 @@ bool_t rpc_register_function_1_svc(ptr fatCubinHandle, ptr hostFun, char* device
 	}
 	*/
         resource_mg_add_sorted(&client->functions, (void*)hostFun, (void*)func_info);
+	LOGE(LOG_DEBUG, "GetFunction function ptr = %p module %p\n", func_d_ptr, module->addr);
     }
 
     RECORD_RESULT(ptr_result_u, *result);

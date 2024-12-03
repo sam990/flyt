@@ -3,7 +3,7 @@ SERVER = cricket-rpc-server
 SERVER_LIB = cricket-server.so
 #RPC client library
 CLIENT = cricket-client.so
-METRICS = libprofiler.so
+#METRICS = libprofiler.so
 CLIENT_TARGET_LIB = libcudart.so.$(TARGET_LIBCUDART_MAJOR_VERS)
 CLIENT_STATIC = cricket-client-static.a
 

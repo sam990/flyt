@@ -155,7 +155,7 @@ cudaError_t free_dev_mem(void *ptr, size_t padded_size) {
     if (ptr == NULL)
         return cudaSuccess;
 #if 1
-    free_uva_addr(ptr, padded_size);
+    //free_uva_addr(ptr, padded_size);
 
     if (cuMemUnmap((CUdeviceptr)ptr, padded_size) != CUDA_SUCCESS || cuMemAddressFree((CUdeviceptr)ptr, padded_size) != CUDA_SUCCESS)
         return cudaErrorInvalidValue;
