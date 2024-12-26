@@ -262,8 +262,8 @@ static int __server_driver_ctx_state_restore(int ckp_restore) {
             return 1;
         }
 
-        uint64_t stream_idx;
-        while ((stream_idx = resource_map_iter_next(stream_iter)) != 0) {
+        uint64_t stream_addr;
+        while ((stream_addr = resource_map_iter_next(stream_iter)) != 0) {
             cudaStream_t newStream;
             err = cudaStreamCreate(&newStream);
             // TODO: include custom cuda stream flags
@@ -272,8 +272,8 @@ static int __server_driver_ctx_state_restore(int ckp_restore) {
                 resource_map_free_iter(stream_iter);
                 return 1;
             }
-            if (resource_map_update_addr_idx(client->custom_streams, stream_idx, newStream) != 0) {
-                LOGE(LOG_ERROR, "resource_map_update failed, stream_idx: %lu", stream_idx);
+            if (resource_map_update_addr(client->custom_streams, stream_addr, newStream) != 0) {
+                LOGE(LOG_ERROR, "resource_map_update failed, stream_addr: %lu", stream_addr);
                 resource_map_free_iter(stream_iter);
                 return 1;
             }

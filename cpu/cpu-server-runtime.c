@@ -383,10 +383,10 @@ bool_t cuda_device_synchronize_1_svc(int *result, struct svc_req *rqstp)
     }
 
     resource_map_iter *iter = resource_map_init_iter(client->custom_streams);
-    uint64_t idx;
-    while (iter && (idx = resource_map_iter_next(iter))) {
+    uint64_t stream_addr;
+    while (iter && (stream_addr = resource_map_iter_next(iter))) {
 
-        cudaStream_t stream_ptr = resource_map_get_addr(client->custom_streams, (void*)idx);
+        cudaStream_t stream_ptr = resource_map_get_addr(client->custom_streams, (void*)stream_addr);
         
         *result = cudaStreamSynchronize(stream_ptr);
         if (*result != cudaSuccess) {
@@ -744,7 +744,7 @@ bool_t cuda_stream_destroy_1_svc(ptr stream, int *result, struct svc_req *rqstp)
 
     *result = cudaStreamDestroy(stream_ptr);
     if (*result == cudaSuccess) {
-        resource_map_unset(client->custom_streams, (void*)stream);
+        free_client_stream(client, (uint64_t)stream);
     }
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;

@@ -53,6 +53,8 @@ void resource_map_free_iter(resource_map_iter *iter);
 
 uint64_t resource_map_iter_next(resource_map_iter *iter);
 
+void *resource_map_get_client_addr(resource_map *map, void *addr);
+
 
 #endif // __FLYT_CPU_RESOURCE_MAP_H__
 

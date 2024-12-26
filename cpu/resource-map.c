@@ -45,11 +45,11 @@ void free_resource_map(resource_map* map) {
     free(map);
 }
 
-void* resource_map_addr_from_index(uint64_t idx) {
+inline void* resource_map_addr_from_index(uint64_t idx) {
     return (void*)(idx + OFFSET);
 }
 
-uint64_t resource_map_index_from_addr(void* addr) {
+inline uint64_t resource_map_index_from_addr(void* addr) {
     return (uint64_t)addr - OFFSET;
 }
 
@@ -72,6 +72,10 @@ void* resource_map_get_addr_default(resource_map* map, void *addr, void* default
         return resource_map_get(map, addr)->mapped_addr;
     }
     return default_addr;
+}
+
+int resource_map_update_addr(resource_map* map, void* client_addr, void* new_addr) {
+    return resource_map_update_addr_idx(map, resource_map_index_from_addr(client_addr), new_addr);
 }
 
 int resource_map_update_addr_idx(resource_map* map, uint64_t idx, void* new_addr) {
@@ -175,5 +179,25 @@ uint64_t resource_map_iter_next(resource_map_iter* iter) {
     
     uint64_t val = iter->current_idx >= iter->map->tail_idx ? 0 : iter->current_idx++;
     pthread_mutex_unlock(&iter->map->mutex);
-    return val;
+    return val ? val + OFFSET : 0;
+}
+
+/* 
+    This function will get the client address from the resource map
+    given the actual device address
+ */
+void* resource_map_get_client_addr(resource_map* map, void* addr) {
+    
+    resource_map_iter *iter = resource_map_init_iter(map);
+    uint64_t client_addr;
+
+    while ((client_addr = resource_map_iter_next(iter)) != 0) {
+        if (resource_map_get_addr(map, (void*)client_addr) == addr) {
+            break;
+        }
+    }
+
+    resource_map_free_iter(iter);
+
+    return (void *)client_addr;
 }

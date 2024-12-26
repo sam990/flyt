@@ -88,6 +88,17 @@ cricket_client* create_client(int pid) {
     resource_mg_init(&client->functions, 0);
     resource_mg_init(&client->vars, 0);
 
+    client->rm_cudnn = init_resource_map(INIT_CUDNN_SLOTS);
+    client->rm_cudnn_tensors = init_resource_map(INIT_CUDNN_TENSOR_SLOTS);
+    client->rm_cudnn_tensor_transforms = init_resource_map(INIT_CUDNN_TENSOR_SLOTS);
+    client->rm_cudnn_filters = init_resource_map(INIT_CUDNN_FILTER_SLOTS);
+    client->rm_cudnn_poolings = init_resource_map(INIT_CUDNN_POOLING_SLOTS);
+    client->rm_cudnn_activations = init_resource_map(INIT_CUDNN_ACTIVATION_SLOTS);
+    client->rm_cudnn_lrns = init_resource_map(INIT_CUDNN_LRN_SLOTS);
+    client->rm_cudnn_convs = init_resource_map(INIT_CUDNN_CONV_SLOTS);
+    client->rm_cudnn_backends = init_resource_map(INIT_CUDNN_BACKEND_SLOTS);
+
+
     client->events = init_resource_map(INIT_EVENT_SLOTS);
     if (client->events == NULL) {
         LOGE(LOG_ERROR, "Failed to initialize events resource map for new client");
@@ -289,9 +300,10 @@ static int freeResources(cricket_client* client) {
         return -1;
     }
 
-    uint64_t stream_idx;
-    while ((stream_idx = resource_map_iter_next(stream_iter)) != 0) {
-        cudaStreamDestroy((cudaStream_t)resource_map_get_addr(client->custom_streams, (void *)stream_idx));
+    uint64_t stream_addr;
+    while ((stream_addr = resource_map_iter_next(stream_iter)) != 0) {
+        cudaStreamDestroy((cudaStream_t)resource_map_get_addr(client->custom_streams, (void *)stream_addr));
+        free_client_stream(client, stream_addr);
     }
 
     resource_map_free_iter(stream_iter);
@@ -386,6 +398,101 @@ void free_module_data(addr_data_pair_t *pair) {
             break;
     }
     free(pair);
+}
+
+int free_client_stream(cricket_client* client, uint64_t stream) {
+
+    if (resource_map_contains(client->custom_streams, (void*)stream)) {
+        stream_create_args_t *args = (stream_create_args_t *)resource_map_get(client->custom_streams, (void*)stream)->args;
+        free(args);
+        resource_map_unset(client->custom_streams, (void*)stream);
+        return 0;
+    }
+
+    return -1;
+}
+
+int free_client_cudnn_handle(cricket_client *client, uint64_t handle) {
+    if (resource_map_contains(client->rm_cudnn, (void*)handle)) {
+        resource_map_unset(client->rm_cudnn, (void*)handle);
+        return 0;
+    }
+    return -1;
+}
+
+int free_client_cudnn_tensor(cricket_client *client, uint64_t tensor) {
+    if (resource_map_contains(client->rm_cudnn_tensors, (void*)tensor)) {
+        cudnn_tensor_desc_args_t *args = (cudnn_tensor_desc_args_t *)resource_map_get(client->rm_cudnn_tensors, (void*)tensor)->args;
+        free(args);
+        resource_map_unset(client->rm_cudnn_tensors, (void*)tensor);
+        return 0;
+    }
+    return -1;
+}
+
+int free_client_cudnn_filter(cricket_client *client, uint64_t filter) {
+    if (resource_map_contains(client->rm_cudnn_filters, (void*)filter)) {
+        cudnn_filter_desc_args_t *args = (cudnn_filter_desc_args_t *)resource_map_get(client->rm_cudnn_filters, (void*)filter)->args;
+        free(args);
+        resource_map_unset(client->rm_cudnn_filters, (void*)filter);
+        return 0;
+    }
+    return -1;
+}
+
+int free_client_cudnn_pooling(cricket_client *client, uint64_t pooling) {
+    if (resource_map_contains(client->rm_cudnn_poolings, (void*)pooling)) {
+        cudnn_pooling_desc_args_t *args = (cudnn_pooling_desc_args_t *)resource_map_get(client->rm_cudnn_poolings, (void*)pooling)->args;
+        free(args);
+        resource_map_unset(client->rm_cudnn_poolings, (void*)pooling);
+        return 0;
+    }
+    return -1;
+}
+
+int free_client_cudnn_activation(cricket_client *client, uint64_t activation) {
+    if (resource_map_contains(client->rm_cudnn_activations, (void*)activation)) {
+        cudnn_activation_desc_args_t *args = (cudnn_activation_desc_args_t *)resource_map_get(client->rm_cudnn_activations, (void*)activation)->args;
+        free(args);
+        resource_map_unset(client->rm_cudnn_activations, (void*)activation);
+        return 0;
+    }
+    return -1;
+}
+
+int free_client_cudnn_lrn(cricket_client *client, uint64_t lrn) {
+    if (resource_map_contains(client->rm_cudnn_lrns, (void*)lrn)) {
+        cudnn_lrn_desc_args_t *args = (cudnn_lrn_desc_args_t *)resource_map_get(client->rm_cudnn_lrns, (void*)lrn)->args;
+        free(args);
+        resource_map_unset(client->rm_cudnn_lrns, (void*)lrn);
+        return 0;
+    }
+    return -1;
+}
+
+int free_client_cudnn_conv(cricket_client *client, uint64_t conv) {
+    if (resource_map_contains(client->rm_cudnn_convs, (void*)conv)) {
+        cudnn_conv_desc_args_t *args = (cudnn_conv_desc_args_t *)resource_map_get(client->rm_cudnn_convs, (void*)conv)->args;
+        free(args);
+        resource_map_unset(client->rm_cudnn_convs, (void*)conv);
+        return 0;
+    }
+    return -1;
+}
+
+int free_client_cudnn_backend(cricket_client *client, uint64_t backend) {
+    if (resource_map_contains(client->rm_cudnn_backends, (void*)backend)) {
+        cudnn_backend_desc_args_t *args = (cudnn_backend_desc_args_t *)resource_map_get(client->rm_cudnn_backends, (void*)backend)->args;
+        for (size_t i = 0; i < args->attributes.length; i++) {
+            cudnn_backend_attr_t *attr = list_get(&args->attributes, i);
+            free(attr->arrayOfElements);
+        }
+        list_free(&args->attributes);
+        free(args);
+        resource_map_unset(client->rm_cudnn_backends, (void*)backend);
+        return 0;
+    }
+    return -1;
 }
 
 int fetch_variable_data_to_host(void) {

@@ -36,10 +36,11 @@ static int delete_context_resources() {
         cudaStreamDestroy(client->default_stream);
 
         resource_map_iter *stream_iter = resource_map_init_iter(client->custom_streams);
-        uint64_t idx;
+        uint64_t addr;
 
-        while ((idx = resource_map_iter_next(stream_iter)) != 0) {
-            cudaStreamDestroy(client->custom_streams->list[idx].mapped_addr);
+        while ((addr = resource_map_iter_next(stream_iter)) != 0) {
+            cudaStreamDestroy((cudaStream_t)resource_map_get_addr(client->custom_streams, (void*)addr));
+            free_client_stream(client, addr);
         }
 
         resource_map_free_iter(stream_iter);

@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <cudnn.h>
 #include <stdbool.h>
+#include <string.h>
+#include <cuda_runtime.h>
 
 #include "cpu_rpc_prot.h"
 #include "cpu-common.h"
@@ -93,10 +95,12 @@ bool_t rpc_cudnnqueryruntimeerror_1_svc(ptr handle, int mode, int_result *result
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     cudnnRuntimeTag_t *tag;
+    
+    GET_CLIENT_CUDNN(result->err);
 
     GSCHED_RETAIN;
     result->err = cudnnQueryRuntimeError(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        GET_CUDNN_HANDLE(handle),
         (cudnnStatus_t*)&result->int_result_u.data, (cudnnErrQueryMode_t)mode, tag);
     GSCHED_RELEASE;
     return 1;
@@ -117,10 +121,16 @@ bool_t rpc_cudnncreate_1_svc(ptr_result *result, struct svc_req *rqstp)
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
+    cudnnHandle_t handle;
+
     GSCHED_RETAIN;
-    result->err = cudnnCreate((cudnnHandle_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
+    result->err = cudnnCreate(&handle);
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        if (resource_map_add(client->rm_cudnn, (void*)handle, NULL, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
     }
     GSCHED_RELEASE;
     RECORD_RESULT(ptr_result_u, *result);
@@ -133,9 +143,15 @@ bool_t rpc_cudnndestroy_1_svc(ptr handle, int *result, struct svc_req *rqstp)
     RECORD_SINGLE_ARG(handle);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
-    *result = cudnnDestroy(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle));
+    *result = cudnnDestroy(GET_CUDNN_HANDLE(handle));
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_handle(client, handle);
+    }
+    
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -151,14 +167,14 @@ bool_t rpc_cudnnsetstream_1_svc(ptr handle, ptr streamId, int *result, struct sv
 
     GSCHED_RETAIN;
 
-    GET_CLIENT(*result);
+    GET_CLIENT_CUDNN(*result);
 
     void *stream_ptr;
 
     GET_STREAM(stream_ptr, streamId, *result);
 
     *result = cudnnSetStream(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        GET_CUDNN_HANDLE(handle),
         (cudaStream_t)stream_ptr);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -169,10 +185,17 @@ bool_t rpc_cudnngetstream_1_svc(ptr handle, ptr_result *result, struct svc_req *
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
     result->err = cudnnGetStream(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        GET_CUDNN_HANDLE(handle),
         (cudaStream_t*)&result->ptr_result_u.ptr);
+
+    // Need to do a reverse search to get the stream id
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        result->ptr_result_u.ptr = resource_map_get_key(client->custom_streams, result->ptr_result_u.ptr);
+    }
 
     GSCHED_RELEASE;
     return 1;
@@ -183,11 +206,21 @@ bool_t rpc_cudnncreatetensordescriptor_1_svc(ptr_result *result, struct svc_req 
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    cudnnTensorDescriptor_t desc;
+
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
-    result->err = cudnnCreateTensorDescriptor((cudnnTensorDescriptor_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn_tensors, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
+    result->err = cudnnCreateTensorDescriptor(&desc);
+    
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        cudnn_tensor_desc_args_t *args = (cudnn_tensor_desc_args_t *)malloc(sizeof(cudnn_tensor_desc_args_t));
+        memset(args, 0, sizeof(cudnn_tensor_desc_args_t));
+        if (resource_map_add(client->rm_cudnn_tensors, (void*)desc, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
     }
+
     GSCHED_RELEASE;
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
@@ -206,13 +239,29 @@ bool_t rpc_cudnnsettensor4ddescriptor_1_svc(ptr tensorDesc, int format, int data
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
+
     GSCHED_RETAIN;
     *result = cudnnSetTensor4dDescriptor(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        GET_CUDNN_TENSOR(tensorDesc),
         (cudnnTensorFormat_t)format,
         (cudnnDataType_t)dataType,
         n, c, h, w);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_tensor_desc_args_t *args = (cudnn_tensor_desc_args_t *)resource_map_get(client->rm_cudnn_tensors, (void*)tensorDesc)->args;
+        args->type = CUDNN_TENSOR_DESC_TYPE_4D;
+        args->dataType = dataType;
+        args->nbDims = 4;
+        args->dims[0] = n;
+        args->dims[1] = c;
+        args->dims[2] = h;
+        args->dims[3] = w;
+    }
+
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -233,12 +282,30 @@ bool_t rpc_cudnnsettensor4ddescriptorex_1_svc(ptr tensorDesc, int dataType, int 
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetTensor4dDescriptorEx(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        GET_CUDNN_TENSOR(tensorDesc),
         (cudnnDataType_t)dataType,
         n, c, h, w, nStride, cStride, hStride, wStride);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_tensor_desc_args_t *args = (cudnn_tensor_desc_args_t *)resource_map_get(client->rm_cudnn_tensors, (void*)tensorDesc)->args;
+        args->type = CUDNN_TENSOR_DESC_TYPE_4D_EX;
+        args->dataType = dataType;
+        args->nbDims = 4;
+        args->dims[0] = n;
+        args->dims[1] = c;
+        args->dims[2] = h;
+        args->dims[3] = w;
+        args->strides[0] = nStride;
+        args->strides[1] = cStride;
+        args->strides[2] = hStride;
+        args->strides[3] = wStride;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -247,9 +314,11 @@ bool_t rpc_cudnngettensor4ddescriptor_1_svc(ptr tensorDesc, int9_result *result,
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
     result->err = cudnnGetTensor4dDescriptor(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        GET_CUDNN_TENSOR(tensorDesc),
         (cudnnDataType_t*)&result->int9_result_u.data[0],
         &result->int9_result_u.data[1],
         &result->int9_result_u.data[2],
@@ -276,18 +345,30 @@ bool_t rpc_cudnnsettensornddescriptor_1_svc(ptr tensorDesc, int dataType, int nb
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     if (dimA.mem_data_len != nbDims * sizeof(int) || strideA.mem_data_len != nbDims * sizeof(int)) {
         LOGE(LOG_ERROR, "array dimensions not as expected.");
         return 0;
     }
     GSCHED_RETAIN;
     *result = cudnnSetTensorNdDescriptor(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        GET_CUDNN_TENSOR(tensorDesc),
         (cudnnDataType_t)dataType,
         nbDims,
         (const int*)dimA.mem_data_val,
         (const int*)strideA.mem_data_val);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_tensor_desc_args_t *args = (cudnn_tensor_desc_args_t *)resource_map_get(client->rm_cudnn_tensors, (void*)tensorDesc)->args;
+        args->type = CUDNN_TENSOR_DESC_TYPE_ND;
+        args->dataType = dataType;
+        args->nbDims = nbDims;
+        memcpy(args->dims, dimA.mem_data_val, nbDims*sizeof(int));
+        memcpy(args->strides, strideA.mem_data_val, nbDims*sizeof(int));
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -305,18 +386,30 @@ bool_t rpc_cudnnsettensornddescriptorex_1_svc(ptr tensorDesc, int format, int da
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     if (dimA.mem_data_len != nbDims * sizeof(int)) {
         LOGE(LOG_ERROR, "array dimensions not as expected.");
         return 0;
     }
     GSCHED_RETAIN;
     *result = cudnnSetTensorNdDescriptorEx(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        GET_CUDNN_TENSOR(tensorDesc),
         (cudnnTensorFormat_t)format,   
         (cudnnDataType_t)dataType,
         nbDims,
         (const int*)dimA.mem_data_val);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_tensor_desc_args_t *args = (cudnn_tensor_desc_args_t *)resource_map_get(client->rm_cudnn_tensors, (void*)tensorDesc)->args;
+        args->type = CUDNN_TENSOR_DESC_TYPE_ND_EX;
+        args->format = format;
+        args->dataType = dataType;
+        args->nbDims = nbDims;
+        memcpy(args->dims, dimA.mem_data_val, nbDims*sizeof(int));
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -324,15 +417,17 @@ bool_t rpc_cudnnsettensornddescriptorex_1_svc(ptr tensorDesc, int format, int da
 bool_t rpc_cudnngettensornddescriptor_1_svc(ptr tensorDesc, int nbDimsRequested, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
     result->mem_result_u.data.mem_data_len = sizeof(cudnnDataType_t) + sizeof(int) + nbDimsRequested*sizeof(int)*2;
     if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
         LOGE(LOG_ERROR, "malloc failed");
         return 0;
     }
+
     
     GSCHED_RETAIN;
     result->err = cudnnGetTensorNdDescriptor(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        GET_CUDNN_TENSOR(tensorDesc),
         nbDimsRequested,
         (cudnnDataType_t*)result->mem_result_u.data.mem_data_val,
         (int*)&result->mem_result_u.data.mem_data_val[sizeof(cudnnDataType_t)],
@@ -346,9 +441,11 @@ bool_t rpc_cudnngettensornddescriptor_1_svc(ptr tensorDesc, int nbDimsRequested,
 bool_t rpc_cudnngettensorsizeinbytes_1_svc(ptr tensorDesc, sz_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
     result->err = cudnnGetTensorSizeInBytes(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc),
+        GET_CUDNN_TENSOR(tensorDesc),
         &result->sz_result_u.data);
     GSCHED_RELEASE;
     return 1;
@@ -360,11 +457,18 @@ bool_t rpc_cudnndestroytensordescriptor_1_svc(ptr tensorDesc, int *result, struc
     RECORD_SINGLE_ARG(tensorDesc);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnDestroyTensorDescriptor(
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)tensorDesc));
+        GET_CUDNN_TENSOR(tensorDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_tensor(client, tensorDesc);
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -375,12 +479,22 @@ bool_t rpc_cudnncreatefilterdescriptor_1_svc(ptr_result *result, struct svc_req 
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
+    cudnnFilterDescriptor_t desc;
+
     GSCHED_RETAIN;
-    result->err = cudnnCreateFilterDescriptor((cudnnFilterDescriptor_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn_filters, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
-    }
+    result->err = cudnnCreateFilterDescriptor(&desc);
     GSCHED_RELEASE;
+
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        cudnn_filter_desc_args_t *args = (cudnn_filter_desc_args_t *)malloc(sizeof(cudnn_filter_desc_args_t));
+        memset(args, 0, sizeof(cudnn_filter_desc_args_t));
+        if (resource_map_add(client->rm_cudnn_filters, (void*)desc, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
+
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
@@ -398,13 +512,28 @@ bool_t rpc_cudnnsetfilter4ddescriptor_1_svc(ptr filterDesc, int dataType, int fo
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetFilter4dDescriptor(
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        GET_CUDNN_FILTER(filterDesc),
         (cudnnDataType_t)dataType,
         (cudnnTensorFormat_t)format,
         k, c, h, w);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_filter_desc_args_t *args = (cudnn_filter_desc_args_t *)resource_map_get(client->rm_cudnn_filters, (void*)filterDesc)->args;
+        args->type = CUDNN_FILTER_DESC_TYPE_4D;
+        args->dataType = dataType;
+        args->format = format;
+        args->nbDims = 4;
+        args->dims[0] = k;
+        args->dims[1] = c;
+        args->dims[2] = h;
+        args->dims[3] = w;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -413,9 +542,11 @@ bool_t rpc_cudnngetfilter4ddescriptor_1_svc(ptr filterDesc, int6_result *result,
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
     result->err = cudnnGetFilter4dDescriptor(
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        GET_CUDNN_FILTER(filterDesc),
         (cudnnDataType_t*)&result->int6_result_u.data[0],
         (cudnnTensorFormat_t*)&result->int6_result_u.data[1],
         &result->int6_result_u.data[2],
@@ -443,14 +574,28 @@ bool_t rpc_cudnnsetfilternddescriptor_1_svc(ptr filterDesc, int dataType, int fo
         LOGE(LOG_ERROR, "array dimension not as expected.");
         return 0;
     }
+
+    GET_CLIENT_CUDNN(*result);
+
+
     GSCHED_RETAIN;
     *result = cudnnSetFilterNdDescriptor(
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        GET_CUDNN_FILTER(filterDesc),
         (cudnnDataType_t)dataType,
         (cudnnTensorFormat_t)format,
         nbDims,
         (const int*)filterDimA.mem_data_val);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_filter_desc_args_t *args = (cudnn_filter_desc_args_t *)resource_map_get(client->rm_cudnn_filters, (void*)filterDesc)->args;
+        args->type = CUDNN_FILTER_DESC_TYPE_ND;
+        args->dataType = dataType;
+        args->format = format;
+        args->nbDims = nbDims;
+        memcpy(args->dims, filterDimA.mem_data_val, nbDims*sizeof(int));
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -458,15 +603,19 @@ bool_t rpc_cudnnsetfilternddescriptor_1_svc(ptr filterDesc, int dataType, int fo
 bool_t rpc_cudnngetfilternddescriptor_1_svc(ptr filterDesc, int nbDimsRequested, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
+    
     result->mem_result_u.data.mem_data_len = sizeof(cudnnDataType_t) + sizeof(cudnnTensorFormat_t) + sizeof(int) + nbDimsRequested*sizeof(int);
     if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
         LOGE(LOG_ERROR, "malloc failed");
         return 0;
     }
+
+
     
     GSCHED_RETAIN;
     result->err = cudnnGetFilterNdDescriptor(
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        GET_CUDNN_FILTER(filterDesc),
         nbDimsRequested,
         (cudnnDataType_t*)result->mem_result_u.data.mem_data_val,
         (cudnnTensorFormat_t*)&result->mem_result_u.data.mem_data_val[sizeof(cudnnDataType_t)],
@@ -479,9 +628,10 @@ bool_t rpc_cudnngetfilternddescriptor_1_svc(ptr filterDesc, int nbDimsRequested,
 bool_t rpc_cudnngetfiltersizeinbytes_1_svc(ptr filterDesc, sz_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
     GSCHED_RETAIN;
     result->err = cudnnGetFilterSizeInBytes(
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        GET_CUDNN_FILTER(filterDesc),
         &result->sz_result_u.data);
     GSCHED_RELEASE;
     return 1;
@@ -501,15 +651,17 @@ bool_t rpc_cudnntransformfilter_1_svc(ptr handle, ptr transDesc, cudnn_scaling_t
     
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnTransformFilter(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
-        (const cudnnTensorTransformDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensortransform, (void*)transDesc),
+        GET_CUDNN_HANDLE(handle),
+        GET_CUDNN_TENSOR_TRANSFORM(transDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (const cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)srcDesc),
+        GET_CUDNN_FILTER(srcDesc),
         (const void*)srcData,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (const cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)destDesc),
+        GET_CUDNN_FILTER(destDesc),
         (void*)destData);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -522,11 +674,18 @@ bool_t rpc_cudnndestroyfilterdescriptor_1_svc(ptr filterDesc, int *result, struc
     RECORD_SINGLE_ARG(filterDesc);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnDestroyFilterDescriptor(
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc));
+        GET_CUDNN_FILTER(filterDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_filter(client, filterDesc);
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -536,12 +695,22 @@ bool_t rpc_cudnncreatepoolingdescriptor_1_svc(ptr_result *result, struct svc_req
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    cudnnPoolingDescriptor_t desc;
+
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
-    result->err = cudnnCreatePoolingDescriptor((cudnnPoolingDescriptor_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn_poolings, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
-    }
+    result->err = cudnnCreatePoolingDescriptor(&desc);
     GSCHED_RELEASE;
+
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        cudnn_pooling_desc_args_t *args = (cudnn_pooling_desc_args_t *)malloc(sizeof(cudnn_pooling_desc_args_t));
+        memset(args, 0, sizeof(cudnn_pooling_desc_args_t));
+        if (resource_map_add(client->rm_cudnn_poolings, (void*)desc, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
+
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
@@ -561,15 +730,31 @@ bool_t rpc_cudnnsetpooling2ddescriptor_1_svc(ptr poolingDesc, int mode, int maxp
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetPooling2dDescriptor(
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        GET_CUDNN_POOLING(poolingDesc),
         (cudnnPoolingMode_t)mode,
         (cudnnNanPropagation_t)maxpoolingNanOpt,
         windowHeight, windowWidth,
         verticalPadding, horizontalPadding,
         verticalStride, horizontalStride);
     GSCHED_RELEASE;
+
+    if (*result = CUDNN_STATUS_SUCCESS) {
+        cudnn_pooling_desc_args_t *args = (cudnn_pooling_desc_args_t *)resource_map_get(client->rm_cudnn_poolings, (void*)poolingDesc)->args;
+        args->type = CUDNN_POOLING_DESC_TYPE_2D;
+        args->mode = mode;
+        args->maxpoolingNanOpt = maxpoolingNanOpt;
+        args->windowDimA[0] = windowHeight;
+        args->windowDimA[1] = windowWidth;
+        args->paddingA[0] = verticalPadding;
+        args->paddingA[1] = horizontalPadding;
+        args->strideA[0] = verticalStride;
+        args->strideA[1] = horizontalStride;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -578,9 +763,11 @@ bool_t rpc_cudnngetpooling2ddescriptor_1_svc(ptr poolingDesc, int8_result *resul
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
     result->err = cudnnGetPooling2dDescriptor(
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        GET_CUDNN_POOLING(poolingDesc),
         (cudnnPoolingMode_t*)&result->int8_result_u.data[0],
         (cudnnNanPropagation_t*)&result->int8_result_u.data[1],
         &result->int8_result_u.data[2],
@@ -607,6 +794,8 @@ bool_t rpc_cudnnsetpoolingnddescriptor_1_svc(ptr poolingDesc, int mode, int maxp
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     if (windowDimA.mem_data_len != nbDims * sizeof(int) ||
         paddingA.mem_data_len != nbDims * sizeof(int) ||
         strideA.mem_data_len != nbDims * sizeof(int)) {
@@ -615,7 +804,7 @@ bool_t rpc_cudnnsetpoolingnddescriptor_1_svc(ptr poolingDesc, int mode, int maxp
     }
     GSCHED_RETAIN;
     *result = cudnnSetPoolingNdDescriptor(
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        GET_CUDNN_POOLING(poolingDesc),
         (cudnnPoolingMode_t)mode,
         (cudnnNanPropagation_t)maxpoolingNanOpt,
         nbDims,
@@ -623,6 +812,18 @@ bool_t rpc_cudnnsetpoolingnddescriptor_1_svc(ptr poolingDesc, int mode, int maxp
         (const int*)paddingA.mem_data_val,
         (const int*)strideA.mem_data_val);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_pooling_desc_args_t *args = (cudnn_pooling_desc_args_t *)resource_map_get(client->rm_cudnn_poolings, (void*)poolingDesc)->args;
+        args->type = CUDNN_POOLING_DESC_TYPE_ND;
+        args->mode = mode;
+        args->maxpoolingNanOpt = maxpoolingNanOpt;
+        args->nbDims = nbDims;
+        memcpy(args->windowDimA, windowDimA.mem_data_val, nbDims*sizeof(int));
+        memcpy(args->paddingA, paddingA.mem_data_val, nbDims*sizeof(int));
+        memcpy(args->strideA, strideA.mem_data_val, nbDims*sizeof(int));
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -630,6 +831,7 @@ bool_t rpc_cudnnsetpoolingnddescriptor_1_svc(ptr poolingDesc, int mode, int maxp
 bool_t rpc_cudnngetpoolingnddescriptor_1_svc(ptr poolingDesc, int nbDimsRequested, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
     result->mem_result_u.data.mem_data_len = sizeof(cudnnPoolingMode_t) + sizeof(cudnnNanPropagation_t) + nbDimsRequested * sizeof(int) * 3;
     if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
         LOGE(LOG_ERROR, "malloc failed");
@@ -646,10 +848,8 @@ bool_t rpc_cudnngetpoolingnddescriptor_1_svc(ptr poolingDesc, int nbDimsRequeste
     };
     
     GSCHED_RETAIN;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
     result->err = cudnnGetPoolingNdDescriptor(
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        GET_CUDNN_POOLING(poolingDesc),
         nbDimsRequested,
         (cudnnPoolingMode_t*)result->mem_result_u.data.mem_data_val[offsets[0]],
         (cudnnNanPropagation_t*)result->mem_result_u.data.mem_data_val[offsets[1]],
@@ -657,7 +857,6 @@ bool_t rpc_cudnngetpoolingnddescriptor_1_svc(ptr poolingDesc, int nbDimsRequeste
         (int*)result->mem_result_u.data.mem_data_val[offsets[3]],
         (int*)result->mem_result_u.data.mem_data_val[offsets[4]],
         (int*)result->mem_result_u.data.mem_data_val[offsets[5]]);
-#pragma GCC diagnostic pop
 
     GSCHED_RELEASE;
     return 1;
@@ -666,6 +865,7 @@ bool_t rpc_cudnngetpoolingnddescriptor_1_svc(ptr poolingDesc, int nbDimsRequeste
 bool_t rpc_cudnngetpoolingndforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTensorDesc, int nbDims, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
     GSCHED_RETAIN;
     result->mem_result_u.data.mem_data_len = sizeof(int) * nbDims;
     if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
@@ -673,8 +873,8 @@ bool_t rpc_cudnngetpoolingndforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTen
         return 0;
     }
     result->err = cudnnGetPoolingNdForwardOutputDim(
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
+        GET_CUDNN_POOLING(poolingDesc),
+        GET_CUDNN_TENSOR(inputTensorDesc),
         nbDims,
         (int*)result->mem_result_u.data.mem_data_val);
     GSCHED_RELEASE;
@@ -684,10 +884,11 @@ bool_t rpc_cudnngetpoolingndforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTen
 bool_t rpc_cudnngetpooling2dforwardoutputdim_1_svc(ptr poolingDesc, ptr inputTensorDesc, int4_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
     GSCHED_RETAIN;
     result->err = cudnnGetPooling2dForwardOutputDim(
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
+        GET_CUDNN_POOLING(poolingDesc),
+        GET_CUDNN_TENSOR(inputTensorDesc),
         (int*)&result->int4_result_u.data[0],
         (int*)&result->int4_result_u.data[1],
         (int*)&result->int4_result_u.data[2],
@@ -702,11 +903,18 @@ bool_t rpc_cudnndestroypoolingdescriptor_1_svc(ptr poolingDesc, int *result, str
     RECORD_SINGLE_ARG(poolingDesc);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnDestroyPoolingDescriptor(
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc));
+        GET_CUDNN_POOLING(poolingDesc));
     // TODO: Remove from resource manager
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_pooling(client, poolingDesc);
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -716,12 +924,18 @@ bool_t rpc_cudnncreateactivationdescriptor_1_svc(ptr_result *result, struct svc_
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    cudnnActivationDescriptor_t desc;
+
     GSCHED_RETAIN;
-    result->err = cudnnCreateActivationDescriptor((cudnnActivationDescriptor_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn_activations, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
-    }
+    result->err = cudnnCreateActivationDescriptor(&desc);
     GSCHED_RELEASE;
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        cudnn_activation_desc_args_t *args = (cudnn_activation_desc_args_t *)malloc(sizeof(cudnn_activation_desc_args_t));
+        memset(args, 0, sizeof(cudnn_activation_desc_args_t));
+        if (resource_map_add(&rm_cudnn_activations, (void*)desc, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
@@ -736,6 +950,8 @@ bool_t rpc_cudnnsetactivationdescriptor_1_svc(ptr activationDesc, int mode, int 
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetActivationDescriptor(
         (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
@@ -743,6 +959,15 @@ bool_t rpc_cudnnsetactivationdescriptor_1_svc(ptr activationDesc, int mode, int 
         (cudnnNanPropagation_t)reluNanOpt,
         coef);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_activation_desc_args_t *args = (cudnn_activation_desc_args_t *)resource_map_get(client->rm_cudnn_activations, (void*)activationDesc)->args;
+        args->activateSet = 1;
+        args->mode = mode;
+        args->reluNanOpt = reluNanOpt;
+        args->coef = coef;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -750,10 +975,10 @@ bool_t rpc_cudnnsetactivationdescriptor_1_svc(ptr activationDesc, int mode, int 
 bool_t rpc_cudnngetactivationdescriptor_1_svc(ptr activationDesc, int2d1_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
-
+    GET_CLIENT_CUDNN(result->err);
     GSCHED_RETAIN;
     result->err = cudnnGetActivationDescriptor(
-        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
+        GET_CUDNN_ACTIVATION(activationDesc),
         (cudnnActivationMode_t*)&result->int2d1_result_u.data.i[0],
         (cudnnNanPropagation_t*)&result->int2d1_result_u.data.i[1],
         &result->int2d1_result_u.data.d);
@@ -769,11 +994,20 @@ bool_t rpc_cudnnsetactivationdescriptorswishbeta_1_svc(ptr activationDesc, doubl
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetActivationDescriptorSwishBeta(
-        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
+        GET_CUDNN_ACTIVATION(activationDesc),
         swish_beta);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_activation_desc_args_t *args = (cudnn_activation_desc_args_t *)resource_map_get(client->rm_cudnn_activations, (void*)activationDesc)->args;
+        args->swishBetaSet = 1;
+        args->swishBeta = swish_beta;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -782,9 +1016,11 @@ bool_t rpc_cudnngetactivationdescriptorswishbeta_1_svc(ptr activationDesc, d_res
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
     result->err = cudnnGetActivationDescriptorSwishBeta(
-        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
+        GET_CUDNN_ACTIVATION(activationDesc),
         &result->d_result_u.data);
     GSCHED_RELEASE;
     return 1;
@@ -795,12 +1031,16 @@ bool_t rpc_cudnndestroyactivationdescriptor_1_svc(ptr activationDesc, int *resul
     RECORD_API(ptr);
     RECORD_SINGLE_ARG(activationDesc);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
-
+    GET_CLIENT_CUDNN(*result);
     GSCHED_RETAIN;
     *result = cudnnDestroyActivationDescriptor(
-        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc));
-    // TODO: Remove from resource manager
+        GET_CUDNN_ACTIVATION(activationDesc));
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_activation(client, activationDesc);
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -810,12 +1050,22 @@ bool_t rpc_cudnncreatelrndescriptor_1_svc(ptr_result *result, struct svc_req *rq
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
+    cudnnLRNDescriptor_t desc;
+
     GSCHED_RETAIN;
-    result->err = cudnnCreateLRNDescriptor((cudnnLRNDescriptor_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn_lrns, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
-    }
+    result->err = cudnnCreateLRNDescriptor(&desc);
     GSCHED_RELEASE;
+
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        cudnn_lrn_desc_args_t *args = (cudnn_lrn_desc_args_t *)malloc(sizeof(cudnn_lrn_desc_args_t));
+        memset(args, 0, sizeof(cudnn_lrn_desc_args_t));
+        if (resource_map_add(&rm_cudnn_lrns, (void*)desc, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
+
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
@@ -831,14 +1081,25 @@ bool_t rpc_cudnnsetlrndescriptor_1_svc(ptr normDesc, unsigned lrnN, double lrnAl
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetLRNDescriptor(
-        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
+        GET_CUDNN_LRN(normDesc),
         lrnN,
         lrnAlpha,
         lrnBeta,
         lrnK);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_lrn_desc_args_t *args = (cudnn_lrn_desc_args_t *)resource_map_get(client->rm_cudnn_lrns, (void*)normDesc)->args;
+        args->lrnN = lrnN;
+        args->lrnAlpha = lrnAlpha;
+        args->lrnBeta = lrnBeta;
+        args->lrnK = lrnK;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -847,9 +1108,11 @@ bool_t rpc_cudnngetlrndescriptor_1_svc(ptr normDesc, int1d3_result *result, stru
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
     GSCHED_RETAIN;
     result->err = cudnnGetLRNDescriptor(
-        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
+        GET_CUDNN_LRN(normDesc),
         (unsigned int*)&result->int1d3_result_u.data.i,
         &result->int1d3_result_u.data.d[0],
         &result->int1d3_result_u.data.d[1],
@@ -864,11 +1127,16 @@ bool_t rpc_cudnndestroylrndescriptor_1_svc(ptr lrnDesc, int *result, struct svc_
     RECORD_SINGLE_ARG(lrnDesc);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
     GSCHED_RETAIN;
     *result = cudnnDestroyLRNDescriptor(
-        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)lrnDesc));
-    // TODO: Remove from resource manager
+        GET_CUDNN_LRN(lrnDesc));
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_lrn(client, lrnDesc);
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -888,16 +1156,16 @@ bool_t rpc_cudnnpoolingforward_1_svc(ptr handle, ptr poolingDesc, cudnn_scaling_
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
 
-    GET_CLIENT(*result)
+    GET_CLIENT_CUDNN(*result)
 
     *result = cudnnPoolingForward(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
-        (cudnnPoolingDescriptor_t)resource_mg_get_or_null(&rm_cudnn_poolings, (void*)poolingDesc),
+        GET_CUDNN_HANDLE(handle),
+        GET_CUDNN_POOLING(poolingDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        GET_CUDNN_TENSOR(xDesc),
         (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_TENSOR(yDesc),
         (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -919,16 +1187,16 @@ bool_t rpc_cudnnactivationforward_1_svc(ptr handle, ptr activationDesc, cudnn_sc
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
 
-    GET_CLIENT(*result)
+    GET_CLIENT_CUDNN(*result)
 
     *result = cudnnActivationForward(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
-        (cudnnActivationDescriptor_t)resource_mg_get_or_null(&rm_cudnn_activations, (void*)activationDesc),
+        GET_CUDNN_HANDLE(handle),
+        GET_CUDNN_ACTIVATION(activationDesc),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        GET_CUDNN_TENSOR(xDesc),
         (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_TENSOR(yDesc),
         (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -951,17 +1219,17 @@ bool_t rpc_cudnnlrncrosschannelforward_1_svc(ptr handle, ptr normDesc, int lrnMo
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
 
-    GET_CLIENT(*result)
+    GET_CLIENT_CUDNN(*result)
 
     *result = cudnnLRNCrossChannelForward(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
-        (cudnnLRNDescriptor_t)resource_mg_get_or_null(&rm_cudnn_lrns, (void*)normDesc),
+        GET_CUDNN_HANDLE(handle),
+        GET_CUDNN_LRN(normDesc),
         (cudnnLRNMode_t)lrnMode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        GET_CUDNN_TENSOR(xDesc),
         (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_TENSOR(yDesc),
         (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -984,17 +1252,17 @@ bool_t rpc_cudnnsoftmaxforward_1_svc(ptr handle, int algo, int mode, cudnn_scali
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
     GSCHED_RETAIN;
 
-    GET_CLIENT(*result)
+    GET_CLIENT_CUDNN(*result)
 
     *result = cudnnSoftmaxForward(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        GET_CUDNN_HANDLE(handle),
         (cudnnSoftmaxAlgorithm_t)algo,
         (cudnnSoftmaxMode_t)mode,
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        GET_CUDNN_TENSOR(xDesc),
         (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_TENSOR(yDesc),
         (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -1005,16 +1273,17 @@ bool_t rpc_cudnnsoftmaxforward_1_svc(ptr handle, int algo, int mode, cudnn_scali
 bool_t rpc_cudnngetconvolutionndforwardoutputdim_1_svc(ptr convDesc, ptr inputTensorDesc, ptr filterDesc, int nbDims, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
-    GSCHED_RETAIN;
+    GET_CLIENT_CUDNN(result->err);
     result->mem_result_u.data.mem_data_len = sizeof(int) * nbDims;
     if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
         LOGE(LOG_ERROR, "malloc failed");
         return 0;
     }
+    GSCHED_RETAIN;
     result->err = cudnnGetConvolutionNdForwardOutputDim(
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)inputTensorDesc),
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
+        GET_CUDNN_CONV(convDesc),
+        GET_CUDNN_TENSOR(inputTensorDesc),
+        GET_CUDNN_FILTER(filterDesc),
         nbDims,
         (int*)result->mem_result_u.data.mem_data_val);
     GSCHED_RELEASE;
@@ -1026,12 +1295,22 @@ bool_t rpc_cudnncreateconvolutiondescriptor_1_svc(ptr_result *result, struct svc
     RECORD_VOID_API;
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
+    cudnnConvolutionDescriptor_t desc;
+    
     GSCHED_RETAIN;
-    result->err = cudnnCreateConvolutionDescriptor((cudnnConvolutionDescriptor_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn_convs, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
-    }
+    result->err = cudnnCreateConvolutionDescriptor(&desc);
     GSCHED_RELEASE;
+
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        cudnn_conv_desc_args_t *args = (cudnn_conv_desc_args_t *)malloc(sizeof(cudnn_conv_desc_args_t));
+        memset(args, 0, sizeof(cudnn_conv_desc_args_t));
+        if (resource_map_add(&rm_cudnn_convs, (void*)desc, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
+
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
@@ -1042,11 +1321,17 @@ bool_t rpc_cudnndestroyconvolutiondescriptor_1_svc(ptr convDesc, int *result, st
     RECORD_SINGLE_ARG(convDesc);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnDestroyConvolutionDescriptor(
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc));
-    // TODO: Remove from resource manager
+        GET_CUDNN_CONV(convDesc));
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_conv(client, convDesc);
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -1059,11 +1344,20 @@ bool_t rpc_cudnnsetconvolutionmathtype_1_svc(ptr convDesc, int mathType, int *re
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetConvolutionMathType(
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        GET_CUDNN_CONV(convDesc),
         (cudnnMathType_t)mathType);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_conv_desc_args_t *args = (cudnn_conv_desc_args_t *)resource_map_get(client->rm_cudnn_convs, (void*)convDesc)->args;
+        args->mathType = mathType;
+        args->mathTypeSet = 1;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -1077,11 +1371,20 @@ bool_t rpc_cudnnsetconvolutiongroupcount_1_svc(ptr convDesc, int groupCount, int
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnSetConvolutionGroupCount(
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        GET_CUDNN_CONV(convDesc),
         groupCount);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_conv_desc_args_t *args = (cudnn_conv_desc_args_t *)resource_map_get(client->rm_cudnn_convs, (void*)convDesc)->args;
+        args->groupCount = groupCount;
+        args->groupCountSet = 1;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -1096,9 +1399,10 @@ bool_t rpc_cudnnsetconvolutionnddescriptor_1_svc(ptr convDesc, int arrayLength, 
     RECORD_NARG(dilationA);
     RECORD_NARG(mode);
     RECORD_NARG(computeType);
-    //TODO: Recording mem_data is not as easy as done here.
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GET_CLIENT_CUDNN(*result);
 
     if (padA.mem_data_len != arrayLength * sizeof(int) ||
         filterStrideA.mem_data_len != arrayLength * sizeof(int) ||
@@ -1106,9 +1410,10 @@ bool_t rpc_cudnnsetconvolutionnddescriptor_1_svc(ptr convDesc, int arrayLength, 
         LOGE(LOG_ERROR, "array dimensions not as expected.");
         return 0;
     }
+
     GSCHED_RETAIN;
     *result = cudnnSetConvolutionNdDescriptor(
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        GET_CUDNN_CONV(convDesc),
         arrayLength,
         (const int*)padA.mem_data_val,
         (const int*)filterStrideA.mem_data_val,
@@ -1116,6 +1421,18 @@ bool_t rpc_cudnnsetconvolutionnddescriptor_1_svc(ptr convDesc, int arrayLength, 
         (cudnnConvolutionMode_t)mode,
         (cudnnDataType_t)computeType);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_conv_desc_args_t *args = (cudnn_conv_desc_args_t *)resource_map_get(client->rm_cudnn_convs, (void*)convDesc)->args;
+        args->type = CUDNN_CONV_DESC_TYPE_ND;
+        args->nbDims = arrayLength;
+        memcpy(args->padA, padA.mem_data_val, arrayLength*sizeof(int));
+        memcpy(args->filterStrideA, filterStrideA.mem_data_val, arrayLength*sizeof(int));
+        memcpy(args->dilationA, dilationA.mem_data_val, arrayLength*sizeof(int));
+        args->mode = mode;
+        args->dataType = computeType;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -1123,18 +1440,19 @@ bool_t rpc_cudnnsetconvolutionnddescriptor_1_svc(ptr convDesc, int arrayLength, 
 bool_t rpc_cudnngetconvolutionforwardalgorithm_v7_1_svc(ptr handle, ptr srcDesc, ptr filterDesc, ptr convDesc, ptr destDesc, int requestedAlgoCount, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
-    GSCHED_RETAIN;
+    GET_CLIENT_CUDNN(result->err);
     result->mem_result_u.data.mem_data_len = sizeof(int) + sizeof(cudnnConvolutionFwdAlgoPerf_t) * requestedAlgoCount;
     if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
         LOGE(LOG_ERROR, "malloc failed");
         return 0;
     }
+    GSCHED_RETAIN;
     result->err = cudnnGetConvolutionForwardAlgorithm_v7(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)srcDesc),
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)filterDesc),
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)destDesc),
+        GET_CUDNN_HANDLE(handle),
+        GET_CUDNN_TENSOR(srcDesc),
+        GET_CUDNN_FILTER(filterDesc),
+        GET_CUDNN_CONV(convDesc),
+        GET_CUDNN_TENSOR(destDesc),
         requestedAlgoCount,
         (int*)result->mem_result_u.data.mem_data_val,
         (cudnnConvolutionFwdAlgoPerf_t*)(result->mem_result_u.data.mem_data_val + sizeof(int)));
@@ -1145,18 +1463,19 @@ bool_t rpc_cudnngetconvolutionforwardalgorithm_v7_1_svc(ptr handle, ptr srcDesc,
 bool_t rpc_cudnnfindconvolutionforwardalgorithm_1_svc(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int requestedAlgoCount, mem_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
-    GSCHED_RETAIN;
+    GET_CLIENT_CUDNN(result->err);
     result->mem_result_u.data.mem_data_len = sizeof(int) + sizeof(cudnnConvolutionFwdAlgoPerf_t) * requestedAlgoCount;
     if ((result->mem_result_u.data.mem_data_val = malloc(result->mem_result_u.data.mem_data_len)) == NULL) {
         LOGE(LOG_ERROR, "malloc failed");
         return 0;
     }
+    GSCHED_RETAIN;
     result->err = cudnnFindConvolutionForwardAlgorithm(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_HANDLE(handle),
+        GET_CUDNN_TENSOR(xDesc),
+        GET_CUDNN_FILTER(wDesc),
+        GET_CUDNN_CONV(convDesc),
+        GET_CUDNN_TENSOR(yDesc),
         requestedAlgoCount,
         (int*)result->mem_result_u.data.mem_data_val,
         (cudnnConvolutionFwdAlgoPerf_t*)(result->mem_result_u.data.mem_data_val + sizeof(int)));
@@ -1167,13 +1486,14 @@ bool_t rpc_cudnnfindconvolutionforwardalgorithm_1_svc(ptr handle, ptr xDesc, ptr
 bool_t rpc_cudnngetconvolutionforwardworkspacesize_1_svc(ptr handle, ptr xDesc, ptr wDesc, ptr convDesc, ptr yDesc, int algo, sz_result *result, struct svc_req *rqstp)
 {
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+    GET_CLIENT_CUDNN(result->err);
     GSCHED_RETAIN;
     result->err = cudnnGetConvolutionForwardWorkspaceSize(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_HANDLE(handle),
+        GET_CUDNN_TENSOR(xDesc),
+        GET_CUDNN_FILTER(wDesc),
+        GET_CUDNN_CONV(convDesc),
+        GET_CUDNN_TENSOR(yDesc),
         (cudnnConvolutionFwdAlgo_t)algo,
         (size_t*)&result->sz_result_u.data);
     GSCHED_RELEASE;
@@ -1198,24 +1518,24 @@ bool_t rpc_cudnnconvolutionforward_1_svc(ptr handle, cudnn_scaling_t alpha, ptr 
     RECORD_NARG(y);
     
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
 
-    GET_CLIENT(*result)
-
-
     *result = cudnnConvolutionForward(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        GET_CUDNN_HANDLE(handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        GET_CUDNN_TENSOR(xDesc),
         (const void*)x,
-        (cudnnFilterDescriptor_t)resource_mg_get_or_null(&rm_cudnn_filters, (void*)wDesc),
+        GET_CUDNN_FILTER(wDesc),
         (const void*)w,
-        (cudnnConvolutionDescriptor_t)resource_mg_get_or_null(&rm_cudnn_convs, (void*)convDesc),
+        GET_CUDNN_CONV(convDesc),
         algo,
         (void*)workSpace,
         workSpaceSizeInBytes,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_TENSOR(yDesc),
         (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -1234,17 +1554,17 @@ bool_t rpc_cudnnaddtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr aDesc, pt
     RECORD_NARG(C);
     
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GET_CLIENT_CUDNN(*result)
+
     GSCHED_RETAIN;
-
-    GET_CLIENT(*result)
-
     *result = cudnnAddTensor(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        GET_CUDNN_HANDLE(handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)aDesc),
+        GET_CUDNN_TENSOR(aDesc),
         (const void*)A,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)cDesc),
+        GET_CUDNN_TENSOR(cDesc),
         (void*)C);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -1263,17 +1583,17 @@ bool_t rpc_cudnntransformtensor_1_svc(ptr handle, cudnn_scaling_t alpha, ptr xDe
     RECORD_NARG(y);
     
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GET_CLIENT_CUDNN(*result)
+
     GSCHED_RETAIN;
-
-    GET_CLIENT(*result)
-
     *result = cudnnTransformTensor(
-        (cudnnHandle_t)resource_mg_get_or_null(&rm_cudnn, (void*)handle),
+        GET_CUDNN_HANDLE(handle),
         (alpha.dataType == CUDNN_DATA_DOUBLE ? (const void*)&alpha.cudnn_scaling_t_u.d : (const void*)&alpha.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)xDesc),
+        GET_CUDNN_TENSOR(xDesc),
         (const void*)x,
         (beta.dataType == CUDNN_DATA_DOUBLE ? (const void*)&beta.cudnn_scaling_t_u.d : (const void*)&beta.cudnn_scaling_t_u.f),
-        (cudnnTensorDescriptor_t)resource_mg_get_or_null(&rm_cudnn_tensors, (void*)yDesc),
+        GET_CUDNN_TENSOR(yDesc),
         (void*)y);
     GSCHED_RELEASE;
     RECORD_RESULT(integer, *result);
@@ -1319,14 +1639,26 @@ bool_t rpc_cudnnbackendcreatedescriptor_1_svc(int descriptorType, ptr_result *re
     RECORD_SINGLE_ARG(descriptorType);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(result->err);
+
+    cudnnBackendDescriptor_t desc;
+
     GSCHED_RETAIN;
     result->err = cudnnBackendCreateDescriptor(
         (cudnnBackendDescriptorType_t)descriptorType,
-        (cudnnBackendDescriptor_t*)&result->ptr_result_u.ptr);
-    if (resource_mg_create(&rm_cudnn_backendds, (void*)result->ptr_result_u.ptr) != 0) {
-        LOGE(LOG_ERROR, "error in resource manager");
-    }
+        (cudnnBackendDescriptor_t*)&desc);
     GSCHED_RELEASE;
+
+    if (result->err == CUDNN_STATUS_SUCCESS) {
+        cudnn_backend_desc_args_t *args = (cudnn_backend_desc_args_t *)malloc(sizeof(cudnn_backend_desc_args_t));
+        args->descriptorType = descriptorType;
+        memset(args, 0, sizeof(cudnn_backend_desc_args_t));
+        list_init(&args->attributes, sizeof(cudnn_backend_attr_t));
+        if (resource_map_add(&rm_cudnn_backendds, (void*)desc, args, (void**)&result->ptr_result_u.ptr) != 0) {
+            LOGE(LOG_ERROR, "error in resource manager");
+        }
+    }
+
     RECORD_RESULT(ptr_result_u, *result);
     return 1;
 }
@@ -1337,11 +1669,16 @@ bool_t rpc_cudnnbackenddestroydescriptor_1_svc(ptr descriptor, int *result, stru
     RECORD_SINGLE_ARG(descriptor);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
-    *result = cudnnBackendDestroyDescriptor(
-        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
-    // TODO: Remove from resource manager
+    *result = cudnnBackendDestroyDescriptor(GET_CUDNN_BACKEND(descriptor));
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        free_client_cudnn_backend(client, descriptor);
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -1352,10 +1689,18 @@ bool_t rpc_cudnnbackendinitialize_1_svc(ptr descriptor, int *result, struct svc_
     RECORD_SINGLE_ARG(descriptor);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnBackendInitialize(
-        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
+        GET_CUDNN_BACKEND(descriptor));
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_backend_desc_args_t *args = (cudnn_backend_desc_args_t *)resource_map_get(client->rm_cudnn_backends, (void*)descriptor)->args;
+        args->initialized = 1;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
@@ -1366,13 +1711,39 @@ bool_t rpc_cudnnbackendfinalize_1_svc(ptr descriptor, int *result, struct svc_re
     RECORD_SINGLE_ARG(descriptor);
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
 
+    GET_CLIENT_CUDNN(*result);
+
     GSCHED_RETAIN;
     *result = cudnnBackendFinalize(
-        (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor));
+        GET_CUDNN_BACKEND(descriptor));
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_backend_desc_args_t *args = (cudnn_backend_desc_args_t *)resource_map_get(client->rm_cudnn_backends, (void*)descriptor)->args;
+        args->finalized = 1;
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
+
+int map_cudnn_backend_attribute(cricket_client* client, int attributeType, int64_t elemCount, void *data, void *dest) {
+    switch(attributeType) {
+        case CUDNN_TYPE_HANDLE:
+            for (int i = 0; i < elemCount; i++)
+                ((cudnnHandle_t*)dest)[i] = GET_CUDNN_HANDLE(((ptr*)data)[i]);
+            break;
+        case CUDNN_TYPE_BACKEND_DESCRIPTOR:
+            for (int i = 0; i < elemCount; i++)
+                ((cudnnBackendDescriptor_t*)dest)[i] = GET_CUDNN_BACKEND(((ptr*)data)[i]);
+            break;
+        default:
+            memcpy(dest, data, elemCount * backendAttributeSizes[attributeType]);
+            break;
+    }
+    return 0;
+}
+
 bool_t rpc_cudnnbackendsetattribute_1_svc(
                          ptr descriptor,
                          int attributeName,
@@ -1389,6 +1760,8 @@ bool_t rpc_cudnnbackendsetattribute_1_svc(
     RECORD_NARG(arrayOfElements);
 
     LOGE(LOG_DEBUG, "%s", __FUNCTION__);
+
+    GET_CLIENT_CUDNN(*result);
     
     if (attributeType < 0 || attributeType >= CUDNN_TYPE_RNG_DISTRIBUTION) {
         LOGE(LOG_ERROR, "attributeType out of range.");
@@ -1399,14 +1772,24 @@ bool_t rpc_cudnnbackendsetattribute_1_svc(
         LOGE(LOG_ERROR, "array dimensions not as expected.");
         return 0;
     }
+    
+    uint8_t *attribData[arrayOfElements.mem_data_len];
+    map_cudnn_backend_attribute(client, attributeType, elementCount, arrayOfElements.mem_data_val, attribData);
+
     GSCHED_RETAIN;
     *result = cudnnBackendSetAttribute(
         (cudnnBackendDescriptor_t)resource_mg_get_or_null(&rm_cudnn_backendds, (void*)descriptor),
         (cudnnBackendAttributeName_t)attributeName,
         (cudnnBackendAttributeType_t)attributeType,
         elementCount,
-        arrayOfElements.mem_data_val);
+        attribData);
     GSCHED_RELEASE;
+
+    if (*result == CUDNN_STATUS_SUCCESS) {
+        cudnn_backend_desc_args_t *args = (cudnn_backend_desc_args_t *)resource_map_get(client->rm_cudnn_backends, (void*)descriptor)->args;
+        
+    }
+
     RECORD_RESULT(integer, *result);
     return 1;
 }
