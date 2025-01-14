@@ -14,346 +14,12 @@
 
 #define STR_DUMP_SIZE 128
 
-static pthread_mutex_t client_mgr_mutex = PTHREAD_MUTEX_INITIALIZER;
-
+static pthread_mutex_t client_mgr_mutex;
+pthread_mutex_t metrics_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 //static resource_mg pid_to_xp_fd;
 static resource_mg xp_fd_to_client;
 static resource_mg restored_clients;
-
-// Metric measurement throughput
-// #include <time.h>
-static clock_t kernel_start;
-static int kernel_launch_count = 0;
-static int kernel_thread_count = 0;
-
-#define MAX_CALLS 100
-
-struct call_data {
-    struct timeval start_time;
-    struct timeval end_time;
-    double resource_usage;
-};
-
-static struct call_data calls[MAX_CALLS];
-static int call_count = 0, call_insert_index = 0, end_call_count = 0, end_call_index = 0;
-
-
-// Metric measurement utilization
-#include <cupti.h>
-#define CHECK_CUPTI_ERROR(err, lock) \
-    if (err != CUPTI_SUCCESS) { \
-        const char *errstr; \
-        cuptiGetResultString(err, &errstr); \
-        LOGE(LOG_ERROR, "CUPTI Error: %s", errstr); \
-	if (lock) \
-          pthread_mutex_unlock(&client_mgr_mutex); \
-        return; \
-    }
-
-// Check for CUDA errors
-#define CHECK_CUDA_ERROR(err) \
-    if (err != CUDA_SUCCESS) { \
-        const char *errStr; \
-        cuGetErrorString(err, &errStr); \
-        LOGE(LOG_ERROR, "CUDA Error %s", errStr); \
-        return; \
-    }
-
-// Select the metrics
-static const char *metricNames[CUPTI_NUM_METRICS] = {
-        "sm__warps_active.avg.pct_of_peak_sustained_active",
-        "sm__cycles_active.avg",
-        "sm__inst_executed.sum"
-    };
-
-static pthread_cond_t client_mgr_cond = PTHREAD_COND_INITIALIZER;
-static int resetevents = 0;
-static CUpti_EventGroupSets *eventGroupSets = NULL;
-static CUpti_MetricID metricIDs[CUPTI_NUM_METRICS];
-static uint64_t metricsValue[CUPTI_NUM_METRICS];
-static uint64_t prevMetricsValue[CUPTI_NUM_METRICS];
-
-void update_client_metric_values(CUdevice currentDevice, CUcontext currentCtx) {
-	/*
-
-    if(eventGroupSets == NULL) {
-        LOGE(LOG_ERROR, "eventGroupSets not initialized");
-	return;
-    }
-
-    // Read and process the metrics
-    for (int i = 0; i < CUPTI_NUM_METRICS; i++) {
-        CUpti_MetricValue metricValue;
-
-        CUpti_EventGroupSet *eventGroupSet = &eventGroupSets->sets[i];
-
-	for (size_t j = 0; j < eventGroupSet->numEventGroups; ++j) {
-            CUpti_EventGroup eventGroup = eventGroupSet->eventGroups[j];
-            CUpti_EventID *eventIDs;
-            uint32_t numEvents;
-            size_t bytesRead;
-
-	    bytesRead = sizeof(numEvents);
-            CHECK_CUPTI_ERROR( cuptiEventGroupGetAttribute(eventGroup, CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS, &bytesRead, &numEvents), 0);
-
-            eventIDs = (CUpti_EventID *)malloc(numEvents * sizeof(CUpti_EventID));
-	    if(eventIDs == NULL) {
-		LOGE(LOG_ERROR, "not able to malloc eventIds ");
-		pthread_mutex_unlock(&client_mgr_mutex);
-		return;
-	    }
-	    bytesRead = numEvents * sizeof(CUpti_EventID);
-            CHECK_CUPTI_ERROR( cuptiEventGroupGetAttribute(eventGroup, CUPTI_EVENT_GROUP_ATTR_EVENTS, &bytesRead, eventIDs), 0);
-
-            uint64_t *eventValues = (uint64_t *)malloc(numEvents * sizeof(uint64_t));
-	    if(eventValues == NULL) {
-		LOGE(LOG_ERROR, "not able to malloc eventValues ");
-		free(eventIDs);
-		pthread_mutex_unlock(&client_mgr_mutex);
-		return;
-	    }
-            bytesRead = numEvents * sizeof(uint64_t);
-            CHECK_CUPTI_ERROR( cuptiEventGroupReadEvent(eventGroup, CUPTI_EVENT_READ_FLAG_NONE, eventIDs[0], &bytesRead, eventValues), 0);
-
-            // Use event values to calculate the metric value
-            CUpti_MetricValue metricValue;
-            CHECK_CUPTI_ERROR( cuptiMetricGetValue(currentDevice, metricIDs[i], bytesRead, eventIDs, sizeof(eventIDs), eventValues, 0, &metricValue), 0);
-	    metricsValue[i] = (uint64_t ) metricNames[i], metricValue.metricValueUint64;
-
-	   free(eventIDs);
-	   free(eventValues);
-	}
-    }
-    */
-}
-
-void update_client_metric_utilization() {
-    CUdevice currentDevice;
-    CUcontext currentCtx = NULL;
-    /*
-
-    CHECK_CUDA_ERROR(cuCtxGetDevice(&currentDevice));
-    CHECK_CUDA_ERROR(cuCtxGetCurrent(&currentCtx));
-
-    pthread_mutex_lock(&client_mgr_mutex);
-    if (eventGroupSets == NULL) {
-	uint32_t version;
-    	CHECK_CUPTI_ERROR(cuptiGetVersion(&version), 1);
-    	LOGE(LOG_INFO, "CUPTI Version: %d\n", version);
-	// fill in event Ids
-	//CHECK_CUPTI_ERROR(cuptiSetEventCollectionMode(currentCtx, CUPTI_EVENT_COLLECTION_MODE_CONTINUOUS), 1);
-	
-	// Get metric IDs
-	for (int i = 0; i < CUPTI_NUM_METRICS; i++) {
-	    CHECK_CUPTI_ERROR( cuptiMetricGetIdFromName(currentDevice, metricNames[i], &metricIDs[i]), 1);
-        }
-
-	// Create event groups for these meterics
-	CHECK_CUPTI_ERROR(cuptiMetricCreateEventGroupSets(currentCtx, sizeof(metricIDs), metricIDs, &eventGroupSets), 1);
-
-	// Enable event groups in CONTINUOUS mode
-        for (size_t i = 0; i < eventGroupSets->numSets; ++i) {
-            CUpti_EventGroupSet *eventGroupSet = &eventGroupSets->sets[i];
-            for (size_t j = 0; j < eventGroupSet->numEventGroups; ++j) {
-                uint32_t enabled = 1;
-                CHECK_CUPTI_ERROR( cuptiEventGroupSetAttribute(eventGroupSet->eventGroups[j], CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES, sizeof(uint32_t), &enabled), 1);
-            }
-            CHECK_CUPTI_ERROR( cuptiEventGroupSetEnable(eventGroupSet), 1);
-        }
-    }
-    else {
-        update_client_metric_values(currentDevice, currentCtx);
-
-	if ((resetevents != 0) && (eventGroupSets != NULL)) {
-	    // Disable and destroy existing event groups
-	    for (size_t i = 0; i < eventGroupSets->numSets; ++i) {
-		 CUpti_EventGroupSet *eventGroupSet = &eventGroupSets->sets[i];
-		 CHECK_CUPTI_ERROR(cuptiEventGroupSetDisable(eventGroupSet), 1);
-		 for (size_t j = 0; j < eventGroupSet->numEventGroups; ++j) {
-		    CHECK_CUPTI_ERROR(cuptiEventGroupDestroy(eventGroupSet->eventGroups[j]), 1);
-		 }
-	    }
-	    CHECK_CUPTI_ERROR(cuptiMetricDestroyEventGroupSets(eventGroupSets), 1);
-	    eventGroupSets = NULL;
-	    resetevents = 0;
-	    for (int i = 0; i < CUPTI_NUM_METRICS; i++) {
-		    prevMetricsValue[i] = metricsValue[i];
-		    metricsValue[i] = 0;
-	    }
-	    pthread_cond_signal(&client_mgr_cond);
-        }
-    }
-
-    pthread_mutex_unlock(&client_mgr_mutex);
-    */
-
-}
-
-void get_client_metric_utilization(uint64_t *valueArray, int count) {
-    int params;
-    /*
-
-    for (int i = 0; i< count; i++)
-	    valueArray[i] = 0;
-
-    pthread_mutex_lock(&client_mgr_mutex);
-
-    if(eventGroupSets == NULL) {
-        LOGE(LOG_ERROR, "eventGroupSets not initialized");
-        pthread_mutex_unlock(&client_mgr_mutex);
-	return;
-    }
-
-    // Notify to destory
-    resetevents = 1;
-    while(resetevents == 0) {
-        pthread_cond_wait(&client_mgr_cond, &client_mgr_mutex);
-    }
-
-    // Copy values.
-    params = count > CUPTI_NUM_METRICS? CUPTI_NUM_METRICS : count;
-    // Read and process the metrics
-    for (int i = 0; i < params; i++) {
-	valueArray[i] = prevMetricsValue[i];
-	prevMetricsValue[i] = 0;
-    }
-    pthread_mutex_unlock(&client_mgr_mutex);
-    */
-}
-
-void update_client_metric_throughput(cricket_client *client, int threads) {
-
-    pthread_mutex_lock(&client_mgr_mutex);
-
-    if (threads) {
-	    if (call_count < MAX_CALLS) {
-		// Capture start time
-		gettimeofday(&calls[call_count].start_time, NULL);
-		// Store the resource usage at the start
-		calls[call_count].resource_usage = (double) threads;
-		call_count++;
-	    }
-	    else {
-		// If the buffer is full, overwrite the oldest request
-		gettimeofday(&calls[call_insert_index].start_time, NULL);
-        	calls[call_insert_index].resource_usage = (double) threads;
-        	call_insert_index = (call_insert_index + 1) % MAX_CALLS;
-	    }
-    }
-    else {
-	if (end_call_count < call_count) {
-	     if	(end_call_count < MAX_CALLS) {
-                // Capture end time
-                gettimeofday(&calls[end_call_count].end_time, NULL);
-                end_call_count++;
-	     }
-	     else {
-                gettimeofday(&calls[end_call_index].end_time, NULL);
-        	end_call_index = (end_call_index + 1) % MAX_CALLS;
-	     }
-        }
-    }
-
-    //LOGE(LOG_INFO, "Start count %d end count %d resource %d call count %d end_count %d end_coud %d", calls[call_count-1].start_time.tv_sec, calls[call_count -1].end_time.tv_sec, calls[call_count-1].resource_usage, call_count, end_call_count, end_call_count);
-
-    /*
-    if(kernel_launch_count == 0) {
-	    kernel_start = clock(); //time timestamp
-    }
-    kernel_launch_count++;
-    kernel_thread_count += threads;
-    */
-    pthread_mutex_unlock(&client_mgr_mutex);
-}
-
-// Function to compare two integers for qsort
-int compare_doubles(const void *a, const void *b) {
-    double diff = (*(double *)a - *(double *)b);
-    
-    if (diff < 0.0) return -1;  // a is less than b
-    else if (diff > 0.0) return 1;  // a is greater than b
-    else return 0;  // a and b are equal
-}
-
-// Function to calculate the 99th percentile from the requests
-double compute_99th_percentile() {
-    static double sorted_resource[MAX_CALLS];
-
-    if (end_call_count == 0) {
-        return 0;
-    }
-
-    for (int i = 0; i < end_call_count; i++) {
-        int index = (end_call_index + i) % MAX_CALLS;
-        sorted_resource[i] = calls[index].resource_usage;
-    }
-
-    // Sort the requests
-    qsort(sorted_resource, end_call_count, sizeof(double), compare_doubles);
-
-    // Calculate the index for the 99th percentile
-    int idx = (int)((end_call_count - 1) * 0.99);
-    double percentile_value = (double)sorted_resource[idx];
-
-    return percentile_value;
-}
-
-#include <math.h>
-void get_client_metric_throughput(uint32_t *avg_resource_usage, uint32_t *avg_function_rate, uint32_t *avg_latency) {
-
-    struct cudaDeviceProp dev_prop;
-    *avg_resource_usage = 0;
-    *avg_function_rate = 0;
-    *avg_latency = 0;
-    cudaError_t res = cudaGetDeviceProperties(&dev_prop, get_active_device());
-    if ((res != cudaSuccess) || (dev_prop.maxThreadsPerMultiProcessor == 0)) {
-        LOGE(LOG_ERROR, "get_metric_throughput: Failed to get device properties: %s", cudaGetErrorString(res));
-        return;
-    }
-    
-
-    pthread_mutex_lock(&client_mgr_mutex);
-    if (end_call_count >= 2) {
-        // Calculate the total time difference between first and last call
-        double start_time = calls[end_call_index].start_time.tv_sec + calls[end_call_index].start_time.tv_usec / 1e6;
-	int end_index = (end_call_index + end_call_count -1 ) % MAX_CALLS;
-        double end_time = calls[end_index].end_time.tv_sec + calls[end_index].end_time.tv_usec / 1e6;
-        double total_time = end_time - start_time;
-
-        // Return the call rate: number of calls per second
-        *avg_function_rate =  (end_call_count - 1) / total_time;
-    }
-
-    double total_latency = 0;
-    for (int i = 0; i < end_call_count; i++) {
-        int index = (end_call_index + i) % MAX_CALLS;
-        double start_time = calls[index].start_time.tv_sec + calls[index].start_time.tv_usec / 1e6;
-        double end_time = calls[index].end_time.tv_sec + calls[index].end_time.tv_usec / 1e6;
-        total_latency += (end_time - start_time);
-    }
-
-    if (end_call_count > 0) {
-    	*avg_latency =  total_latency / end_call_count;
-    }
-
-    double total_resource_usage = 0.0;
-    for (int i = 0; i < end_call_count; i++) {
-        int index = (end_call_index + i) % MAX_CALLS;
-        total_resource_usage += calls[index].resource_usage;
-    }
-
-    if (end_call_count > 0) {
-    	double percentile_value =  compute_99th_percentile();
-	*avg_resource_usage = (uint32_t) ceil(percentile_value / dev_prop.maxThreadsPerMultiProcessor);
-    }
-
-    //LOGE(LOG_INFO, "Metrics returned usage %d latency %d rate %d\n count %d end_count %d", *avg_resource_usage, *avg_latency, *avg_function_rate, call_count, end_call_count);
-    //call_count = (int)0;
-    //end_call_count = (int)0;
-    //LOGE(LOG_INFO, "Metrics returned usage %d latency %d rate %d\n count %d end_count %d", *avg_resource_usage, *avg_latency, *avg_function_rate, call_count, end_call_count);
-    pthread_mutex_unlock(&client_mgr_mutex);
-}
 
 static int freeResources(cricket_client* client);
 
@@ -367,6 +33,17 @@ int init_cpu_server_client_mgr() {
         return ret;
     }
     */
+    // Define and set mutex attribute directly
+    pthread_mutexattr_t attr;
+
+    // Initialize the attribute variable
+    pthread_mutexattr_init(&attr);
+
+    // Set the attribute to make the mutex recursive
+    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+    pthread_mutex_init(&client_mgr_mutex, &attr);
+    pthread_mutex_init(&metrics_mutex, &attr);
 
     ret = resource_mg_init(&xp_fd_to_client, 0);
     if (ret != 0) {
@@ -793,8 +470,8 @@ int fetch_variable_data_to_host(void) {
 
     while ((client = get_next_client(&iter)) != NULL) {
 
-        //pthread_mutex_lock(&client->vars.mutex);
-        //pthread_mutex_lock(&client->vars.map_res.mutex);
+        pthread_mutex_lock(&client->vars.mutex);
+        pthread_mutex_lock(&client->vars.map_res.mutex);
 	size_t i = 0;
         resource_mg_map_elem *elem = NULL;
 	resource_mg_print(&client->vars);
@@ -812,15 +489,15 @@ int fetch_variable_data_to_host(void) {
 
                 if (cudaMemcpyFromSymbol(data->data, pair->addr, data->size, 0, cudaMemcpyDeviceToHost) != cudaSuccess) {
                     LOGE(LOG_ERROR, "Failed to copy variable data to host");
-                    //pthread_mutex_unlock(&client->vars.map_res.mutex);
-                    //pthread_mutex_unlock(&client->vars.mutex);
+                    pthread_mutex_unlock(&client->vars.map_res.mutex);
+                    pthread_mutex_unlock(&client->vars.mutex);
     		    pthread_mutex_unlock(&client_mgr_mutex);
                     return -1;
                 }
 	    }
         }
-        //pthread_mutex_unlock(&client->vars.map_res.mutex);
-        //pthread_mutex_unlock(&client->vars.mutex);
+        pthread_mutex_unlock(&client->vars.map_res.mutex);
+        pthread_mutex_unlock(&client->vars.mutex);
     }
     pthread_mutex_unlock(&client_mgr_mutex);
     return 0;

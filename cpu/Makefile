@@ -35,6 +35,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-driver-hidden.c \
 			 log.c                      \
 			 cpu-libwrap.c              \
+			 msg-handler.c              \
 			 cpu-server-cusolver.c 		\
 			 cpu-server-cublas.c 		\
 			 list.c                     \
@@ -50,6 +51,7 @@ SRC_SERVER = $(RPC_XDR)                 \
 			 cpu-server-cublaslt.c      \
 			 cpu-server-mgr-listener.c  \
 			 cpu-server-resource-controller.c \
+			 cpu-server-metrics.c \
 			 gsched_fixed.c \
 			 device-management.c \
 			 resource-map.c \
@@ -70,6 +72,7 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 list.c 				    \
 			 log.c                      \
 			 cpu-libwrap.c              \
+			 msg-handler.c              \
 			 cpu-client-cusolver.c 		\
 			 oob.c 					    \
 			 cpu-client-mt-memcpy.c				\
@@ -79,6 +82,7 @@ SRC_CLIENT = $(RPC_XDR)                 \
 			 cpu-client-cublas.c        \
 			 cpu-client-cublaslt.c      \
 			 cpu-client-mgr-handler.c   \
+			 cpu-client-header.c \
 			 resource-mg.c
 
 ifdef WITH_IB

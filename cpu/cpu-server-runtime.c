@@ -41,6 +41,7 @@
 #include "device-management.h"
 #include "cpu-server-client-mgr.h"
 #include "cpu-server-dev-mem.h"
+#include "cpu-server-metrics.h"
 
 
 // metrics
@@ -873,8 +874,7 @@ bool_t cuda_stream_synchronize_1_svc(ptr stream, int *result, struct svc_req *rq
 
     LOGE(LOG_INFO, "cudaStreamSynchronize %p", stream_ptr);
     *result = cudaStreamSynchronize(stream_ptr);
-    update_client_metric_throughput(client, 0);
-    update_client_metric_utilization();
+    record_resource_acquisition(client, 0);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -1354,9 +1354,8 @@ bool_t cuda_launch_cooperative_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3
 
     RECORD_RESULT(integer, *result);
 
-    update_client_metric_throughput(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
+    record_resource_acquisition(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
 
-    update_client_metric_utilization();
     LOGE(LOG_DEBUG, "cudaLaunchCooperativeKernel result: %d", *result);
     GSCHED_RELEASE;
     return 1;
@@ -1452,8 +1451,7 @@ bool_t cuda_launch_kernel_1_svc(ptr func, rpc_dim3 gridDim, rpc_dim3 blockDim,
     //printf("Get last error %s\n", cudaGetErrorString(cudaPeekAtLastError()));
     free(cuda_args);
     RECORD_RESULT(integer, *result);
-    update_client_metric_throughput(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
-    update_client_metric_utilization();
+    record_resource_acquisition(client, cuda_gridDim.x * cuda_gridDim.y * cuda_gridDim.z * cuda_blockDim.x * cuda_blockDim.y * cuda_blockDim.z);
     LOGE(LOG_DEBUG, "cudaLaunchKernel result: %d", *result);
     GSCHED_RELEASE;
     return 1;
@@ -2298,6 +2296,8 @@ bool_t cuda_memcpy_htod_1_svc(uint64_t ptr, mem_data mem, size_t size, int *resu
     cudaHostUnregister(mem.mem_data_val);
 #endif
 
+    record_memcpy_resource_acquisition(client, size);
+
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2314,6 +2314,8 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, din
 
     LOGE(LOG_DEBUG, "cudaMemcpyMTHtoD");
     
+    GET_CLIENT(result->err)
+
     mt_memcpy_server_t *server;
     if (list_append(&mt_memcpy_list, (void**)&server) != 0) {
         LOGE(LOG_ERROR, "list_append failed.");
@@ -2334,6 +2336,7 @@ bool_t cuda_memcpy_mt_htod_1_svc(uint64_t dest, size_t size, int thread_num, din
     result->err = 0;
     pthread_mutex_unlock(&mt_memcpy_list.mutex);
 
+    record_memcpy_resource_acquisition(client, size);
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;
     return 1;
@@ -2348,6 +2351,8 @@ bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint
     RECORD_ARG(3, thread_num);
 
     LOGE(LOG_DEBUG, "cudaMemcpyMTDtoH");
+    GET_CLIENT(result->err)
+
     mt_memcpy_server_t *server;
     if (list_append(&mt_memcpy_list, (void**)&server) != 0) {
         LOGE(LOG_ERROR, "list_append failed.");
@@ -2367,6 +2372,7 @@ bool_t cuda_memcpy_mt_dtoh_1_svc(uint64_t src, size_t size, int thread_num, dint
     result->dint_result_u.data.i2 = mt_memcpy_list.length - 1;
     result->err = 0;
     pthread_mutex_unlock(&mt_memcpy_list.mutex);
+    record_memcpy_resource_acquisition(client, size);
 
     RECORD_RESULT(integer, result->err);
     GSCHED_RELEASE;
@@ -2428,6 +2434,7 @@ bool_t cuda_memcpy_dtod_1_svc(ptr dst, ptr src, size_t size, int *result, struct
       memsrc_ptr,
       size, cudaMemcpyDeviceToDevice);
 
+    record_memcpy_resource_acquisition(client, size);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2464,6 +2471,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
     RECORD_ARG(4, kind);
     LOGE(LOG_DEBUG, "cudaMemcpyIB");
     *result = cudaErrorInitializationError;
+    GET_CLIENT(*result)
     //anstatt array list (list.c)
     if (hainfo[index].idx == 0 ||
         hainfo[index].idx != index) {
@@ -2500,6 +2508,7 @@ bool_t cuda_memcpy_ib_1_svc(int index, ptr device_ptr, size_t size, int kind, in
         //first arg will bei ib registered device mem reg -> ?
     }
 out:
+    record_memcpy_resource_acquisition(client, size);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2521,6 +2530,8 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
     RECORD_ARG(3, size);
     RECORD_ARG(4, kind);
     LOGE(LOG_DEBUG, "cudaMemcpyShm(index: %d, device_ptr: %p, size: %d, kind: %d)", index, device_ptr, size, kind);
+    GET_CLIENT(*result)
+
     *result = cudaErrorInitializationError;
     if (index >= hainfo_cnt ||
         hainfo[index].idx != index) {
@@ -2548,6 +2559,7 @@ bool_t cuda_memcpy_shm_1_svc(int index, ptr device_ptr, size_t size, int kind, i
           kind);
     }
 out:
+    record_memcpy_resource_acquisition(client, size);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2590,6 +2602,7 @@ bool_t cuda_memcpy_dtoh_1_svc(uint64_t ptr, size_t size, mem_result *result, str
         free(result->mem_result_u.data.mem_data_val);
     }
 out:
+    record_memcpy_resource_acquisition(client, size);
     GSCHED_RELEASE;
     return 1;
 }
@@ -2749,6 +2762,7 @@ bool_t cuda_memset_1_svc(ptr devPtr, int value, size_t count, int *result, struc
       mem_ptr,
       value,
       count);
+    record_memcpy_resource_acquisition(client, count);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2776,6 +2790,7 @@ bool_t cuda_memset_2d_1_svc(ptr devPtr, size_t pitch, int value, size_t width, s
       value,
       width,
       height);
+    record_memcpy_resource_acquisition(client, width*height);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2809,6 +2824,7 @@ bool_t cuda_memset_2d_async_1_svc(ptr devPtr, size_t pitch, int value, size_t wi
       width,
       height,
       (cudaStream_t)stream_ptr);
+    record_memcpy_resource_acquisition(client, width*height);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2839,6 +2855,7 @@ bool_t cuda_memset_3d_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t ysize
                                 .height = height,
                                 .width = width};
     *result = cudaMemset3D(pptr, value, extent);
+    record_memcpy_resource_acquisition(client, depth*width*height);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2874,6 +2891,7 @@ bool_t cuda_memset_3d_async_1_svc(size_t pitch, ptr devPtr, size_t xsize, size_t
                                 .height = height,
                                 .width = width};
     *result = cudaMemset3DAsync(pptr, value, extent, (cudaStream_t)stream_ptr);
+    record_memcpy_resource_acquisition(client, depth*width*height);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;
@@ -2901,6 +2919,7 @@ bool_t cuda_memset_async_1_svc(ptr devPtr, int value, size_t count, ptr stream, 
       value,
       count,
       (cudaStream_t)stream_ptr);
+    record_memcpy_resource_acquisition(client, count);
     RECORD_RESULT(integer, *result);
     GSCHED_RELEASE;
     return 1;

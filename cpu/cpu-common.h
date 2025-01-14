@@ -34,6 +34,7 @@ list kernel_infos;
 
 // semaphore
 pthread_rwlock_t access_sem;
+//extern pthread_mutex_t hamutex, rpc_mutex;
 
 #define FUNC_BEGIN \
     pthread_rwlock_rdlock(&access_sem);

@@ -60,6 +60,7 @@ size_t cudnnGetCudartVersion(void)
     return result;
 }
 
+extern const char* flytcudnnGetErrorString(int error);
 const char *cudnnGetErrorString(cudnnStatus_t status)
 {
 #ifdef WITH_API_CNT
@@ -70,6 +71,7 @@ const char *cudnnGetErrorString(cudnnStatus_t status)
     enum clnt_stat retval_1;
     FUNC_BEGIN 
     retval_1 = rpc_cudnngeterrorstring_1((int)status, &result, clnt);
+    return flytcudnnGetErrorString(status);
     FUNC_END
     if (retval_1 != RPC_SUCCESS) {
         LOGE(LOG_ERROR, "%s failed (%d)", __FUNCTION__, retval_1);

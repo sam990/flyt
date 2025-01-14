@@ -202,7 +202,6 @@ bool_t rpc_cublassgemm_1_svc(ptr handle, int transa, int transb, int m, int n, i
     RECORD_ARG(13, C);
     RECORD_ARG(14, ldc);
     LOGE(LOG_DEBUG, "cublasSgemm handle %p alpha %f beta %f", handle, alpha, beta);
-    printf( "cublasSgemm 3 handle %p alpha %3f beta %3f\n", handle, alpha, beta);
     GSCHED_RETAIN;
 #if CUBLAS_VERSION >= 11000
 

@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 #include <inttypes.h>
+#include <arpa/inet.h>
 
 #define PROJ_ID 0x42
 
@@ -21,12 +22,32 @@ struct msgbuf_uint32 {
     uint32_t data;    /* message data */
 };
 
-uint64_t msg_send_id() {
-    return ((uint64_t)getpid()) << 32;
-}
+struct metricsInfo {
+    uint64_t totalThreadResource;
+    uint64_t kernelElapseTimeMS;
+    uint64_t kernelLaunchCount;
 
-uint64_t msg_recv_id() {
-    return getpid();
-}
+    uint64_t memUsage;
+
+    uint64_t totalMemcpySize;
+    uint64_t memcpyElapseTimeMS;
+    uint64_t memcpyCount;
+
+    uint64_t totalStreams;
+    uint64_t totalEvents;
+};
+
+struct msgbuf_metrics {
+    long mtype;       /* message type, must be > 0 */
+    struct metricsInfo msg;
+};
+
+uint64_t msg_send_id();
+
+uint64_t msg_recv_id();
+
+uint64_t htonll(uint64_t value);
+
+uint64_t ntohll(uint64_t value);
 
 #endif //_MSG_HANDLER_H_

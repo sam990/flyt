@@ -314,11 +314,11 @@ cudaError_t cudaGetDevice(int* device)
     enum clnt_stat retval_1;
     FUNC_BEGIN 
 
-    //*device = 0;
-    //return cudaSuccess;
+    *device = 0;
 
-    retval_1 = cuda_get_device_1(&result, clnt);
+    //retval_1 = cuda_get_device_1(&result, clnt);
     FUNC_END
+    return cudaSuccess;
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -336,11 +336,11 @@ cudaError_t cudaGetDeviceCount(int* count)
     int_result result;
     enum clnt_stat retval_1;
     FUNC_BEGIN 
-    //*count = 1;
-    //return cudaSuccess;
+    *count = 1;
 
-    retval_1 = cuda_get_device_count_1(&result, clnt);
+    //retval_1 = cuda_get_device_count_1(&result, clnt);
     FUNC_END
+    return cudaSuccess;
     if (retval_1 != RPC_SUCCESS) {
         clnt_perror (clnt, "call failed");
     }
@@ -459,10 +459,12 @@ cudaError_t cudaSetValidDevices(int *device_arr, int len)
     return result;
 }
 
+extern const char* flytcuGetErrorString(int error);
 const char* cudaGetErrorName(cudaError_t error)
 {
     str_result result;
     enum clnt_stat retval_1;
+    return flytcuGetErrorString(error);
     result.str_result_u.str = malloc(128);
     FUNC_BEGIN 
     retval_1 = cuda_get_error_name_1(error, &result, clnt);
@@ -483,6 +485,7 @@ const char* cudaGetErrorString(cudaError_t error)
 #endif //WITH_API_CNT
     str_result result;
     enum clnt_stat retval_1;
+    return flytcuGetErrorString(error);
     result.str_result_u.str = malloc(256);
     FUNC_BEGIN 
     retval_1 = cuda_get_error_string_1(error, &result, clnt);
@@ -501,7 +504,7 @@ cudaError_t cudaGetLastError(void)
 #ifdef WITH_API_CNT
     api_call_cnt++;
 #endif //WITH_API_CNT
-    int result;
+    int result =cudaSuccess;
     enum clnt_stat retval_1;
     FUNC_BEGIN 
     retval_1 = cuda_get_last_error_1(&result, clnt);
@@ -1249,13 +1252,16 @@ static size_t hainfo_cnt = 0;
 static int hainfo_getindex(void *client_ptr)
 {
     int i;
+    //pthread_mutex_lock(&hamutex);
     for (i=0; i < hainfo_cnt; ++i) {
         if (hainfo[i].client_ptr != 0 &&
             hainfo[i].client_ptr == client_ptr) {
+    	    //pthread_mutex_unlock(&hamutex);
 
             return i;
         }
     }
+    //pthread_mutex_unlock(&hamutex);
     return -1;
 }
 cudaError_t cudaFreeHost(void* ptr)
@@ -1266,6 +1272,7 @@ cudaError_t cudaFreeHost(void* ptr)
     int result = cudaErrorInitializationError;
     enum clnt_stat retval_1;
     int i = -1;
+    //pthread_mutex_lock(&hamutex);
     if (shm_enabled && connection_is_local == 1) { //Use local shared memory
         i = hainfo_getindex((void*)ptr);
         if (i == -1) {
@@ -1292,17 +1299,21 @@ cudaError_t cudaFreeHost(void* ptr)
         }
         ib_free_memreg((void*)ptr, i, false);
         hainfo[i].client_ptr = 0;
+    	//pthread_mutex_unlock(&hamutex);
         return cudaSuccess;
 #else
+    	//pthread_mutex_unlock(&hamutex);
         free(ptr);
         return cudaSuccess;
 #endif //WITH_IB
     } else {
         free(ptr);
+    	//pthread_mutex_unlock(&hamutex);
         return cudaSuccess;
     }
     result = cudaSuccess;
  out:
+    //pthread_mutex_unlock(&hamutex);
 //    return result;
       return cudaSuccess;
 }
@@ -1387,10 +1398,12 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
             goto out;
         }
 
+        //pthread_mutex_lock(&hamutex);
         hainfo[hainfo_cnt].idx = ret.sz_result_u.data;
         hainfo[hainfo_cnt].size = size;
         hainfo[hainfo_cnt].client_ptr = *pHost;
         hainfo_cnt++;
+        //pthread_mutex_unlock(&hamutex);
         
         FUNC_BEGIN 
         retval_1 = cuda_host_alloc_regshm_1(ret.sz_result_u.data, (ptr)*pHost, &reg_ret, clnt);
@@ -1407,11 +1420,13 @@ cudaError_t cudaHostAlloc(void** pHost, size_t size, unsigned int flags)
             LOGE(LOG_ERROR, "failed to register infiniband memory region");
             goto out;
         }
+        //pthread_mutex_lock(&hamutex);
         hainfo[hainfo_cnt].idx = hainfo_cnt;
         hainfo[hainfo_cnt].size = size;
         hainfo[hainfo_cnt].client_ptr = *pHost;
 
         hainfo_cnt++;
+        //pthread_mutex_unlock(&hamutex);
 
         FUNC_BEGIN 
         retval_1 = RPC_SUCCESS;
@@ -1724,6 +1739,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
+    //pthread_mutex_lock(&hamutex);
     if (kind == cudaMemcpyHostToDevice) {
         // get index of mem reg (src: cpu reg memregion)
         int index = hainfo_getindex((void*)src);
@@ -1863,6 +1879,7 @@ cudaError_t cudaMemcpy(void* dst, const void* src, size_t count, enum cudaMemcpy
         LOGE(LOG_ERROR, "unknown kind");
     }
 cleanup:
+    //pthread_mutex_unlock(&hamutex);
     return ret;
 }
 DEF_FN(cudaError_t, cudaMemcpy2D, void*, dst, size_t, dpitch, const void*, src, size_t, spitch, size_t, width, size_t, height, enum cudaMemcpyKind, kind)
@@ -1896,6 +1913,7 @@ cudaError_t cudaMemcpyToSymbol(const void* symbol, const void* src, size_t count
 #endif //WITH_API_CNT
     int ret = 1;
     enum clnt_stat retval;
+    //pthread_mutex_lock(&hamutex);
     if (kind == cudaMemcpyHostToDevice) {
         int index = hainfo_getindex((void*)src);
         /* not a cudaHostAlloc'ed memory */
@@ -1914,6 +1932,7 @@ cudaError_t cudaMemcpyToSymbol(const void* symbol, const void* src, size_t count
         LOGE(LOG_ERROR, "a kind different from HostToDevice is unsupported for cudaMemcpyToSymbol");
     }
 cleanup:
+    //pthread_mutex_unlock(&hamutex);
     return ret;
 }
 

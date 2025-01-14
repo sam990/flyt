@@ -99,9 +99,11 @@ bool_t rpc_cublasltmatmuldescdestroy_1_svc(ptr matmulDesc, int *result, struct s
 
     GSCHED_RETAIN;
     *result = cublasLtMatmulDescDestroy(resource_mg_get_or_null(&rm_cublaslt, (void*)matmulDesc));
+    /*
     if (*result == cudaSuccess) {
 	    resource_mg_remove(&rm_cublaslt, (void *)matmulDesc);
     }
+    */
     GSCHED_RELEASE;
     return 1;
 }

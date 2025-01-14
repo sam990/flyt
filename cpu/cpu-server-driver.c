@@ -421,7 +421,7 @@ bool_t rpc_elf_load_1_svc(mem_data elf, ptr module_key, int *result, struct svc_
     LOGE(LOG_DEBUG, "module: %p, module_info: %p, elfargs: %p", module, module_info, elf_args);
 
     if (resource_mg_add_sorted(&client->modules, (void*)module_key, (void*)module_info) != 0) {
-        LOGE(LOG_ERROR, "resource_mg_create failed");
+        LOGE(LOG_ERROR, "resource_mg_add_sorted failed");
 
         free(elf_args->mem_data_val);
         free(elf_args);
@@ -459,7 +459,7 @@ bool_t rpc_elf_unload_1_svc(ptr elf_handle, int *result, struct svc_req *rqstp)
     LOGE(LOG_DEBUG,"module: %p", module);
 
     // if ((res = resource_mg_remove(&rm_modules, (void*)elf_handle)) != CUDA_SUCCESS) {
-    //     LOG(LOG_ERROR, "resource_mg_create failed: %d", res);
+    //     LOG(LOG_ERROR, "resource_mg_remove failed: %d", res);
     //     result->err = res;
     //     return 1;
     // }
@@ -820,7 +820,7 @@ bool_t rpc_cumoduleloaddata_1_svc(mem_data mem, ptr_result *result,
         module_info->reg_data.size = sizeof(mem_data);
 
         if (resource_mg_add_sorted(&client->modules, (void*)result->ptr_result_u.ptr, (void*)module_info) != 0) {
-            LOGE(LOG_ERROR, "resource_mg_create failed");
+            LOGE(LOG_ERROR, "resource_mg_add_sorted failed");
             free(elf_args->mem_data_val);
             free(elf_args);
             free(module_info);
@@ -855,7 +855,7 @@ bool_t rpc_cumoduleload_1_svc(char* path, ptr_result *result,
         module_info->reg_data.size = strlen(path) + 1;
 
         if (resource_mg_add_sorted(&client->modules, (void*)result->ptr_result_u.ptr, (void*)module_info) != 0) {
-            LOGE(LOG_ERROR, "resource_mg_create failed");
+            LOGE(LOG_ERROR, "resource_mg_add_sorted failed");
             cuModuleUnload((CUmodule)result->ptr_result_u.ptr);
             free(module_info->reg_data.data);
             free(module_info);

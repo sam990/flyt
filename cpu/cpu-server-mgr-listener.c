@@ -20,14 +20,14 @@
 
 
 // Metrics function
-#include "metrics/profiler.h"
+#include "cpu-server-metrics.h"
+//#include "metrics/profiler.h"
 
 const char* SNODE_VIRTS_CHANGE_RESOURCES = "SNODE_VIRTS_CHANGE_RESOURCES";
 const char* SNODE_VIRTS_CHECKPOINT = "SNODE_VIRTS_CHECKPOINT";
 const char* SNODE_VIRTS_RESTORE = "SNODE_VIRTS_RESTORE";
 const char* SNODE_VIRTS_DEALLOC = "SNODE_VIRTS_DEALLOC";
-const char* SNODE_SEND_METRICS_THROUGHPUT = "SNODE_SEND_METRICS_THROUGHPUT";
-const char* SNODE_SEND_METRICS_UTILIZATION = "SNODE_SEND_METRICS_UTILIZATION";
+const char* SNODE_SEND_USAGE_METRICS = "SNODE_SEND_USAGE_METRICS";
 
 pthread_t handler_thread;
 
@@ -112,67 +112,35 @@ static void *snode_msg_handler(void *arg) {
                 LOGE(LOG_ERROR, "Error sending response to node manager: %s", strerror(errno));
             }
         }
-        else if (strncmp(msg.msg.cmd, SNODE_SEND_METRICS_THROUGHPUT, strlen(SNODE_SEND_METRICS_THROUGHPUT)) == 0) {
+        else if (strncmp(msg.msg.cmd, SNODE_SEND_USAGE_METRICS, strlen(SNODE_SEND_USAGE_METRICS)) == 0) {
             LOGE(LOG_INFO, "Received message from node manager: %s", msg.msg.cmd);
             
-	    uint32_t avg_resource_usage, avg_function_rate, avg_latency;
-	    struct msgbuf_uint32 rsp;
-	    extern void get_client_metric_throughput(uint32_t *avg_resource_usage, uint32_t *avg_function_rate, uint32_t *avg_latency);
+	    struct metricsInfo info;
+	    struct msgbuf_metrics rsp;
             
-            get_client_metric_throughput(&avg_resource_usage, &avg_function_rate, &avg_latency);
+            get_client_metrics(&info);
 
-            LOGE(LOG_INFO, "After metrics data usage %d rate %d latency %ds", avg_resource_usage, avg_function_rate, avg_latency);
+            LOGE(LOG_INFO, "After metrics resource usage %ld elapsetimems %ld smcount %d memory %ld", info.totalThreadResource, info.kernelElapseTimeMS, 
+			    info.kernelLaunchCount, info.memUsage);
 
             rsp.mtype = send_type;
-            rsp.data = htonl(3);
 
-            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
+            rsp.msg.totalThreadResource = htonll(info.totalThreadResource);
+            rsp.msg.kernelElapseTimeMS = htonll(info.kernelElapseTimeMS);
+            rsp.msg.kernelLaunchCount = htonll(info.kernelLaunchCount);
+
+            rsp.msg.memUsage = htonll(info.memUsage);
+
+            rsp.msg.totalMemcpySize = htonll(info.totalMemcpySize);
+            rsp.msg.memcpyElapseTimeMS = htonll(info.memcpyElapseTimeMS);
+            rsp.msg.memcpyCount = htonll(info.memcpyCount);
+            rsp.msg.totalStreams = htonll(info.totalStreams);
+            rsp.msg.totalEvents = htonll(info.totalEvents);
+
+            if (msgsnd(snode_mqueue_id, &rsp, sizeof(rsp.msg), 0) == -1) {
                 LOGE(LOG_ERROR, "Error sending response metric throughput main message to node manager: %s", strerror(errno));
             }
-            //LOGE(LOG_INFO, "After  sending number of message\n");
-
-            rsp.data = htonl(avg_resource_usage);
-            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-                LOGE(LOG_ERROR, "Error sending response metric throughput avg_resource_usage message to node manager: %s", strerror(errno));
-            }
-            //LOGE(LOG_INFO, "After  sending usage of message\n");
-            rsp.data = htonl(avg_function_rate);
-            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-                LOGE(LOG_ERROR, "Error sending response metric throughput function_rate message to node manager: %s", strerror(errno));
-	    }
-            //LOGE(LOG_INFO, "After  sending rate of message\n");
-
-            rsp.data = htonl(avg_latency);
-            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-                LOGE(LOG_ERROR, "Error sending response metric throughput latency message to node manager: %s", strerror(errno));
-	    }
-            //LOGE(LOG_INFO, "After  sending latency of message\n");
         }
-	/*
-        else if ((strncmp(msg.msg.cmd, SNODE_SEND_METRICS_UTILIZATION, strlen(SNODE_SEND_METRICS_UTILIZATION)) == 0)|| 
-		 (strncmp(msg.msg.cmd, SNODE_SEND_METRICS_THROUGHPUT, strlen(SNODE_SEND_METRICS_THROUGHPUT)) == 0))	{
-            LOGE(LOG_INFO, "Received message from node manager: %s", msg.msg.cmd);
-            
-	    uint64_t valueArray[CUPTI_NUM_METRICS];
-	    struct msgbuf_uint32 rsp;
-            
-            int size = getMetrics(valueArray, CUPTI_NUM_METRICS);
-
-            rsp.mtype = send_type;
-            rsp.data = (uint32_t)size;
-            if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-               LOGE(LOG_ERROR, "Error sending utilisation metric size %i response to node manager: %s", size, strerror(errno));
-            }
-	    for (int i = 0; i < size; i++) {
-                rsp.data = (uint32_t)(valueArray[i] & 0xFFFFFFFF); 
-
-                if (msgsnd(snode_mqueue_id, &rsp, sizeof(uint32_t), 0) == -1) {
-                    LOGE(LOG_ERROR, "Error sending utilisation metric %i response to node manager: %s", i, strerror(errno));
-                }
-	    }
-        }
-	*/
-
         else if (strncmp(msg.msg.cmd, SNODE_VIRTS_DEALLOC, strlen(SNODE_VIRTS_DEALLOC)) == 0) {
             LOGE(LOG_INFO, "Received message from node manager: %s", msg.msg.cmd);
             
@@ -231,3 +199,4 @@ int init_listener(int rpc_id)
 
     pthread_create(&handler_thread, NULL, snode_msg_handler, NULL);
 }
+

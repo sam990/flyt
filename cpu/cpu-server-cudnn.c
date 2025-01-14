@@ -22,6 +22,11 @@
 int server_cudnn_init(int bypass)
 {
     int ret = 0;
+    // inverse of restore
+    if(bypass)
+	    bypass = 0;
+    else
+	    bypass = 1;
     ret &= resource_mg_init(&rm_cudnn, bypass);
     ret &= resource_mg_init(&rm_cudnn_tensors, bypass);
     ret &= resource_mg_init(&rm_cudnn_filters, bypass);
