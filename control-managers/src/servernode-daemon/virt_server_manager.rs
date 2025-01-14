@@ -4,6 +4,7 @@ use std::ffi::CString;
 use libc::{ftok, msgget, IPC_CREAT, IPC_EXCL, IPC_PRIVATE, key_t};
 use ipc_rs::MessageQueue;
 use crate::common::{api_commands::FlytApiCommand, types::MqueueClientControlCommand, utils::Utils};
+use crate::common::server_metrics::ServerMetricsInfo;
 
 const PROJ_ID: i32 = 0x42;
 
@@ -224,52 +225,36 @@ impl VirtServerManager {
         Ok(())
     }
 
-    pub fn get_virt_server_metrics_throughput(&self, rpc_id: u64) -> Result<Vec<u32>, String>  {
+    pub fn get_virt_server_metrics_throughput(&self, rpc_id: u64) -> Result<ServerMetricsInfo, String>  {
         log::debug!("server_metrics_throughput: rpc_id: {}", rpc_id);
 
-        //return self.get_virt_server_metrics_utilization(rpc_id);
-        
         let virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
 
-        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_SEND_METRICS_THROUGHPUT, "").as_bytes();
+        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_SEND_USAGE_METRICS, "").as_bytes();
 
         self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
 
-        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
+        // Receive the message with a timeout of 6 seconds
+        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(6))
+            .map_err(|e| format!("Error receiving message from virt server: {}", e))?;
 
-        let recv_size = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
-        log::info!("metrics received size {}", recv_size);
-        let mut results = Vec::with_capacity(recv_size.try_into().unwrap());
-        for _i in 0..recv_size {
-            let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
-            let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
-            log::info!("metrics data received {}", recv_status);
-            results.push(recv_status);
+        // Ensure the received bytes match the expected size
+        let expected_size = std::mem::size_of::<ServerMetricsInfo>();
+        if recv_bytes.len() != expected_size {
+            return Err(format!(
+                "Received bytes size mismatch: expected {}, got {}",
+                expected_size,
+                recv_bytes.len()
+            ).into());
         }
 
-        Ok(results)
-    }
+        // Parse the received bytes into ServerMetricsInfo
+        let metrics_info = ServerMetricsInfo::from_bytes(&recv_bytes)?;
 
-    pub fn get_virt_server_metrics_utilization(&self, rpc_id: u64) -> Result<Vec<u32>, String>  {
-        log::debug!("server_metrics_utilization: rpc_id: {}", rpc_id);
-        
-        let virt_server = self.get_virt_server(rpc_id).ok_or("Virt server not found")?;
+        // Now you can use `metrics_info` as needed
+        println!("Received ServerMetricsInfo: {:?}", metrics_info);
 
-        let mqueue_cmd = MqueueClientControlCommand::new(FlytApiCommand::SNODE_SEND_METRICS_UTILIZATION, "").as_bytes();
-
-        self.message_queue.send( &mqueue_cmd, virt_server.send_id).map_err(|e| format!("Error sending message to virt server: {}", e))?;
-
-        let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
-        let recv_size = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting size bytes to u32")?;
-
-        let mut results = Vec::with_capacity(recv_size.try_into().unwrap());
-        for _i in 0..recv_size {
-            let recv_bytes = self.message_queue.recv_type_timed(virt_server.recv_id, Duration::from_secs(60)).map_err(|e| format!("Error receiving message from virt server: {}", e))?;
-            let recv_status = Utils::convert_bytes_to_u32(&recv_bytes).ok_or("Error converting bytes to u32")?;
-            results.push(recv_status);
-        }
-
-        Ok(results)
+        Ok(metrics_info)
     }
 
     pub fn remove_virt_server(&self, rpc_id: u64) -> Result<(),String> {

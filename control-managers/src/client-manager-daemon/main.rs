@@ -11,7 +11,7 @@ mod common;
 use std::thread;
 use common::{config::CLMGR_CONFIG_PATH, utils::Utils};
 use vcuda_client_handler::VCudaClientManager;
-use monitor_metrics::Metrics;
+use monitor_metrics::VMMetrics;
 
 use crate::resource_manager_handler::ResourceManagerHandler;
 
@@ -50,11 +50,10 @@ fn main() {
     let client_mgr = VCudaClientManager::new(&mqueue_path);
     let res_mgr = ResourceManagerHandler::new(resource_manager_address, resource_manager_port, &client_mgr);
 
-    let (resource_manager_address, resource_manager_port) = Metrics::get_metrics_mgr_address();
-    let (scaleupfactor, scaledownfactor, interval_millis) = Metrics::get_metric_thresholds();
+    let (resource_manager_address, resource_manager_port) = VMMetrics::get_metrics_mgr_address();
     let address = format!("{}:{}", resource_manager_address, resource_manager_port);
-    let shared_mem_path = Metrics::get_shared_memory_path();
-    let mut metrics = Metrics::new(&client_mgr, interval_millis as u64, shared_mem_path, &address, scaleupfactor, scaledownfactor);
+    let shared_mem_path = VMMetrics::get_shared_memory_path();
+    let mut metrics = VMMetrics::new(&client_mgr, shared_mem_path, &address);
 
     thread::scope(|s| {
         /*

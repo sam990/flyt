@@ -20,18 +20,18 @@ impl FlytApiCommand {
     pub const RMGR_SNODE_CHANGE_RESOURCES: &'static str = "RMGR_SNODE_CHANGE_RESOURCES";
     pub const RMGR_SNODE_CHECKPOINT: &'static str = "RMGR_SNODE_CHECKPOINT";
     pub const RMGR_SNODE_RESTORE: &'static str = "RMGR_SNODE_RESTORE";
-    pub const RMGR_SNODE_SEND_METRICS: &'static str = "RMGR_SNODE_SEND_METRICS";
+    pub const RMGR_SNODE_SEND_USAGE_METRICS: &'static str = "RMGR_SNODE_SEND_USAGE_METRICS";
     pub const SNODE_VIRTS_DEALLOC: &'static str = "SNODE_VIRTS_DEALLOC";
     pub const SNODE_VIRTS_CHANGE_RESOURCES: &'static str = "SNODE_VIRTS_CHANGE_RESOURCES";
     pub const SNODE_VIRTS_CHECKPOINT: &'static str = "SNODE_VIRTS_CHECKPOINT";
     pub const SNODE_VIRTS_RESTORE: &'static str = "SNODE_VIRTS_RESTORE";
-    pub const SNODE_SEND_METRICS_THROUGHPUT: &'static str = "SNODE_SEND_METRICS_THROUGHPUT";
-    pub const SNODE_SEND_METRICS_UTILIZATION: &'static str = "SNODE_SEND_METRICS_UTILIZATION";
+    pub const SNODE_SEND_USAGE_METRICS: &'static str = "SNODE_SEND_USAGE_METRICS";
 }
 
 pub struct MetricsCommand;
 
 impl MetricsCommand {
+    pub const CLIENTD_MMGR_LOG: &'static str = "CLIENTD_MMGR_LOG";
     pub const CLIENTD_MMGR_UPSCALE: &'static str = "CLIENTD_MMGR_UPSCALE";
     pub const CLIENTD_MMGR_DOWNSCALE: &'static str = "CLIENTD_MMGR_DOWNSCALE";
 }

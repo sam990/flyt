@@ -361,11 +361,11 @@ impl <'a> FrontendHandler<'a> {
         };
 
         let ret = match change_for {
-            ChangeConfigFor::SmCores => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, cur_mem),
-            ChangeConfigFor::Memory => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, cur_compute, new_resource),
+            ChangeConfigFor::SmCores => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, cur_mem, &String::from(ipaddr)),
+            ChangeConfigFor::Memory => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, cur_compute, new_resource, &String::from(ipaddr)),
             ChangeConfigFor::Both => {
                 let mem_new = parts[3].trim().parse::<u64>().unwrap();
-                self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, mem_new)
+                self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, mem_new, &String::from(ipaddr))
             }
         };
 
@@ -431,7 +431,7 @@ impl <'a> FrontendHandler<'a> {
         }
         let new_mem = cur_mem + mem_inc;
 
-        let ret = self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_compute, new_mem);
+        let ret = self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_compute, new_mem, &String::from(ipaddr));
 
         if ret.is_ok() {
             log::info!("Resource updated successfully");

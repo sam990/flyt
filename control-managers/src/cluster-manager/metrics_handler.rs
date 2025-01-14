@@ -1,17 +1,96 @@
 ////use std::sync::{Arc, Mutex};
 
-use std::{thread, io::BufReader, net::{TcpStream, TcpListener} };
+use std::{thread, net::{TcpStream, TcpListener} };
 use std::time::Duration;
+use std::mem;
+use std::cmp;
 
-use crate::{client_handler::FlytClientManager, common::{api_commands:: MetricsCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};
+
+use crate::{client_handler::FlytClientManager, servernode_handler::ServerNodesManager};
+use crate::common::server_metrics::{ServerMetricsInfo, ClientMetricsInfo};
+use crate::common::server_metrics;
+//use crate::metrics_handler::ResourceScaling;
 
 const UPSCALE_COUNT: u32 = 3;
 const DOWNSCALE_COUNT: u32 = 3;
+const METRICS_ARRAY_SIZE: usize = server_metrics::METRICS_ARRAY_SIZE;
 
 enum ChangeScale {
     ScaleUp,
     ScaleDown,
     ScaleNone,
+}
+
+#[derive(PartialEq)]
+pub enum ResourceScaling {
+    ResourceUnderAllocated,
+    ResourceOverAllocated,
+    ResourceNormalAllocated,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClientNodeMetrics {
+    pub client_ipaddr: String,
+    pub client_id: i32,
+    pub server_ipaddr: String,
+    pub rpc_id: u64,
+    pub predicted_compute_units: u32,
+    pub predicted_memory: u64,
+    pub current_compute_units: u32,
+    pub current_memory: u64,
+}
+
+impl ClientNodeMetrics {
+    pub fn add_or_update_metric(
+        &self,
+        metrics: &mut Vec<ClientNodeMetrics>,
+    ) {
+        // Check if an entry with the same client_ipaddr and client_id exists
+        if let Some(existing_metric) = metrics.iter_mut().find(|metric| {
+            metric.client_ipaddr == self.client_ipaddr && metric.client_id == self.client_id
+        }) {
+            // Update the predicted_compute_units and predicted_memory to their maximum values
+            existing_metric.predicted_compute_units =
+                cmp::max(existing_metric.predicted_compute_units, self.predicted_compute_units);
+            existing_metric.predicted_memory =
+                cmp::max(existing_metric.predicted_memory, self.predicted_memory);
+        } else {
+            // If no entry exists, add the new metric to the vector
+            metrics.push(self.clone());
+        }
+    }
+
+    /// Function to determine resource scaling status
+    pub fn check_resource_allocation_status(&self) -> ResourceScaling {
+        let compute_status = if self.current_compute_units < self.predicted_compute_units {
+            ResourceScaling::ResourceUnderAllocated
+        } else if self.current_compute_units > self.predicted_compute_units {
+            ResourceScaling::ResourceOverAllocated
+        } else {
+            ResourceScaling::ResourceNormalAllocated
+        };
+
+        let memory_status = if self.current_memory < self.predicted_memory {
+            ResourceScaling::ResourceUnderAllocated
+        } else if self.current_memory > self.predicted_memory {
+            ResourceScaling::ResourceOverAllocated
+        } else {
+            ResourceScaling::ResourceNormalAllocated
+        };
+
+        // Combine statuses, prioritize under-allocation over over-allocation if one exists
+        if matches!(compute_status, ResourceScaling::ResourceUnderAllocated)
+            || matches!(memory_status, ResourceScaling::ResourceUnderAllocated)
+        {
+            ResourceScaling::ResourceUnderAllocated
+        } else if matches!(compute_status, ResourceScaling::ResourceOverAllocated)
+            || matches!(memory_status, ResourceScaling::ResourceOverAllocated)
+        {
+            ResourceScaling::ResourceOverAllocated
+        } else {
+            ResourceScaling::ResourceNormalAllocated
+        }
+    }
 }
 
 pub struct MetricsHandler<'a> {
@@ -54,458 +133,161 @@ impl <'a> MetricsHandler<'a> {
     fn handle_heartbeat(&self) {
         // For all server nodes, get the heartbeat metrics.
         // Compute scale up or down and take action.
-        let clients = self.client_mgr.get_all_clients();
-        //let server_nodes = self.server_nodes_manager.get_all_server_nodes();
-        for client_node in clients {
+        let mut clients = self.client_mgr.get_all_clients();
+        let mut underallocated_list = Vec::<ClientNodeMetrics>::new();
+        let mut overallocated_list = Vec::<ClientNodeMetrics>::new();
+
+        log::info!("Heart beat start loop");
+        for client_node in &mut clients {
             if *client_node.is_migrating.read().unwrap() == false  && client_node.virt_server.is_some() {
                 let virt_server_ip = client_node.virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
                 let rpc_id = client_node.virt_server.as_ref().unwrap().read().unwrap().rpc_id;
                 //let virt_server = virt_server.read().unwrap();
                 let metrics = self.server_nodes_manager.get_server_node_metrics(&virt_server_ip, rpc_id);
                 log::info!("Heart beat for server {} is {:?}", virt_server_ip, metrics);
+                if let Some(metric) = metrics {
 
-                let cur_compute = client_node.virt_server.as_ref().unwrap().read().unwrap().compute_units;
-                //let cur_mem = virt_server.memory;
-                let mut usage = cur_compute;
-                if let Some(metrics_vec) = metrics.as_ref() {
-                    usage = if metrics_vec[0] % 2 == 0 {
-                                metrics_vec[0]
-                            } else {
-                                metrics_vec[0] + 1
-                            };
-                }
+                    if metric.launch_count == 0 {
+                        continue;
+                    }
 
-                /* Not required now 
-                let mut scaleflag = ChangeScale::ScaleNone;
+                    client_node.server_metrics.push(metric);
+                    /* Predict the values */
+                    let (sm_predict, mem_predict) = ServerMetricsInfo::predict_next_resource(&client_node.server_metrics, client_node.compute_requested, client_node.memory_requested);
 
-                if usage > cur_compute {
-                    // Scale up
-                    scaleflag = ChangeScale::ScaleUp;
-                }
-                else if usage < cur_compute {
-                    // Scale down
-                    scaleflag = ChangeScale::ScaleDown;
-                }
+                    let client_metrics = ClientNodeMetrics {
+                        client_ipaddr           : client_node.ipaddr.clone(),
+                        client_id               : client_node.client_id,
+                        server_ipaddr           : virt_server_ip.clone(),
+                        rpc_id                  : rpc_id,
+                        current_compute_units   :client_node.compute_requested,
+                        current_memory          :client_node.memory_requested,
+                        predicted_compute_units : sm_predict,
+                        predicted_memory        : mem_predict,
+                        };
 
-                let ret = match scaleflag {
-                    ChangeScale::ScaleUp => self.server_nodes_manager.change_resource_configurations(&virt_server.ipaddr, virt_server.rpc_id, usage as u32, cur_mem),
-                    ChangeScale::ScaleDown => self.server_nodes_manager.change_resource_configurations(&virt_server.ipaddr, virt_server.rpc_id, usage as u32, cur_mem),
-                    ChangeScale::ScaleNone => todo!()
-                };
-                if ret.is_ok() {
-                    log::info!("Resource updated successfully");
-                }
-                else {
-                    log::error!("Error updating resource: initiating automigrate{:?}", ret);
+                    let resource_status = client_metrics.check_resource_allocation_status();
+                    if resource_status == ResourceScaling::ResourceUnderAllocated {
+                        client_metrics.add_or_update_metric(&mut underallocated_list);
+                    }
+                    else if resource_status == ResourceScaling::ResourceOverAllocated {
+                        client_metrics.add_or_update_metric(&mut overallocated_list);
+                    }
 
-                    let ret_val = self.server_nodes_manager.migrate_virt_server_auto(
-                        self.client_mgr, 
-                        &client_node.ipaddr.to_string(),
-                        usage,
-                        cur_mem);
-                }
-                */
-                let mut virt_server = client_node.virt_server.as_ref().unwrap().write().unwrap();
-                virt_server.actual_units = usage;
-                log::info!("Updated aacutal units: {} for virt-server : {}", usage, virt_server.ipaddr);
-            }
-
-            // TODO: implement sandpiper paper logic
-        }
-    }
-
-    fn handle_metrics_request(&self, stream: TcpStream) {
-        let reader_clone = match stream.try_clone() {
-            Ok(stream) => stream,
-            Err(e) => {
-                log::error!("Error cloning stream in metrics request: {}", e);
-                return;
-            }
-        };
-
-        let mut reader = BufReader::new(reader_clone);
-
-        let command = match StreamUtils::read_line(&mut reader) {
-            Ok(command) => command,
-            Err(e) => {
-                log::error!("Error reading command: {}", e);
-                return;
-            }
-        };
-        
-        let scalevalue_str = match StreamUtils::read_line(&mut reader) {
-            Ok(scalevalue_str) => scalevalue_str,
-            Err(e) => {
-                log::error!("Error reading scalevalue: {}", e);
-                return;
-            }
-        };
-        let parts: Vec<&str> = scalevalue_str.split(',').collect();
-        if parts.len() != 2 {
-            log::error!("Invalid arguments for scale up metrics : {:?}", parts);
-            return;
-        }
-
-        let client_id = parts[0].trim().parse::<i32>().unwrap();
-        let scalevalue = parts[1].trim().parse::<u32>().unwrap();
-        let vm_ip = stream.peer_addr().unwrap().ip().to_string();
-
-        log::info!("Scale received command: {} scalevalue: {} vm ip : {} client_id: {}", command.as_str(), scalevalue, vm_ip, client_id);
-
-        match command.as_str() {
-            MetricsCommand::CLIENTD_MMGR_UPSCALE => {
-                self.server_scaleup(&vm_ip, client_id, scalevalue, ChangeScale::ScaleUp);
-            }
-            MetricsCommand::CLIENTD_MMGR_DOWNSCALE => {
-                self.server_scaleup(&vm_ip, client_id, scalevalue, ChangeScale::ScaleDown);
-            }
-            _ => {
-                log::error!("Invalid command: {}", command);
-            }
-        }
-    }
-
-    fn server_scaleup(&self, vm_ip: &String, client_id: i32, scale_value: u32, scaleflag: ChangeScale) {
-        let client = self.client_mgr.get_client(vm_ip, client_id);
-        if client.is_none() {
-            log::error!("Client VM {} not found", vm_ip);
-            return;
-        }
-
-        let mut client = client.unwrap();
-        
-        if client.virt_server.is_none() {
-            log::error!("VM {} is not running on any server node", vm_ip);
-            return;
-        }
-
-        let (virt_server_ip, virt_server_rpc_id, cur_compute, cur_mem, _actual_units) = {
-            let virt_server = client.virt_server.as_ref().unwrap().read().unwrap();
-            (virt_server.ipaddr.clone(), virt_server.rpc_id, virt_server.compute_units, virt_server.memory, virt_server.actual_units)
-        };
-
-        let mut new_compute = match scaleflag {
-            ChangeScale::ScaleUp => scale_value as u32, //(cur_compute * (100 + scale_value))/100 as u32,
-            ChangeScale::ScaleDown => scale_value as u32, //(cur_compute * (100 - scale_value))/100 as u32,
-            ChangeScale::ScaleNone => 0 as u32
-        };
-
-        if new_compute > 0 && new_compute != cur_compute {
-            let vm_required_resources = self.server_nodes_manager.vm_resource_getter.get_vm_required_resources(vm_ip);
-            
-            if vm_required_resources.is_none() {
-                log::error!("Scaleup VM resources not found for client: {}", vm_ip);
-                return;
-            }
-
-            let mut vm_required_resources = vm_required_resources.unwrap();
-            
-            vm_required_resources.compute_units = new_compute;
-            vm_required_resources.memory = cur_mem;
-
-            let target_gpu = self.server_nodes_manager.get_free_gpu(&vm_required_resources, client_id);
-            log::info!("Scaleup required compute: {} memory: {}, target_gpcu {} ", new_compute, cur_mem, target_gpu.is_none());
-
-            if target_gpu.is_none() {
-                let (max_available_compute, max_available_memory) = self.server_nodes_manager.get_max_gpu(&vm_required_resources);
-                // Now compare with new_compute
-                let update_compute = if u64::from(new_compute) <= max_available_compute {
-                    new_compute
+                    /* Remove the first elements to maintain a length of 15 */
+                    if client_node.server_metrics.len() > METRICS_ARRAY_SIZE {
+                        let x = client_node.server_metrics.len() - METRICS_ARRAY_SIZE;
+                        client_node.server_metrics.drain(0..x);
+                    }
                 } else {
-                    log::info!("Scale-up expected {} but can only do {}", new_compute, max_available_compute);
-                    max_available_compute as u32
-                };
-
-                new_compute = update_compute;
-            }
-            log::info!("Scaleup requested compute: {} memory: {}", new_compute, cur_mem);
-
-            let ret = self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_compute, cur_mem);
-            if ret.is_ok() {
-                log::info!("Resource updated successfully new_sm {} cur_sm {}", new_compute, cur_compute);
-            }
-            else {
-
-                *client.is_migrating.get_mut().unwrap() = true;
-                let ret_val = self.server_nodes_manager.migrate_virt_server_auto(
-                        self.client_mgr, 
-                        &client.ipaddr.to_string(),
-                        client_id,
-                        new_compute,
-                        cur_mem);
-                *client.is_migrating.get_mut().unwrap() = false;
-                log::info!("migrating resource: {:?}", ret);
+                    log::error!("Metrics is None, skipping...");
+                    continue;
+                }
             }
         }
-    }
+        /* Release client */
+        mem::drop(clients);
 
-    /*
-    fn migrate_vm(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>) {
+        /* Now we have under allocated and over allocated list */
+        for overallocated_client in &overallocated_list {
+            //if let Some(client_node) = self.client_mgr.get_client(&overallocated_client.client_ipaddr, overallocated_client.client_id) {
+                //self.client_mgr.stop_client(&overallocated_client.client_ipaddr, overallocated_client.client_id);
+                self.server_nodes_manager.change_resource_configurations(
+                    &overallocated_client.server_ipaddr, 
+                    overallocated_client.rpc_id, 
+                    overallocated_client.predicted_compute_units, 
+                    overallocated_client.predicted_memory, 
+                    &overallocated_client.client_ipaddr,
+                    );
+                //self.client_mgr.resume_client(&overallocated_client.client_ipaddr, overallocated_client.client_id);
+            //}
+        }
+        mem::drop(overallocated_list);
 
-        log::info!("Received migrate request");
+        /* Now we have under allocated and under allocated list */
+        for underallocated_client in underallocated_list.clone() {
+            //if let Some(client_node) = self.client_mgr.get_client(&underallocated_client.client_ipaddr, underallocated_client.client_id) {
+                //self.client_mgr.stop_client(&underallocated_client.client_ipaddr, underallocated_client.client_id);
+                let result = self.server_nodes_manager.change_resource_configurations(
+                    &underallocated_client.server_ipaddr, 
+                    underallocated_client.rpc_id, 
+                    underallocated_client.predicted_compute_units, 
+                    underallocated_client.predicted_memory, 
+                    &underallocated_client.client_ipaddr,
+                    );
+                //self.client_mgr.resume_client(&underallocated_client.client_ipaddr, underallocated_client.client_id);
 
-        let request_params = match StreamUtils::read_response(&mut reader, 1) {
-            Ok(params) => params,
-            Err(e) => {
-                log::error!("Error reading request params: {}", e);
-                return;
-            }
-        };
-        
-        let parts: Vec<&str> = request_params[0].split(',').collect();
-        if parts.len() != 5 {
-            log::error!("Invalid arguments for migrate command: {:?}", parts);
-            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
+                if result.is_ok() {
+                    // If the result is Ok, remove the underallocated client from the list
+                    underallocated_list.retain(|client| client != &underallocated_client);
+                }
+            //}
+        }
+
+        if underallocated_list.len() == 0 {
+            /* nothing to do */
             return;
         }
 
-        let ipaddr = parts[0];
-        let new_server_ip = parts[1];
-        let new_server_gpu_id = match parts[2].parse::<u64>() {
-            Ok(gpu_id) => gpu_id,
-            Err(e) => {
-                log::error!("Error parsing gpu_id: {}", e);
-                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
-                return;
-            }
-        };
-
-        let new_server_compute_units = match parts[3].parse::<u32>() {
-            Ok(sm_cores) => sm_cores,
-            Err(e) => {
-                log::error!("Error parsing sm_cores: {}", e);
-                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
-                return;
-            }
-        };
-
-        let new_server_memory = match parts[4].parse::<u64>() {
-            Ok(memory) => memory,
-            Err(e) => {
-                log::error!("Error parsing memory: {}", e);
-                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
-                return;
-            }
-        };
-
-        log::info!("Migrating VM: {} to server: {} with gpu_id: {}", ipaddr, new_server_ip, new_server_gpu_id);
-        let res = self.server_nodes_manager.migrate_virt_server(
-            self.client_mgr, 
-            &ipaddr.to_string(),
-            &new_server_ip.to_string(),
-            new_server_gpu_id,
-            new_server_compute_units,
-            new_server_memory);
+        /* We need to identify non-critical clients and downgrade them */
+        // for now just log
+        // TODO: implement this scenario
+        // deallocate resource for non-critical applications or migrate non-critical migratable
+        // applications and then vertical scale
+        log::error!("GPU resource not avaible");
+        for underallocated_client in underallocated_list {
+            log::error!("underallocated client:  {:?}", underallocated_client);
+        }
         
-        if res.is_err() {
-            log::error!("Error migrating VM: {}", res.clone().unwrap_err());
-            
-            // resume the client if stopped
-            let _ = self.client_mgr.resume_client(ipaddr);
-
-            let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", res.unwrap_err()));
-        }
-        else {
-            log::info!("VM migrated successfully");
-            let _ = StreamUtils::write_all(&mut stream, "200\nVM migrated successfully\n".to_string());
-        }
-    
     }
 
-    fn migrate_vm_auto(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>) {
+    fn handle_metrics_request(&self, mut stream: TcpStream) {
 
-        log::info!("Received migrate auto request");
+        let client_ip = stream.peer_addr().unwrap().ip().to_string();
 
-        let request_params = match StreamUtils::read_response(&mut reader, 1) {
-            Ok(params) => params,
-            Err(e) => {
-                log::error!("Error reading request params: {}", e);
-                return;
+        if let Some(client_metric)  = ClientMetricsInfo::read_client_metrics_info(&mut stream) {
+            if let Some(mut client_node) = self.client_mgr.get_client(&client_ip, client_metric.gid) {
+                client_node.client_metrics.push(client_metric);
+                let virt_server_ip = client_node.virt_server.as_ref().unwrap().read().unwrap().ipaddr.clone();
+                let rpc_id = client_node.virt_server.as_ref().unwrap().read().unwrap().rpc_id;
+                /* Predict the values */
+                let (sm_predict, mem_predict) = ClientMetricsInfo::predict_next_resource(&client_node.client_metrics, client_node.compute_requested, client_node.memory_requested);
+
+                let client_metrics = ClientNodeMetrics {
+                    client_ipaddr           : client_ip.clone(),
+                    client_id               : client_node.client_id,
+                    server_ipaddr           : virt_server_ip.clone(),
+                    rpc_id                  : rpc_id,
+                    current_compute_units   :client_node.compute_requested,
+                    current_memory          :client_node.memory_requested,
+                    predicted_compute_units : sm_predict,
+                    predicted_memory        : mem_predict,
+                    };
+
+                let resource_status = client_metrics.check_resource_allocation_status();
+                if resource_status == ResourceScaling::ResourceUnderAllocated || 
+                   resource_status == ResourceScaling::ResourceOverAllocated {
+
+                    //self.client_mgr.stop_client(&client_metrics.client_ipaddr, client_metrics.client_id);
+                    self.server_nodes_manager.change_resource_configurations(
+                        &client_metrics.server_ipaddr, 
+                        client_metrics.rpc_id, 
+                        client_metrics.predicted_compute_units, 
+                        client_metrics.predicted_memory, 
+                        &client_metrics.client_ipaddr,
+                        );
+                    //self.client_mgr.resume_client(&client_metrics.client_ipaddr, client_metrics.client_id);
+                }
+                
+                /* Remove the first elements to maintain a length of 15 */
+                if client_node.client_metrics.len() > METRICS_ARRAY_SIZE {
+                    let x = client_node.client_metrics.len() - METRICS_ARRAY_SIZE;
+                    client_node.client_metrics.drain(0..x);
+                }
+            } else {
+                log::error!("Client node is None, skipping...");
             }
-        };
-        
-        let parts: Vec<&str> = request_params[0].split(',').collect();
-        if parts.len() != 3 {
-            log::error!("Invalid arguments for migrate command: {:?}", parts);
-            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
-            return;
         }
-
-        let ipaddr = parts[0];
-
-        let new_server_compute_units = match parts[1].parse::<u32>() {
-            Ok(sm_cores) => sm_cores,
-            Err(e) => {
-                log::error!("Error parsing sm_cores: {}", e);
-                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
-                return;
-            }
-        };
-
-        let new_server_memory = match parts[2].parse::<u64>() {
-            Ok(memory) => memory,
-            Err(e) => {
-                log::error!("Error parsing memory: {}", e);
-                let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
-                return;
-            }
-        };
-
-        log::info!("Migrating VM: {}", ipaddr);
-        let res = self.server_nodes_manager.migrate_virt_server_auto(
-            self.client_mgr, 
-            &ipaddr.to_string(),
-            new_server_compute_units,
-            new_server_memory);
-        
-        if res.is_err() {
-            log::error!("Error migrating VM: {}", res.clone().unwrap_err());
-            
-            // resume the client if stopped
-            let _ = self.client_mgr.resume_client(ipaddr);
-
-            let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", res.unwrap_err()));
-        }
-        else {
-            log::info!("VM migrated successfully to server: {}", res.unwrap().read().unwrap().ipaddr );
-            let _ = StreamUtils::write_all(&mut stream, "200\nVM migrated successfully\n".to_string());
-        }
-    
     }
 
-    fn list_vms(&self, mut stream: UnixStream){
-        let vms = self.client_mgr.get_all_clients();
-        let mut response = String::new();
-        response.push_str(format!("200\n{}\n", vms.len()).as_str());
-        for vm in vms {
-            // format: vmip,servnode_ip,servnode_rpcid,sm_cores,memory,isactive
-            if let Some(virt_server) = vm.virt_server {
-                let virt_server = virt_server.read().unwrap();
-                response.push_str(&format!("{},{},{},{},{},{}\n",
-                    vm.ipaddr,
-                    virt_server.ipaddr,
-                    virt_server.rpc_id,
-                    virt_server.compute_units,
-                    virt_server.memory,
-                    *vm.is_active.read().unwrap()
-                ));
-            }
-            else {
-                response.push_str(&format!("{},,,,,{}\n",
-                    vm.ipaddr,
-                    *vm.is_active.read().unwrap()
-                ));
-            }
-            
-        }
-        let _ = StreamUtils::write_all(&mut stream, response);
-    }
-
-    fn list_servernodes(&self, mut stream: UnixStream) {
-        let server_nodes = self.server_nodes_manager.get_all_server_nodes();
-        let mut response = String::new();
-        response.push_str(format!("200\n{}\n", server_nodes.len()).as_str());
-        for server_node in server_nodes {
-            // format: ipaddr,num_vgpus
-            response.push_str(&format!("{},{}\n", server_node.ipaddr, server_node.gpus.len()));
-
-            for gpu in server_node.gpus.iter() {
-                // format: gpuid,name,memory,allocated_memory,compute_units,allocated_compute_units
-                let gpu = gpu.read().unwrap();
-                response.push_str(&format!("{},{},{},{},{},{}\n",
-                    gpu.gpu_id,
-                    gpu.name,
-                    gpu.memory,
-                    gpu.allocated_memory,
-                    gpu.compute_units,
-                    gpu.allocated_compute_units
-                ));
-            }
-        }
-        let _ = StreamUtils::write_all(&mut stream, response);
-    }
-
-    fn list_virt_servers(&self, mut stream: UnixStream) {
-        let mut response = String::new();
-        let serv_nodes = self.server_nodes_manager.get_all_server_nodes();
-        for serv_node in serv_nodes {
-            for virt_server in serv_node.virt_servers.iter() {
-                // format: ipaddr,rpc_id,gpu_id,compute_units,memory
-                let virt_server = virt_server.read().unwrap();
-                response.push_str(&format!("{},{},{},{},{}\n",
-                    virt_server.ipaddr,
-                    virt_server.rpc_id,
-                    virt_server.gpu.read().unwrap().gpu_id,
-                    virt_server.compute_units,
-                    virt_server.memory,
-                ));
-            }
-        }
-        response.insert_str(0, format!("200\n{}\n", response.lines().count()).as_str());
-        let _ = StreamUtils::write_all(&mut stream, response);
-    }
-
-    fn change_resources(&self, mut stream: UnixStream, mut reader: BufReader<UnixStream>, change_for: ChangeConfigFor) {
-
-        log::info!("Received change resource request");
-
-        let buffer = match StreamUtils::read_response(&mut reader, 1) {
-            Ok(buffer) => buffer,
-            Err(e) => {
-                log::error!("Error reading buffer: {}", e);
-                return;
-            }
-        };
-        let parts: Vec<&str> = buffer[0].split(',').collect();
-        if (change_for != ChangeConfigFor::Both && parts.len() != 2) || (change_for == ChangeConfigFor::Both && parts.len() != 3 ){
-            log::error!("Invalid arguments for change resource command {:?} {:?}", change_for, parts);
-            let _ = StreamUtils::write_all(&mut stream, "400\nInvalid arguments\n".to_string());
-            return;
-        }
-        let ipaddr = parts[0];
-        let new_resource = parts[1].parse::<u64>().unwrap();
-
-        log::info!("Changing resource for VM: {}, new resource: {} for {:?}", ipaddr, new_resource, change_for);
-
-        let client = self.client_mgr.get_client(ipaddr);
-        if client.is_none() {
-            log::error!("Client VM {} not found", ipaddr);
-            let _ = StreamUtils::write_all(&mut stream, "500\nVM not found\n".to_string());
-            return;
-        }
-
-        let client = client.unwrap();
-        
-        if client.virt_server.is_none() {
-            log::error!("VM {} is not running on any server node", ipaddr);
-            let _ = StreamUtils::write_all(&mut stream, "500\nVM is not running on any server node\n".to_string());
-            return;
-        }
-
-        let (virt_server_ip, virt_server_rpc_id, cur_compute, cur_mem) = {
-            let virt_server = client.virt_server.as_ref().unwrap().read().unwrap();
-            (virt_server.ipaddr.clone(), virt_server.rpc_id, virt_server.compute_units, virt_server.memory)
-        };
-
-        let ret = match change_for {
-            ChangeConfigFor::SmCores => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, cur_mem),
-            ChangeConfigFor::Memory => self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, cur_compute, new_resource),
-            ChangeConfigFor::Both => {
-                let mem_new = parts[2].parse::<u64>().unwrap();
-                self.server_nodes_manager.change_resource_configurations(&virt_server_ip, virt_server_rpc_id, new_resource as u32, mem_new)
-            }
-        };
-
-        if ret.is_ok() {
-            log::info!("Resource updated successfully");
-            let _ = StreamUtils::write_all(&mut stream, "200\nResource updated successfully\n".to_string());
-        }
-        else {
-            log::error!("Error updating resource: {:?}", ret);
-            let _ = StreamUtils::write_all(&mut stream, format!("500\n{}\n", ret.unwrap_err()));
-        }
-
-    }
-    */
-    
 }

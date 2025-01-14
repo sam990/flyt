@@ -4,6 +4,7 @@ use crate::common::types::StreamEnds;
 use crate::servernode_handler::ServerNodesManager;
 use crate::common::api_commands::FlytApiCommand;
 use crate::common::utils::StreamUtils;
+use crate::common::server_metrics::{ServerMetricsInfo, ClientMetricsInfo};
 
 
 use std::collections::HashMap;
@@ -22,6 +23,10 @@ pub struct FlytClientNode {
     pub virt_server: Option<Arc<RwLock<VirtServer>>>,
     pub is_migrating: RwLock<bool>,
     pub is_active: RwLock<bool>,
+    pub compute_requested: u32,
+    pub memory_requested: u64,
+    pub server_metrics: Vec<ServerMetricsInfo>,
+    pub client_metrics: Vec<ClientMetricsInfo>,
 }
 
 impl Clone for FlytClientNode {
@@ -34,6 +39,10 @@ impl Clone for FlytClientNode {
             virt_server: self.virt_server.clone(),
             is_migrating: RwLock::new(false),
             is_active: RwLock::new(*self.is_active.read().unwrap()),
+            compute_requested: self.compute_requested,
+            memory_requested: self.memory_requested,
+            server_metrics: self.server_metrics.clone(),
+            client_metrics: self.client_metrics.clone(),
         }
     }
 }
@@ -491,6 +500,11 @@ impl<'a> FlytClientManager<'a> {
                             }
                         }
                     };
+                    let mut vmr = self.server_nodes_manager.vm_resource_getter.get_vm_required_resources(&client_ip).unwrap();
+                    if sm_core > 0 {
+                        vmr.compute_units = sm_core as u32;
+                    }
+
                     log::info!("after allocating vm resources new client {},{}", client_ip, client_id);
                     let client = FlytClientNode {
                             ipaddr: client_ip.clone(),
@@ -500,6 +514,10 @@ impl<'a> FlytClientManager<'a> {
                             virt_server: Some(virt_server.clone()),
                             is_migrating: RwLock::new(false),
                             is_active: RwLock::new(true),
+                            compute_requested: vmr.compute_units,
+                            memory_requested: vmr.memory,
+                            server_metrics: Vec::new(),
+                            client_metrics: Vec::new(),
                     };
                     let client_stream_clone = client.stream.clone();
                     let mut client_stream_clone_writer = client_stream_clone.write().unwrap();
