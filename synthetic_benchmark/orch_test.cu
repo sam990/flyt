@@ -25,6 +25,7 @@
 
 std::string SERVER_IP;
 #define SERVER_PORT 32578      // The same port as in the Rust server
+int client_id = -1;
 
 
 #define CHECK_CUDA(call) {                                                   \
@@ -53,7 +54,7 @@ std::string get_server_ip(const std::string& config_path) {
     }
 }
 
-int send_msg(unsigned char message[1]) {
+int send_msg(unsigned char message[2]) {
     struct sockaddr_in server_addr;
 
     // Create socket
@@ -81,10 +82,10 @@ int send_msg(unsigned char message[1]) {
         return EXIT_FAILURE;
     }
 
-    std::cout << "Sending msg "<< (int)message[0] << " to the server!\n";
+    std::cout << "Sending msg "<< (int)message[0] << ", " << (int)message[1] <<" to the server!\n";
 
     // Send a single byte to the server
-    ssize_t bytes_sent = send(sock, message, sizeof(message[0]), 0);
+    ssize_t bytes_sent = send(sock, message, sizeof(message[0])*2, 0);
     if (bytes_sent < 0) {
         std::cerr << "Send failed\n";
         close(sock);
@@ -108,16 +109,17 @@ int send_msg(unsigned char message[1]) {
     return 0;
 }
 
-int get_input(int *grid_size, int *block_size, int *cmd) {
+int get_input(int *grid_size, int *block_size, int *cmd, unsigned char *args) {
     std::cout << "\tPlease select an option:\n";
     std::cout << "\t\t1. Increase SM cores by 8\n";
     std::cout << "\t\t2. Decrease SM cores by 8\n";
-    std::cout << "\t\t3. Horizontal scale\n";
+    std::cout << "\t\t3. Enable Horizontal scale\n";
     std::cout << "\t\t4. Migrate SMs\n";
     std::cout << "\t\t5. Change grid and block size\n";
     std::cout << "\t\t6. Continue kernel execution based on previous specs\n";
     std::cout << "\t\t7. Exit application\n";
     std::cout << "\t\t8. Get current reserved SMs for this app\n";
+    std::cout << "\t\t9. Disable Horizontal scale\n";
     std::cout << "\tEnter your choice (1-8): ";
 
     std::cin >> *cmd;
@@ -126,7 +128,7 @@ int get_input(int *grid_size, int *block_size, int *cmd) {
     //*block_size = BLOCK_SIZE;
 
     // Handle invalid input
-    if (std::cin.fail() || *cmd < 1 || *cmd > 8) {
+    if (std::cin.fail() || *cmd < 1 || *cmd > 9) {
         std::cout << "Invalid selection. Please enter a number between 1 and 5.\n";
         std::cin.clear(); // Clear the error flag
         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Discard invalid input
@@ -135,17 +137,12 @@ int get_input(int *grid_size, int *block_size, int *cmd) {
     }
 
     switch (*cmd) {
-        case 1:
-            std::cout << "Increasing SM cores by 8.\n";
-            return 0;
-        case 2:
-            std::cout << "Decreasing SM cores by 8.\n";
-            return 0;
-        case 3:
-            std::cout << "Performing horizontal scaling.\n";
-            return 0;
-        case 4:
-            std::cout << "Migrating SMs.\n";
+        case 1: // Increase SM cores
+        case 2: // Decrease SM cores
+        case 3: // Enable horizontal scaling
+        case 9: // Disable horizontal scaling
+        case 4: // Migrate application
+	    *args = client_id;
             return 0;
         case 5:
             std::cout << "Enter new grid size ( 1 - " << GRID_SIZE << "): ";
@@ -164,15 +161,12 @@ int get_input(int *grid_size, int *block_size, int *cmd) {
 	    *cmd = 6;
             return 0;
 
-        case 6:
-            std::cout << "Continuing kernel execution with previous settings.\n";
+        case 6: // Execute kernel
 	    *cmd = 6;
             return 0;
-        case 7:
-            std::cout << "Performing horizontal scaling.\n";
+        case 7: // Exit
             return -1;
-        case 8:
-            std::cout << "Getting SM affinity .\n";
+        case 8: // Get SM cores
             return 0;
 	default:
 	    break;
@@ -271,33 +265,55 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
         CHECK_CUDA(cudaEventCreate(&stopEvent));
 
     int grid_size = GRID_SIZE, block_size = BLOCK_SIZE, cmd = -1;
+    unsigned char args;
     //file << "Thread id "<< pthread_self() << " flag " << flag << std::endl;
     while (true) {
 	std::chrono::time_point<std::chrono::high_resolution_clock> start;
 
-	if (get_input(&grid_size, &block_size, &cmd) == 0) {
+	if (get_input(&grid_size, &block_size, &cmd, &args) == 0) {
             std::cout << "Command selected: " << cmd << "\n";
 	    start = std::chrono::high_resolution_clock::now();
+	    unsigned char message[2];
             switch (cmd ) {
 		    case 1: // Incrase SM cores
 			    {
-			        unsigned char message[1] = {1u};
+            			std::cout << "Increasing SM cores by 8.\n";
+			        message[0] = {1u};
+			        message[1] = args;
 			        send_msg(message);
 			    }
 			    break;
-		    case 2: // Incrase SM cores
+		    case 2: // Decrease SM cores
 			    {
-			        unsigned char message[1] = {3u};
+            			std::cout << "Decreasing SM cores by 8.\n";
+			        message[0] = {3u};
+			        message[1] = args;
 			        send_msg(message);
 			    }
 			    break;
 		    case 3: // Horizontal scale
-			    std::cout << "Launch any application like metics_bench in a new terminal and press any key\n";
-    			    std::cin >> cmd;
+			    {
+            			std::cout << "Enable Horizontal scaling.\n";
+			        message[0] = {4u};
+			        message[1] = 1;
+			        send_msg(message);
+			    }
+			    std::cout << "Any new application would now be horizontaly scaled.\n";
+			    break;
+		    case 9: // Disable Horizontal scale
+			    {
+            			std::cout << "Disable Horizontal scaling.\n";
+			        message[0] = {4u};
+			        message[1] = '0';
+			        send_msg(message);
+			    }
+			    std::cout << "Any new application would now be on grouped VM.\n";
 			    break;
 		    case 4: // migrate
 			    {
-			        unsigned char message[1] = {2u};
+            			std::cout << "Migrating SMs.\n";
+			        message[0] = {2u};
+			        message[1] = args;
 			        send_msg(message);
 			    }
 			    break;
@@ -341,6 +357,8 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    std::cout << "Enter application client-id: ";
+    std::cin >> client_id;
     // Launch kernel functions in multiple threads with separate CUDA streams
     kernelLaunchFunction( NUM_LAUNCHES, LAUNCH_TIME_THRESHOLD);
 

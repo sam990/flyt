@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
                    durationMs.count(), smCount, actual_sms_used, name);
 
 	    // 50% of observations need to be higher or greater..)
-	    logger->writelog(name, (int)actual_sms_used, (int)smCount, (int)smCount, (int)num_observations);
+	    logger->writeLatencyLog((int)actual_sms_used, (int)smCount, (int)smCount);
 
 	    // Ensure that the loop completes every 500 ms (including kernel execution)
             int remainingTimeMs = printIntervalMs - static_cast<int>(durationMs.count());

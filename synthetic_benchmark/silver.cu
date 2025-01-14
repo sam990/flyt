@@ -6,13 +6,11 @@
 #include <vector>
 #include "logger.h"
 
-#define GRID_SIZE 30
-#define GRID_HIGH 40
-#define GRID_LOW 10
+#define GRID_SIZE 32
 #define BLOCK_SIZE 192
 #define ITERATIONS 10000
 #define NUM_THREADS 1
-#define NUM_LAUNCHES 40
+#define NUM_LAUNCHES 1
 #define LAUNCH_TIME_THRESHOLD 10.0f // Time threshold in milliseconds
 
 #define CHECK_CUDA(call) {                                                   \
@@ -40,8 +38,6 @@ __global__ void workload_kernel(long *data, int size) {
         }
     }
 
-    if(idx >= size)
-	    idx = size -1;
     data[idx] += 2 * i;
     // d_a[idx] += i + d_b[idx];
 }
@@ -51,7 +47,7 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
     cudaEvent_t startEvent, stopEvent;
     cudaError_t err;
 
-    FlytLogger *logger = new FlytLogger(pthread_self());
+    //FlytLogger *logger = new FlytLogger(pthread_self());
 
     // Allocate memory for device arrays
     long *d_a, *d_b, *d_c;
@@ -91,18 +87,22 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
 	auto start = std::chrono::high_resolution_clock::now();
 
         // Launch the kernel
-        workload_kernel<<<GRID_HIGH, BLOCK_SIZE, 0, stream>>>(d_a, GRID_SIZE * BLOCK_SIZE);
+        workload_kernel<<<GRID_SIZE, BLOCK_SIZE, 0, stream>>>(d_a, launchCount);
 
         err = cudaGetLastError();
         if (err != cudaSuccess) {
             std::cerr << "CUDA add Error: " << cudaGetErrorString(err) << std::endl;
-            return ;
+	    //cudaStreamDestroy(stream);
+	    //cudaStreamCreate(&stream);
+            //return ;
         }
         cudaStreamSynchronize(stream); // Ensure the kernel launch is completed
         err = cudaGetLastError();
         if (err != cudaSuccess) {
             std::cerr << "CUDA sync Error: " << cudaGetErrorString(err) << std::endl;
-            return ;
+	    //cudaStreamDestroy(stream);
+	    //cudaStreamCreate(&stream);
+            //return ;
         }
 
 	auto end = std::chrono::high_resolution_clock::now();
@@ -118,54 +118,8 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
 
 	elapsedTime = (float) (1000 * diff.count());
 
-	logger->writeLatencyLog(elapsedTime, 810, 780);
+	//logger->writeLatencyLog(elapsedTime, 810, 780);
 	std::cout << "elapsedTime " << elapsedTime <<std::endl;
-	std::cout << "systemelapse " << diff.count() <<std::endl;
-
-        // Print the launch time
-        //file << "Kernel launch time: " << elapsedTime << " ms" << " launch count " << launchCount << " thread-id " << pthread_self() << std::endl;
-
-        ++launchCount;
-
-    }
-
-	std::cout << "reducing the time size..." << std::endl;
-	launchCount = 0;
-    while (keepLaunching && launchCount < numLaunches) {
-        // Record start time
-        //CHECK_CUDA(cudaEventRecord(startEvent, stream));
-	auto start = std::chrono::high_resolution_clock::now();
-
-        // Launch the kernel
-        workload_kernel<<<GRID_LOW, BLOCK_SIZE, 0, stream>>>(d_a, GRID_SIZE * BLOCK_SIZE);
-
-        err = cudaGetLastError();
-        if (err != cudaSuccess) {
-            std::cerr << "CUDA add Error: " << cudaGetErrorString(err) << std::endl;
-            return ;
-        }
-        cudaStreamSynchronize(stream); // Ensure the kernel launch is completed
-        err = cudaGetLastError();
-        if (err != cudaSuccess) {
-            std::cerr << "CUDA sync Error: " << cudaGetErrorString(err) << std::endl;
-            return ;
-        }
-
-	auto end = std::chrono::high_resolution_clock::now();
-
-        // Record stop time
-        //CHECK_CUDA(cudaEventRecord(stopEvent, stream));
-
-        // Calculate elapsed time
-        float elapsedTime;
-        //cudaEventElapsedTime(&elapsedTime, startEvent, stopEvent);
-
-	std::chrono::duration<double> diff = end - start;
-
-	elapsedTime = (float) (1000 * diff.count());
-
-	logger->writeLatencyLog(elapsedTime, 3810, 3780);
-	std::cout << "elapsedTime higher " << elapsedTime <<std::endl;
 	std::cout << "systemelapse " << diff.count() <<std::endl;
 
         // Print the launch time

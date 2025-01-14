@@ -10,7 +10,7 @@
 #define BLOCK_SIZE 192
 #define ITERATIONS 10000
 #define NUM_THREADS 1
-#define NUM_LAUNCHES 40
+#define NUM_LAUNCHES 1
 #define LAUNCH_TIME_THRESHOLD 10.0f // Time threshold in milliseconds
 
 #define CHECK_CUDA(call) {                                                   \
@@ -118,7 +118,7 @@ void kernelLaunchFunction(int numLaunches, float launchTimeThreshold) {
 
 	elapsedTime = (float) (1000 * diff.count());
 
-	//logger->writelog("add", elapsedTime, 810, 780, 3);
+	//logger->writeLatencyLog(elapsedTime, 810, 780);
 	std::cout << "elapsedTime " << elapsedTime <<std::endl;
 	std::cout << "systemelapse " << diff.count() <<std::endl;
 
