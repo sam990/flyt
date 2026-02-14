@@ -68,7 +68,6 @@ You can launch the applications normally as any other CUDA application. The fram
 `flytctl` is a command line tool to interact with the Flyt framework. It should be run on the cluster manager machine. 
 Use `flytctl --help` to get more information about the commands.
 
-# Contributing
 
 ## File structue
 * **control-managers:** The control managers for the Flyt framework
@@ -79,4 +78,5 @@ Use `flytctl --help` to get more information about the commands.
 
 
 ## Acknowledgments
-This work was done in Synerg Lab at IIT Bombay with support from IBM Research, India.
+- This work was done in Synerg Lab at IIT Bombay with support from IBM Research, India.
+- The base CUDA API virtualization layer is a fork of cricket: https://github.com/RWTH-ACS/cricket. We thank the authors of Cricket for their work and for making it open source.

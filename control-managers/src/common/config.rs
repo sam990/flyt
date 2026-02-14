@@ -1,3 +1,4 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
 
 pub const CLMGR_CONFIG_PATH: &str = "../configs/client-mgr.toml";
 pub const RMGR_CONFIG_PATH: &str = "../configs/cluster-mgr.toml";

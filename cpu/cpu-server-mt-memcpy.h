@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _CPU_SERVER_MT_MEMCPY_H_
 #define _CPU_SERVER_MT_MEMCPY_H_
 

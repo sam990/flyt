@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _LIST_H_
 #define _LIST_H_
 #include <unistd.h>

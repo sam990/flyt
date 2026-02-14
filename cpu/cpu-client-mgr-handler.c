@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>

@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #include "cpu-server-client-mgr.h"
 #include "resource-map.h"
 #include "cpu_rpc_prot.h"

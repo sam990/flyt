@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use mongodb::{bson::doc, options::ClientOptions, Client, Collection};
 use serde::{Deserialize, Serialize};
 use tokio;

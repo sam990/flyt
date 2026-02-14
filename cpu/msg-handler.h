@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _MSG_HANDLER_H_
 #define _MSG_HANDLER_H_
 

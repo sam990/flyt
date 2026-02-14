@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::sync::RwLock;
 use std::sync::Arc;
 use std::net::TcpStream;

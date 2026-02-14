@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _MT_MEMCPY_H_
 #define _MT_MEMCPY_H_
 

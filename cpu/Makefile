@@ -1,3 +1,5 @@
+# Modifications Copyright (c) 2024-2026 SynerG Lab, IITB
+
 #Standalone RPC Server
 SERVER = cricket-rpc-server
 SERVER_LIB = cricket-server.so

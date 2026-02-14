@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 SynerG Lab, IITB
+
 import PIL 
 # from keras.applications.imagenet_utils import decode_predictions 
 import matplotlib.pyplot as plt 

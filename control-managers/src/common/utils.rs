@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::fs::File;
 use std::io::{BufRead, Read, Write};
 use std::time::Duration;

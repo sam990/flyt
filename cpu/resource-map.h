@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef __FLYT_CPU_RESOURCE_MAP_H__
 #define __FLYT_CPU_RESOURCE_MAP_H__
 

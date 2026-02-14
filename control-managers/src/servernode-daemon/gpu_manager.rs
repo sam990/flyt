@@ -1,3 +1,4 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
 
 use nvml_wrapper::{enum_wrappers::device::Clock, Nvml};
 

@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 #[non_exhaustive]
 pub struct FlytApiCommand;
 

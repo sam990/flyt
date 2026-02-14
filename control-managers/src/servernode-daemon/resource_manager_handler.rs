@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::{Arc,RwLock}};
 use crate::{common::api_commands::FlytApiCommand, gpu_manager::GPUManager, virt_server_manager::VirtServerManager, common::utils::StreamUtils};
 

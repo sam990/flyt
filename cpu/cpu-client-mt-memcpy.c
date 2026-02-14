@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #include <stdint.h>
 #include <pthread.h>
 #include <cuda_runtime_api.h>

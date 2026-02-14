@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 SynerG Lab, IITB
+
 from flask import Flask, request, jsonify
 import PIL
 import argparse

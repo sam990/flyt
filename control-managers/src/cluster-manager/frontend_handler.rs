@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::{fs, io::BufReader, os::unix::net::{UnixListener, UnixStream}, path::Path};
 
 use crate::{client_handler::FlytClientManager, common::{api_commands::FrontEndCommand, utils::StreamUtils}, servernode_handler::ServerNodesManager};

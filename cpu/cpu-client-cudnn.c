@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #include <cudnn.h>
 #include <stdint.h>
 #include <stdbool.h>

@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 SynerG Lab, IITB
+
 time_intervals=[]
 gpu_utils=[]
 with open("gpu_util_with_sus_200ms.txt","r") as fd:

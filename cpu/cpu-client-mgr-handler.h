@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef __CD_CPU_CLIENT_MGR_HANDLER_H__
 #define __CD_CPU_CLIENT_MGR_HANDLER_H__
 

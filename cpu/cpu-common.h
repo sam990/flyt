@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _CD_COMMON_H_
 #define _CD_COMMON_H_
 

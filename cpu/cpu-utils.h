@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _CPU_UTILS_H_
 #define _CPU_UTILS_H_
 

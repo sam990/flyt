@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _API_RECODER_H_
 #define _API_RECODER_H_
 

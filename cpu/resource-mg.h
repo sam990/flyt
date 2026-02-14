@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef _RESOURCE_MG_H_
 #define _RESOURCE_MG_H_
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 SynerG Lab, IITB
+
 import PIL 
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import load_img

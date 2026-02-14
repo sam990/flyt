@@ -1,3 +1,5 @@
 #!/bin/bash
+# Copyright (c) 2024-2026 SynerG Lab, IITB
+
 export CUDA_MPS_PINNED_DEVICE_MEM_LIMIT=$1
 export CUDA_MPS_ACTIVE_THREAD_PERCENTAGE=$2

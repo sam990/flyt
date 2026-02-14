@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::{collections::HashMap, fs::File, path::Path, process::{Child, Command}, sync::{Arc, Mutex}, time::Duration};
 use std::io;
 use std::ffi::CString;

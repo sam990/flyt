@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 typedef opaque mem_data<>;
 
 typedef unsigned hyper size_t;

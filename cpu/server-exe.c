@@ -1,3 +1,5 @@
+/* Modifications Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #include "cpu_rpc_prot.h"
 #include "cpu-server.h"
 #include "log.h"

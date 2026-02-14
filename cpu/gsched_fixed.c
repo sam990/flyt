@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #include "gsched.h"
 // #include <pthread.h>
 

@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::{io::{BufReader, Read, Write}, time::Duration};
 
 

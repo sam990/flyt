@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (c) 2024-2026 SynerG Lab, IITB
+
 
 # This script is used to configure the build environment for PyTorch 
 # to work with Flyt

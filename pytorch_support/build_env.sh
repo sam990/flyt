@@ -1,3 +1,5 @@
+# Copyright (c) 2024-2026 SynerG Lab, IITB
+
 export CUDA_NVCC_FLAGS="-cudart=shared "
 export PYTORCH_CUDA_ALLOC_CONF="backend:native"
 export TORCH_CUDA_ARCH_LIST="8.6"

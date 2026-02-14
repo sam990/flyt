@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 // custom_clnt_call.c
 #include <pthread.h>
 #include <rpc/rpc.h>

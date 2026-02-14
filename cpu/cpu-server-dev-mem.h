@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef __CPU_SERVER_DEV_MEM
 #define __CPU_SERVER_DEV_MEM
 

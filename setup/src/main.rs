@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use mongodb::{options::{ClientOptions, ServerAddress, Credential}, Client, Collection, bson::{self, doc, Document, to_document}, error::Result};
 use serde::{Deserialize, Serialize};
 use anyhow::Result as AnyResult; // Importing Result alias from anyhow crate

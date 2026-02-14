@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::{io::{self, BufRead, BufReader, Write}, net::TcpStream};
 use byteorder::{BigEndian, ByteOrder};
 use serde::{Serialize, Deserialize};

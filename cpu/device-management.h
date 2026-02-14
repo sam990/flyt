@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 SynerG Lab, IITB */
+
 #ifndef __FLYT_DEVICE_MANAGEMENT_H__
 #define __FLYT_DEVICE_MANAGEMENT_H__
 

@@ -1,3 +1,5 @@
+// Copyright (c) 2024-2026 SynerG Lab, IITB
+
 use std::{io::{BufRead, BufReader, Write}, net::TcpStream, sync::RwLock, thread};
 use crate::common::utils::StreamUtils;
 use crate::common::api_commands::FlytApiCommand;
